@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenClaw Admin Dashboard</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #1a1a2e;
+        color: #fff;
+        font-family: "Courier New", Courier, monospace;
+      }
+
+      h1 {
+        margin: 0 0 20px;
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .panel {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .panel h2 {
+        margin: 0 0 10px;
+        font-size: 1.1rem;
+      }
+
+      .row {
+        margin: 4px 0;
+      }
+
+      .muted {
+        color: rgba(255, 255, 255, 0.75);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Admin Dashboard</h1>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>Server Health</h2>
+        <div id="health-status" class="row">status: loading...</div>
+        <div id="health-uptime" class="row">uptime: loading...</div>
+        <div id="health-timestamp" class="row">timestamp: loading...</div>
+      </section>
+
+      <section class="panel">
+        <h2>Metrics</h2>
+        <div id="metrics-connectedAgents" class="row">connectedAgents: loading...</div>
+        <div id="metrics-activeRooms" class="row">activeRooms: loading...</div>
+        <div id="metrics-totalMessages" class="row">totalMessages: loading...</div>
+        <div id="metrics-totalConnections" class="row">totalConnections: loading...</div>
+      </section>
+
+      <section class="panel">
+        <h2>Room List</h2>
+        <div class="muted">Coming soon</div>
+      </section>
+    </div>
+
+    <script>
+      const healthStatus = document.getElementById('health-status');
+      const healthUptime = document.getElementById('health-uptime');
+      const healthTimestamp = document.getElementById('health-timestamp');
+
+      const metricsConnectedAgents = document.getElementById('metrics-connectedAgents');
+      const metricsActiveRooms = document.getElementById('metrics-activeRooms');
+      const metricsTotalMessages = document.getElementById('metrics-totalMessages');
+      const metricsTotalConnections = document.getElementById('metrics-totalConnections');
+
+      async function refreshHealth() {
+        try {
+          const response = await fetch('/health');
+          if (!response.ok) {
+            throw new Error('Health request failed: ' + response.status);
+          }
+
+          const data = await response.json();
+          healthStatus.textContent = 'status: ' + data.status;
+          healthUptime.textContent = 'uptime: ' + data.uptime;
+          healthTimestamp.textContent = 'timestamp: ' + data.timestamp;
+        } catch (error) {
+          healthStatus.textContent = 'status: error';
+          healthUptime.textContent = 'uptime: unavailable';
+          healthTimestamp.textContent = 'timestamp: unavailable';
+        }
+      }
+
+      async function refreshMetrics() {
+        try {
+          const response = await fetch('/metrics');
+          if (!response.ok) {
+            throw new Error('Metrics request failed: ' + response.status);
+          }
+
+          const data = await response.json();
+          metricsConnectedAgents.textContent = 'connectedAgents: ' + (data.connectedAgents ?? 'n/a');
+          metricsActiveRooms.textContent = 'activeRooms: ' + (data.activeRooms ?? 'n/a');
+          metricsTotalMessages.textContent = 'totalMessages: ' + (data.totalMessages ?? 'n/a');
+          metricsTotalConnections.textContent = 'totalConnections: ' + (data.totalConnections ?? 'n/a');
+        } catch (error) {
+          metricsConnectedAgents.textContent = 'connectedAgents: unavailable';
+          metricsActiveRooms.textContent = 'activeRooms: unavailable';
+          metricsTotalMessages.textContent = 'totalMessages: unavailable';
+          metricsTotalConnections.textContent = 'totalConnections: unavailable';
+        }
+      }
+
+      async function refreshAll() {
+        await Promise.all([refreshHealth(), refreshMetrics()]);
+      }
+
+      refreshAll();
+      setInterval(refreshAll, 5000);
+    </script>
+  </body>
+</html>

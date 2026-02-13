@@ -1,4 +1,6 @@
 import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import express from 'express';
 import authRouter from './api/auth.routes.js';
 import { config } from './config.js';
@@ -25,6 +27,12 @@ app.get('/health', (_req, res) => {
 
 app.get('/metrics', (_req, res) => {
   res.json(getMetrics());
+});
+
+app.get('/admin', (_req, res) => {
+  res
+    .type('html')
+    .send(readFileSync(join(import.meta.dirname, '..', 'client', 'admin.html'), 'utf8'));
 });
 
 const server = createServer(app);
