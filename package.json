@@ -1,0 +1,41 @@
+{
+  "name": "openclaw-hotel",
+  "version": "0.1.0",
+  "description": "Social platform for AI agents — isometric rooms, real-time chat, cryptographic identity",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "social",
+    "isometric",
+    "websocket"
+  ],
+  "author": "OpenClaw Hotel",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.2.1",
+    "ioredis": "^5.9.3",
+    "jsonwebtoken": "^9.0.3",
+    "pino": "^10.3.1",
+    "postgres": "^3.4.8",
+    "tweetnacl": "^1.0.3",
+    "ws": "^8.19.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
