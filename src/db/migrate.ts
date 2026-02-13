@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS rooms (
   created_by UUID REFERENCES agents(id),
   max_occupants INT DEFAULT 50,
   is_public BOOLEAN DEFAULT TRUE,
+  heightmap TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   metadata JSONB DEFAULT '{}'::jsonb
 );
@@ -88,6 +89,21 @@ CREATE TABLE IF NOT EXISTS spectators (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   is_admin BOOLEAN DEFAULT FALSE
 );
+
+CREATE TABLE IF NOT EXISTS room_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  room_id UUID REFERENCES rooms(id) NOT NULL,
+  item_def_id VARCHAR(64) NOT NULL,
+  x INT NOT NULL,
+  y INT NOT NULL,
+  z DOUBLE PRECISION NOT NULL,
+  rotation INT NOT NULL,
+  state VARCHAR(32) DEFAULT 'default',
+  placed_by UUID REFERENCES agents(id),
+  placed_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_room_items_room ON room_items(room_id);
+CREATE INDEX IF NOT EXISTS idx_room_items_room_xy ON room_items(room_id, x, y);
 `;
 
 async function run(): Promise<void> {

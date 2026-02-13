@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   customType,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -46,10 +47,30 @@ export const rooms = pgTable(
     createdBy: uuid('created_by').references(() => agents.id),
     maxOccupants: integer('max_occupants').default(50),
     isPublic: boolean('is_public').default(true),
+    heightmap: text('heightmap').default(''),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
     metadata: jsonb('metadata').default({}),
   },
   (table) => [index('idx_rooms_slug').on(table.slug), index('idx_rooms_public').on(table.isPublic)],
+);
+
+export const roomItems = pgTable(
+  'room_items',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    roomId: uuid('room_id')
+      .notNull()
+      .references(() => rooms.id),
+    itemDefId: varchar('item_def_id', { length: 64 }).notNull(),
+    x: integer('x').notNull(),
+    y: integer('y').notNull(),
+    z: doublePrecision('z').notNull(),
+    rotation: integer('rotation').notNull(),
+    state: varchar('state', { length: 32 }).default('default'),
+    placedBy: uuid('placed_by').references(() => agents.id),
+    placedAt: timestamp('placed_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => [index('idx_room_items_room').on(table.roomId), index('idx_room_items_room_xy').on(table.roomId, table.x, table.y)],
 );
 
 export const presence = pgTable(
@@ -135,9 +156,16 @@ export const spectators = pgTable('spectators', {
 export const agentsRelations = relations(agents, ({ many }) => ({
   rooms: many(rooms),
   messages: many(messages),
+  placedItems: many(roomItems),
 }));
 
 export const roomsRelations = relations(rooms, ({ one, many }) => ({
   creator: one(agents, { fields: [rooms.createdBy], references: [agents.id] }),
   messages: many(messages),
+  items: many(roomItems),
+}));
+
+export const roomItemsRelations = relations(roomItems, ({ one }) => ({
+  room: one(rooms, { fields: [roomItems.roomId], references: [rooms.id] }),
+  placedByAgent: one(agents, { fields: [roomItems.placedBy], references: [agents.id] }),
 }));
