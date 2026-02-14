@@ -1201,3 +1201,237 @@
     padding-bottom: 200px;
   }
 }
+
+/* === Room Editor Panel === */
+.room-editor-panel {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 900px;
+  max-height: calc(100vh - 120px);
+  background: var(--habbo-light-blue);
+  border: var(--border-width) solid var(--habbo-dark-blue);
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  overflow-y: auto;
+  z-index: 2000;
+}
+
+.room-editor-panel .panel-header {
+  background: var(--habbo-blue);
+  color: var(--habbo-white);
+  padding: var(--spacing-md);
+  border-bottom: var(--border-width) solid var(--habbo-dark-blue);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.room-editor-panel .panel-close {
+  background: transparent;
+  border: none;
+  color: var(--habbo-white);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  line-height: 32px;
+  text-align: center;
+}
+
+.room-editor-panel .panel-close:hover {
+  background: var(--habbo-dark-blue);
+  border-radius: 4px;
+}
+
+#room-editor-content {
+  padding: var(--spacing-md);
+}
+
+.editor-controls {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.editor-controls .control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.editor-controls label {
+  font-size: 12px;
+  color: var(--habbo-dark-gray);
+}
+
+.editor-controls input[type="number"] {
+  padding: 6px 8px;
+  border: 2px solid var(--habbo-dark-blue);
+  border-radius: 4px;
+  font-family: var(--mono-font);
+  font-size: 14px;
+  width: 80px;
+}
+
+.editor-controls button {
+  padding: 8px 16px;
+  margin-top: auto;
+}
+
+.editor-palette {
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.editor-palette h4 {
+  margin: 0 0 var(--spacing-sm) 0;
+  color: var(--habbo-white);
+  font-size: 14px;
+}
+
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.palette-tile {
+  padding: 8px;
+  border: 3px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.palette-tile:hover {
+  border-color: var(--habbo-accent);
+  transform: translateY(-2px);
+}
+
+.palette-tile.selected {
+  border-color: var(--habbo-accent);
+  box-shadow: 0 0 8px var(--habbo-accent);
+}
+
+.palette-tile .tile-label {
+  display: block;
+  font-size: 11px;
+  color: #333;
+  margin-top: 4px;
+  font-weight: bold;
+}
+
+.editor-canvas-wrapper {
+  position: relative;
+  margin-bottom: var(--spacing-md);
+  background: #f5f5f5;
+  border: 2px solid var(--habbo-dark-blue);
+  border-radius: 4px;
+  padding: var(--spacing-sm);
+  overflow: auto;
+  max-height: 500px;
+}
+
+.editor-toolbar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 4px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
+.btn-tool {
+  background: var(--habbo-white);
+  border: 2px solid var(--habbo-dark-blue);
+  border-radius: 4px;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  transition: all 0.2s;
+}
+
+.btn-tool:hover {
+  background: var(--habbo-accent);
+  transform: scale(1.1);
+}
+
+.btn-tool:active {
+  transform: scale(0.95);
+}
+
+#room-editor-canvas {
+  display: block;
+  cursor: crosshair;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+.editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  padding-top: var(--spacing-md);
+  border-top: 2px solid var(--habbo-dark-blue);
+}
+
+.editor-actions button {
+  padding: 10px 24px;
+  font-size: 14px;
+}
+
+/* Mobile adjustments for Room Editor */
+@media (max-width: 768px) {
+  .room-editor-panel {
+    width: 95%;
+    max-height: calc(100vh - 80px);
+  }
+
+  .editor-controls {
+    flex-direction: column;
+  }
+
+  .editor-controls .control-group {
+    width: 100%;
+  }
+
+  .editor-controls input[type="number"] {
+    width: 100%;
+  }
+
+  .palette-grid {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  }
+
+  .editor-canvas-wrapper {
+    max-height: 300px;
+  }
+
+  .editor-toolbar {
+    top: 8px;
+    right: 8px;
+  }
+
+  .btn-tool {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+}

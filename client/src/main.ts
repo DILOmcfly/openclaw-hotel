@@ -12,6 +12,7 @@ import { LoadingScreen } from './LoadingScreen.js';
 import { toastManager } from './ToastManager.js';
 import { VirtualJoystick, type Direction } from './VirtualJoystick.js';
 import { memoryProfiler } from './renderer/MemoryProfiler.js';
+import { RoomEditor } from './RoomEditor.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -87,6 +88,10 @@ async function init() {
   ui.setJoystickEnabled(joystick.isEnabled());
   ui.setJoystickPosition(joystick.getPosition().side);
 
+  // Room Editor
+  const roomEditor = new RoomEditor();
+  let currentRoomOwnerId: string | null = null; // Track if current user owns the room
+
   // WebSocket connection
   const ws = new HotelWSClient();
   let currentRoom = 'lobby';
@@ -113,7 +118,7 @@ async function init() {
     loadRooms();
   };
 
-  ui.onJoinRoom = (roomId: string) => {
+  ui.onJoinRoom = async (roomId: string) => {
     console.log('[Room] Joining:', roomId);
     SoundManager.play('door_open');
     
@@ -142,6 +147,33 @@ async function init() {
     // Load demo inventory and catalog
     loadInventory();
     loadCatalog();
+
+    // Check if current user owns this room
+    try {
+      const token = ui.getToken();
+      if (token) {
+        const response = await fetch(`/api/rooms/${roomId}/layout`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const roomData = await response.json();
+          currentRoomOwnerId = roomData.createdBy;
+          
+          // Show editor button if user is owner
+          if (currentRoomOwnerId === MY_ID) {
+            ui.showRoomEditorButton();
+          } else {
+            ui.hideRoomEditorButton();
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[Room] Failed to fetch room details:', error);
+      ui.hideRoomEditorButton(); // Hide on error
+    }
   };
 
   ui.onCreateRoom = (name: string, size: string) => {
@@ -399,6 +431,58 @@ async function init() {
   ui.onJoystickPositionChange = (position: 'left' | 'right') => {
     joystick.setPosition(position);
     console.log('[Joystick] Position:', position);
+  };
+
+  // Room Editor Event Handlers
+  ui.onRoomEditorToggle = () => {
+    const token = ui.getToken();
+    if (currentRoom && token) {
+      // Load current room layout
+      roomEditor.loadLayout(currentRoom, token);
+      ui.showRoomEditorPanel();
+    }
+  };
+
+  roomEditor.onSave = async (heightmap: string) => {
+    const token = ui.getToken();
+    if (!currentRoom || !token) {
+      toastManager.error('Not connected');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/rooms/${currentRoom}/layout`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ heightmap }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save layout');
+      }
+
+      toastManager.success('Room layout saved!');
+      ui.hideRoomEditorPanel();
+
+      // Reload room to see changes
+      const data = await response.json();
+      if (data.room?.heightmap) {
+        const newHeightmap = parseHeightmap(data.room.heightmap);
+        tileMap = new TileMap(newHeightmap, world);
+        tileMap.render();
+      }
+    } catch (error) {
+      console.error('[RoomEditor] Save failed:', error);
+      toastManager.error(error instanceof Error ? error.message : 'Failed to save layout');
+    }
+  };
+
+  roomEditor.onCancel = () => {
+    ui.hideRoomEditorPanel();
   };
 
   // WebSocket Event Handlers

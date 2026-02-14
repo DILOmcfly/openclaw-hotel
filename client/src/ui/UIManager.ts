@@ -138,6 +138,9 @@ export class UIManager {
             <button class="hud-btn" id="inventory-toggle" title="Inventory">
               <span class="icon">📦</span>
             </button>
+            <button class="hud-btn hidden" id="room-editor-toggle" title="Edit Room">
+              <span class="icon">🏗️</span>
+            </button>
             <button class="hud-btn" id="settings-btn" title="Settings">
               <span class="icon">⚙️</span>
             </button>
@@ -215,6 +218,17 @@ export class UIManager {
                 <option value="right">Right Side</option>
               </select>
             </div>
+          </div>
+        </div>
+
+        <!-- Room Editor Panel -->
+        <div class="room-editor-panel hidden" id="room-editor-panel">
+          <div class="panel-header">
+            <h3>Room Editor</h3>
+            <button class="panel-close" id="room-editor-close">×</button>
+          </div>
+          <div id="room-editor-content">
+            <!-- RoomEditor.ts will populate this -->
           </div>
         </div>
 
@@ -329,6 +343,20 @@ export class UIManager {
     
     settingsClose?.addEventListener('click', () => {
       settingsPanel?.classList.add('hidden');
+    });
+
+    // Room Editor toggle
+    const roomEditorToggle = document.getElementById('room-editor-toggle');
+    const roomEditorPanel = document.getElementById('room-editor-panel');
+    const roomEditorClose = document.getElementById('room-editor-close');
+    
+    roomEditorToggle?.addEventListener('click', () => {
+      roomEditorPanel?.classList.toggle('hidden');
+      this.onRoomEditorToggle?.();
+    });
+    
+    roomEditorClose?.addEventListener('click', () => {
+      roomEditorPanel?.classList.add('hidden');
     });
 
     // Volume controls
@@ -729,6 +757,7 @@ export class UIManager {
   public onFurnitureDragStart?: (itemDefId: string) => void;
   public onJoystickEnabledChange?: (enabled: boolean) => void;
   public onJoystickPositionChange?: (position: 'left' | 'right') => void;
+  public onRoomEditorToggle?: () => void;
 
   public getToken(): string { return this.token; }
   public getUsername(): string { return this.username; }
@@ -745,5 +774,25 @@ export class UIManager {
     if (select) {
       select.value = position;
     }
+  }
+
+  public showRoomEditorButton(): void {
+    const btn = document.getElementById('room-editor-toggle');
+    btn?.classList.remove('hidden');
+  }
+
+  public hideRoomEditorButton(): void {
+    const btn = document.getElementById('room-editor-toggle');
+    btn?.classList.add('hidden');
+  }
+
+  public showRoomEditorPanel(): void {
+    const panel = document.getElementById('room-editor-panel');
+    panel?.classList.remove('hidden');
+  }
+
+  public hideRoomEditorPanel(): void {
+    const panel = document.getElementById('room-editor-panel');
+    panel?.classList.add('hidden');
   }
 }
