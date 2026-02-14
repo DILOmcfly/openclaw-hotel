@@ -477,6 +477,17 @@ export type BotDespawnedMsg = {
   botId: string
 }
 
+// Appearance server messages
+export type AgentAppearanceMsg = {
+  type: 'agent.appearance'
+  agentId: string
+  appearance: {
+    skinColor: string
+    outfit: string
+    accessory: string
+  }
+}
+
 export type ServerMessage =
   | ConnectedMsg
   | RoomJoinedMsg
@@ -509,6 +520,7 @@ export type ServerMessage =
   | GameEndedMsg
   | BotSpawnedMsg
   | BotDespawnedMsg
+  | AgentAppearanceMsg
 
 export function parseClientMessage(data: string): ClientMessage {
   const parsed = JSON.parse(data)

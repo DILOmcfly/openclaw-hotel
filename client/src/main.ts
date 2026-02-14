@@ -17,6 +17,7 @@ import { TradeWindow } from './ui/TradeWindow.js';
 import { WhisperWindow } from './ui/WhisperWindow.js';
 import { FriendsPanel } from './ui/FriendsPanel.js';
 import { ProfilePanel } from './ui/ProfilePanel.js';
+import { AvatarCustomizer } from './ui/AvatarCustomizer.js';
 import { NotificationCenter } from './ui/NotificationCenter.js';
 import { Navigator } from './ui/Navigator.js';
 import { GamePanel } from './ui/GamePanel.js';
@@ -385,6 +386,22 @@ async function init() {
   ui.onShopToggle = () => {
     console.log('[UI] Toggling shop panel');
     shopPanel.show();
+  };
+
+  // Avatar Customizer (initialized after login)
+  let avatarCustomizer: AvatarCustomizer | null = null;
+
+  ui.onAvatarCustomizerToggle = () => {
+    console.log('[UI] Toggling avatar customizer');
+    if (!avatarCustomizer) {
+      avatarCustomizer = new AvatarCustomizer(ui.getToken());
+      avatarCustomizer.onSave = (appearance) => {
+        console.log('[AvatarCustomizer] Saved:', appearance);
+        toastManager.show('Avatar customized!', 'success');
+        // The appearance change will be broadcast via WebSocket automatically
+      };
+    }
+    avatarCustomizer.show();
   };
 
   // Leaderboard Panel event handlers

@@ -147,6 +147,9 @@ export class UIManager {
             <button class="hud-btn" id="profile-toggle" title="Profile">
               <span class="icon">👤</span>
             </button>
+            <button class="hud-btn" id="avatar-customizer-toggle" title="Customize Avatar">
+              <span class="icon">👕</span>
+            </button>
             <button class="hud-btn" id="friends-toggle" title="Friends">
               <span class="icon">👥</span>
             </button>
@@ -353,6 +356,12 @@ export class UIManager {
     const profileToggle = document.getElementById('profile-toggle');
     profileToggle?.addEventListener('click', () => {
       this.onProfileToggle?.();
+    });
+
+    // Avatar Customizer toggle
+    const avatarCustomizerToggle = document.getElementById('avatar-customizer-toggle');
+    avatarCustomizerToggle?.addEventListener('click', () => {
+      this.onAvatarCustomizerToggle?.();
     });
 
     // Friends toggle
@@ -820,6 +829,7 @@ export class UIManager {
   public onRoomEditorToggle?: () => void;
   public onFriendsToggle?: () => void;
   public onProfileToggle?: () => void;
+  public onAvatarCustomizerToggle?: () => void;
   public onGamesToggle?: () => void;
   public onLeaderboardToggle?: () => void;
   public onShopToggle?: () => void;
