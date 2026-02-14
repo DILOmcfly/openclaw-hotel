@@ -239,6 +239,260 @@
       .readonly-notice.hidden {
         display: none;
       }
+
+      /* Spectator Chat Sidebar */
+      #chatSidebar {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 320px;
+        height: 100vh;
+        background: rgba(26, 26, 46, 0.95);
+        backdrop-filter: blur(10px);
+        border-left: 2px solid rgba(97, 218, 251, 0.2);
+        display: flex;
+        flex-direction: column;
+        z-index: 99;
+        transition: transform 0.3s ease;
+      }
+
+      #chatSidebar.hidden {
+        transform: translateX(100%);
+      }
+
+      .chat-header {
+        padding: 15px;
+        background: rgba(0, 0, 0, 0.5);
+        border-bottom: 1px solid rgba(97, 218, 251, 0.2);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .chat-header h3 {
+        font-size: 16px;
+        color: #61dafb;
+        margin: 0;
+      }
+
+      .chat-toggle-btn {
+        background: none;
+        border: none;
+        color: #aaa;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 5px;
+      }
+
+      .chat-toggle-btn:hover {
+        color: #fff;
+      }
+
+      .chat-username-section {
+        padding: 15px;
+        background: rgba(0, 0, 0, 0.3);
+        border-bottom: 1px solid rgba(97, 218, 251, 0.1);
+      }
+
+      .chat-username-section label {
+        display: block;
+        font-size: 12px;
+        color: #888;
+        margin-bottom: 5px;
+        text-transform: uppercase;
+      }
+
+      .chat-username-input {
+        width: 100%;
+        padding: 8px;
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(97, 218, 251, 0.3);
+        border-radius: 4px;
+        color: #fff;
+        font-size: 14px;
+      }
+
+      .chat-username-input:focus {
+        outline: none;
+        border-color: #61dafb;
+      }
+
+      .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .chat-message {
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 8px;
+        border-left: 3px solid rgba(97, 218, 251, 0.5);
+      }
+
+      .chat-message.own {
+        background: rgba(97, 218, 251, 0.1);
+        border-left-color: #61dafb;
+      }
+
+      .chat-message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 4px;
+      }
+
+      .chat-message-username {
+        font-weight: bold;
+        color: #61dafb;
+        font-size: 13px;
+      }
+
+      .chat-message.own .chat-message-username {
+        color: #4caf50;
+      }
+
+      .chat-message-time {
+        font-size: 11px;
+        color: #666;
+      }
+
+      .chat-message-text {
+        font-size: 14px;
+        color: #ddd;
+        word-wrap: break-word;
+      }
+
+      .chat-input-section {
+        padding: 15px;
+        background: rgba(0, 0, 0, 0.5);
+        border-top: 1px solid rgba(97, 218, 251, 0.2);
+      }
+
+      .chat-input-wrapper {
+        display: flex;
+        gap: 8px;
+      }
+
+      .chat-input {
+        flex: 1;
+        padding: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(97, 218, 251, 0.3);
+        border-radius: 6px;
+        color: #fff;
+        font-size: 14px;
+      }
+
+      .chat-input:focus {
+        outline: none;
+        border-color: #61dafb;
+      }
+
+      .chat-send-btn {
+        padding: 10px 20px;
+        background: #61dafb;
+        border: none;
+        border-radius: 6px;
+        color: #1a1a2e;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+
+      .chat-send-btn:hover {
+        background: #4dabdb;
+      }
+
+      .chat-send-btn:disabled {
+        background: #333;
+        color: #666;
+        cursor: not-allowed;
+      }
+
+      .chat-rate-limit-notice {
+        font-size: 12px;
+        color: #ff6b6b;
+        margin-top: 5px;
+        display: none;
+      }
+
+      .chat-rate-limit-notice.visible {
+        display: block;
+      }
+
+      /* Floating chat toggle button (when sidebar is hidden) */
+      #chatToggleFloat {
+        position: fixed;
+        top: 80px;
+        right: 10px;
+        background: rgba(97, 218, 251, 0.9);
+        color: #1a1a2e;
+        border: none;
+        padding: 12px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: bold;
+        z-index: 98;
+        transition: background 0.2s;
+        display: none;
+      }
+
+      #chatToggleFloat.visible {
+        display: block;
+      }
+
+      #chatToggleFloat:hover {
+        background: #61dafb;
+      }
+
+      .chat-badge {
+        display: inline-block;
+        background: #ff6b6b;
+        color: white;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 10px;
+        margin-left: 5px;
+      }
+
+      /* Mobile responsive */
+      @media (max-width: 768px) {
+        #chatSidebar {
+          width: 100%;
+          height: 40vh;
+          top: auto;
+          bottom: 0;
+          border-left: none;
+          border-top: 2px solid rgba(97, 218, 251, 0.2);
+        }
+
+        #chatSidebar.hidden {
+          transform: translateY(100%);
+        }
+
+        #chatToggleFloat {
+          bottom: 10px;
+          top: auto;
+        }
+      }
+
+      /* Scrollbar for chat */
+      .chat-messages::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .chat-messages::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.3);
+      }
+
+      .chat-messages::-webkit-scrollbar-thumb {
+        background: rgba(97, 218, 251, 0.5);
+        border-radius: 3px;
+      }
     </style>
     <script type="importmap">
       {
@@ -302,6 +556,53 @@
       <div class="readonly-notice hidden" id="readonlyNotice">
         🔒 Read-only mode — You can watch but not interact
       </div>
+
+      <!-- Spectator Chat Sidebar -->
+      <div id="chatSidebar" class="hidden">
+        <div class="chat-header">
+          <h3>💬 Spectator Chat</h3>
+          <button class="chat-toggle-btn" id="chatToggleBtn">✕</button>
+        </div>
+
+        <div class="chat-username-section">
+          <label for="chatUsername">Your Display Name:</label>
+          <input 
+            type="text" 
+            id="chatUsername" 
+            class="chat-username-input"
+            placeholder="Enter your name..."
+            maxlength="20"
+          />
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+          <div style="text-align: center; color: #666; font-size: 13px; padding: 20px;">
+            👋 Chat with other spectators!<br>
+            (Agents cannot see this chat)
+          </div>
+        </div>
+
+        <div class="chat-input-section">
+          <div class="chat-input-wrapper">
+            <input 
+              type="text" 
+              id="chatInput" 
+              class="chat-input"
+              placeholder="Type a message..."
+              maxlength="500"
+            />
+            <button id="chatSendBtn" class="chat-send-btn">Send</button>
+          </div>
+          <div id="chatRateLimitNotice" class="chat-rate-limit-notice">
+            ⚠️ Slow down! Max 5 messages per 10 seconds.
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating chat toggle button -->
+      <button id="chatToggleFloat" class="visible">
+        💬 Chat
+      </button>
     </div>
     <script type="module" src="/src/spectator.ts"></script>
   </body>

@@ -9,6 +9,15 @@ export const spectatorsByRoom = new Map<string, Set<WebSocket>>();
 // WeakMap to track which room each spectator is watching
 const spectatorRooms = new WeakMap<WebSocket, string>();
 
+// WeakMap to track spectator usernames
+const spectatorUsernames = new WeakMap<WebSocket, string>();
+
+// WeakMap to track rate limiting (message count per spectator)
+const spectatorRateLimits = new WeakMap<WebSocket, { count: number; resetTime: number }>();
+
+const RATE_LIMIT_MAX = 5; // Max 5 messages
+const RATE_LIMIT_WINDOW = 10000; // Per 10 seconds
+
 /**
  * Get spectator count for a room
  */
@@ -87,6 +96,100 @@ function extractRoomId(req: IncomingMessage): string | null {
 }
 
 /**
+ * Sanitize username (max 20 chars, alphanumeric + spaces/underscores)
+ */
+export function sanitizeUsername(username: string | undefined): string {
+  if (!username || typeof username !== 'string') {
+    return 'Anonymous';
+  }
+  
+  // Remove dangerous characters, keep alphanumeric, spaces, underscores
+  const sanitized = username
+    .replace(/[^a-zA-Z0-9\s_-]/g, '')
+    .trim()
+    .slice(0, 20);
+  
+  return sanitized || 'Anonymous';
+}
+
+/**
+ * Check rate limit for spectator chat
+ */
+function checkRateLimit(ws: WebSocket): boolean {
+  const now = Date.now();
+  const limits = spectatorRateLimits.get(ws);
+  
+  if (!limits || now >= limits.resetTime) {
+    // Reset window
+    spectatorRateLimits.set(ws, {
+      count: 1,
+      resetTime: now + RATE_LIMIT_WINDOW,
+    });
+    return true;
+  }
+  
+  if (limits.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  
+  limits.count++;
+  return true;
+}
+
+/**
+ * Handle spectator chat message
+ */
+function handleSpectatorChat(ws: WebSocket, roomId: string, message: string | undefined): void {
+  // Validate message
+  if (!message || typeof message !== 'string') {
+    return;
+  }
+  
+  // Trim and limit length
+  const sanitizedMessage = message.trim().slice(0, 500);
+  if (sanitizedMessage.length === 0) {
+    return;
+  }
+  
+  // Check rate limit
+  if (!checkRateLimit(ws)) {
+    sendToSpectator(ws, {
+      type: 'spectator.rateLimited',
+      message: 'Too many messages. Please slow down.',
+    } as any);
+    return;
+  }
+  
+  // Get username
+  const username = spectatorUsernames.get(ws) || 'Anonymous';
+  
+  // Broadcast to all spectators in the same room (NOT to agents!)
+  const spectators = spectatorsByRoom.get(roomId);
+  if (!spectators) {
+    return;
+  }
+  
+  const chatMessage = {
+    type: 'spectator.chatMessage',
+    username,
+    message: sanitizedMessage,
+    timestamp: new Date().toISOString(),
+    isOwnMessage: false,
+  };
+  
+  for (const spectatorWs of spectators) {
+    if (spectatorWs.readyState === WebSocket.OPEN) {
+      // Mark own messages
+      const messageToSend = {
+        ...chatMessage,
+        isOwnMessage: spectatorWs === ws,
+      };
+      spectatorWs.send(JSON.stringify(messageToSend));
+    }
+  }
+}
+
+/**
  * Setup spectator WebSocket endpoint
  * Public access, read-only, no authentication required
  */
@@ -137,20 +240,29 @@ export function setupSpectatorWebSocket(server: Server): void {
       // Connection is alive
     });
 
-    // Spectators CANNOT send messages (read-only)
-    // Any message they try to send is ignored
+    // Handle spectator messages
     ws.on('message', (rawData) => {
       const data = typeof rawData === 'string' ? rawData : rawData.toString();
       
       try {
         const msg = JSON.parse(data);
         
-        // Only allow ping messages
         if (msg.type === 'ping') {
           sendToSpectator(ws, {
             type: 'pong',
             serverTime: new Date().toISOString(),
           });
+        } else if (msg.type === 'spectator.setUsername') {
+          // Set spectator username (sanitize)
+          const username = sanitizeUsername(msg.username);
+          spectatorUsernames.set(ws, username);
+          sendToSpectator(ws, {
+            type: 'spectator.usernameSet',
+            username,
+          } as any);
+        } else if (msg.type === 'spectator.chat') {
+          // Handle spectator chat messages
+          handleSpectatorChat(ws, roomId, msg.message);
         }
         // Silently ignore all other message types
       } catch {

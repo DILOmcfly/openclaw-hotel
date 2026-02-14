@@ -23,11 +23,23 @@ const currentRoomNameEl = document.getElementById('currentRoomName')!;
 const hudAgentCountEl = document.getElementById('hudAgentCount')!;
 const hudSpectatorCountEl = document.getElementById('hudSpectatorCount')!;
 
+// Chat elements
+const chatSidebar = document.getElementById('chatSidebar')!;
+const chatToggleBtn = document.getElementById('chatToggleBtn')!;
+const chatToggleFloat = document.getElementById('chatToggleFloat')!;
+const chatUsername = document.getElementById('chatUsername') as HTMLInputElement;
+const chatMessages = document.getElementById('chatMessages')!;
+const chatInput = document.getElementById('chatInput') as HTMLInputElement;
+const chatSendBtn = document.getElementById('chatSendBtn')!;
+const chatRateLimitNotice = document.getElementById('chatRateLimitNotice')!;
+
 // State
 let currentRoom: string | null = null;
 let ws: WebSocket | null = null;
 let app: Application | null = null;
 let renderer: IsoRenderer | null = null;
+let chatMessagesArray: Array<{ username: string; message: string; timestamp: string; isOwn: boolean }> = [];
+const MAX_CHAT_MESSAGES = 100;
 
 /**
  * Fetch global stats
@@ -91,11 +103,13 @@ async function fetchRooms() {
 async function joinRoom(roomId: string, roomName: string) {
   currentRoom = roomId;
   
-  // Hide room selector
+  // Hide room selector, show spectator UI
   roomSelector.classList.add('hidden');
   spectatorHUD.classList.remove('hidden');
   backButton.classList.remove('hidden');
   readonlyNotice.classList.remove('hidden');
+  chatSidebar.classList.remove('hidden');
+  chatToggleFloat.classList.remove('visible');
   
   // Update HUD
   currentRoomNameEl.textContent = roomName;
@@ -137,10 +151,16 @@ function leaveRoom() {
   
   currentRoom = null;
   
+  // Clear chat messages
+  chatMessagesArray = [];
+  renderChatMessages();
+  
   roomSelector.classList.remove('hidden');
   spectatorHUD.classList.add('hidden');
   backButton.classList.add('hidden');
   readonlyNotice.classList.add('hidden');
+  chatSidebar.classList.add('hidden');
+  chatToggleFloat.classList.remove('visible');
   
   // Refresh room list
   fetchRooms();
@@ -242,6 +262,28 @@ function handleServerMessage(message: any) {
     case 'spectator.connected':
       console.log('[Spectator] Connected, count:', message.spectatorCount);
       hudSpectatorCountEl.textContent = message.spectatorCount.toString();
+      // Send username if available
+      if (chatUsername.value) {
+        saveUsername();
+      }
+      break;
+      
+    case 'spectator.usernameSet':
+      console.log('[Spectator] Username set:', message.username);
+      break;
+      
+    case 'spectator.chatMessage':
+      addChatMessage(
+        message.username,
+        message.message,
+        message.timestamp,
+        message.isOwnMessage
+      );
+      break;
+      
+    case 'spectator.rateLimited':
+      showRateLimitNotice();
+      console.warn('[Spectator] Rate limited:', message.message);
       break;
       
     case 'spectator.count':
@@ -335,10 +377,165 @@ function escapeHtml(text: string): string {
   return div.innerHTML;
 }
 
+/**
+ * Format timestamp to HH:MM
+ */
+function formatTimestamp(isoString: string): string {
+  const date = new Date(isoString);
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+/**
+ * Load username from localStorage
+ */
+function loadUsername(): void {
+  const saved = localStorage.getItem('spectator-username');
+  if (saved) {
+    chatUsername.value = saved;
+  }
+}
+
+/**
+ * Save username to localStorage and send to server
+ */
+function saveUsername(): void {
+  const username = chatUsername.value.trim();
+  localStorage.setItem('spectator-username', username);
+  
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'spectator.setUsername',
+      username,
+    }));
+  }
+}
+
+/**
+ * Toggle chat sidebar visibility
+ */
+function toggleChat(): void {
+  const isHidden = chatSidebar.classList.contains('hidden');
+  
+  if (isHidden) {
+    chatSidebar.classList.remove('hidden');
+    chatToggleFloat.classList.remove('visible');
+  } else {
+    chatSidebar.classList.add('hidden');
+    chatToggleFloat.classList.add('visible');
+  }
+}
+
+/**
+ * Add chat message to UI
+ */
+function addChatMessage(username: string, message: string, timestamp: string, isOwn: boolean): void {
+  // Add to array
+  chatMessagesArray.push({ username, message, timestamp, isOwn });
+  
+  // Keep only last 100 messages
+  if (chatMessagesArray.length > MAX_CHAT_MESSAGES) {
+    chatMessagesArray.shift();
+  }
+  
+  // Render messages
+  renderChatMessages();
+}
+
+/**
+ * Render all chat messages
+ */
+function renderChatMessages(): void {
+  chatMessages.innerHTML = '';
+  
+  if (chatMessagesArray.length === 0) {
+    chatMessages.innerHTML = `
+      <div style="text-align: center; color: #666; font-size: 13px; padding: 20px;">
+        👋 Chat with other spectators!<br>
+        (Agents cannot see this chat)
+      </div>
+    `;
+    return;
+  }
+  
+  for (const msg of chatMessagesArray) {
+    const messageEl = document.createElement('div');
+    messageEl.className = `chat-message ${msg.isOwn ? 'own' : ''}`;
+    
+    messageEl.innerHTML = `
+      <div class="chat-message-header">
+        <span class="chat-message-username">${escapeHtml(msg.username)}</span>
+        <span class="chat-message-time">${formatTimestamp(msg.timestamp)}</span>
+      </div>
+      <div class="chat-message-text">${escapeHtml(msg.message)}</div>
+    `;
+    
+    chatMessages.appendChild(messageEl);
+  }
+  
+  // Auto-scroll to bottom
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+/**
+ * Send chat message
+ */
+function sendChatMessage(): void {
+  const message = chatInput.value.trim();
+  
+  if (!message) {
+    return;
+  }
+  
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    alert('Not connected to server');
+    return;
+  }
+  
+  // Send to server
+  ws.send(JSON.stringify({
+    type: 'spectator.chat',
+    message,
+  }));
+  
+  // Clear input
+  chatInput.value = '';
+}
+
+/**
+ * Show rate limit notice
+ */
+function showRateLimitNotice(): void {
+  chatRateLimitNotice.classList.add('visible');
+  setTimeout(() => {
+    chatRateLimitNotice.classList.remove('visible');
+  }, 5000);
+}
+
 // Event listeners
 backButton.addEventListener('click', leaveRoom);
 
+chatToggleBtn.addEventListener('click', toggleChat);
+chatToggleFloat.addEventListener('click', toggleChat);
+
+chatUsername.addEventListener('blur', saveUsername);
+chatUsername.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    saveUsername();
+    chatUsername.blur();
+  }
+});
+
+chatSendBtn.addEventListener('click', sendChatMessage);
+chatInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    sendChatMessage();
+  }
+});
+
 // Initialize
+loadUsername();
 fetchStats();
 fetchRooms();
 
