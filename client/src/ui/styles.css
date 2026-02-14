@@ -2292,3 +2292,208 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ======================= Notification Center ======================= */
+
+.notification-center {
+  position: relative;
+  display: inline-block;
+}
+
+.notification-bell {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  background: var(--habbo-light-blue);
+  border: var(--border-width) solid var(--habbo-white);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.notification-bell:hover {
+  background: var(--habbo-blue);
+  transform: scale(1.05);
+}
+
+.notification-bell:active {
+  transform: scale(0.95);
+}
+
+.notification-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #FF4444;
+  color: white;
+  border-radius: 12px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: bold;
+  min-width: 20px;
+  text-align: center;
+  border: 2px solid white;
+}
+
+.notification-flash {
+  animation: bellShake 0.3s ease-in-out;
+}
+
+@keyframes bellShake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-15deg); }
+  75% { transform: rotate(15deg); }
+}
+
+.notification-dropdown {
+  position: absolute;
+  top: 56px;
+  right: 0;
+  width: 360px;
+  max-height: 500px;
+  background: var(--habbo-white);
+  border: var(--border-width) solid var(--habbo-blue);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 2000;
+}
+
+.notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  border-bottom: 2px solid var(--habbo-gray);
+  background: var(--habbo-light-blue);
+  color: white;
+  border-radius: 5px 5px 0 0;
+}
+
+.notification-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-family: var(--pixel-font);
+}
+
+.notification-header .mark-all-read {
+  background: transparent;
+  border: 2px solid white;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  transition: background 0.2s;
+}
+
+.notification-header .mark-all-read:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.notifications-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: var(--spacing-sm);
+}
+
+.notification-item {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  background: var(--habbo-gray);
+  border: 2px solid var(--habbo-dark-gray);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  position: relative;
+}
+
+.notification-item:hover {
+  background: #f0f0f0;
+  transform: translateX(2px);
+}
+
+.notification-item.unread {
+  background: #FFF9E6;
+  border-color: var(--habbo-accent);
+}
+
+.notification-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.notification-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-title {
+  font-weight: bold;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: var(--habbo-dark-blue);
+}
+
+.notification-message {
+  font-size: 11px;
+  color: var(--habbo-dark-gray);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notification-time {
+  font-size: 10px;
+  color: var(--habbo-dark-gray);
+  font-style: italic;
+}
+
+.notification-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  background: #FF4444;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.notification-item:hover .notification-delete {
+  opacity: 1;
+}
+
+.notification-delete:hover {
+  background: #CC0000;
+}
+
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-lg);
+  color: var(--habbo-dark-gray);
+  font-size: 12px;
+}
+
+/* Mobile adjustments for Notification Center */
+@media (max-width: 768px) {
+  .notification-dropdown {
+    right: -48px;
+    width: 320px;
+  }
+}

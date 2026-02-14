@@ -349,6 +349,20 @@ export type WhisperTypingIndicatorMsg = {
   senderId: string
 }
 
+// Notification server messages
+export type NotificationNewMsg = {
+  type: 'notification.new'
+  notification: {
+    id: number
+    type: string
+    title: string
+    message: string
+    link?: string
+    createdAt: number
+  }
+  unreadCount: number
+}
+
 export type ServerMessage =
   | ConnectedMsg
   | RoomJoinedMsg
@@ -372,6 +386,7 @@ export type ServerMessage =
   | WhisperReceivedMsg
   | WhisperSentMsg
   | WhisperTypingIndicatorMsg
+  | NotificationNewMsg
 
 export function parseClientMessage(data: string): ClientMessage {
   const parsed = JSON.parse(data)

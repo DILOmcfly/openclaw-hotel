@@ -4,6 +4,7 @@
  */
 
 import type { Sql } from 'postgres';
+import { notifyAgent } from './notifications.js';
 
 export type DirectMessage = {
   id: string;
@@ -63,6 +64,23 @@ export class DirectMessageService {
         created_at::text AS "createdAt",
         read_at::text AS "readAt"
     `;
+
+    // Get sender's display name for notification
+    const [sender] = await this.sql<{ displayName: string }[]>`
+      SELECT display_name AS "displayName" FROM agents WHERE id = ${senderId}
+    `;
+
+    // Notify recipient about new message
+    if (sender) {
+      const preview = content.length > 50 ? content.slice(0, 47) + '...' : content;
+      notifyAgent({
+        agentId: recipientId,
+        type: 'whisper',
+        title: `Message from ${sender.displayName}`,
+        message: preview,
+        link: `/whisper/${senderId}`,
+      }, this.sql);
+    }
 
     return message;
   }

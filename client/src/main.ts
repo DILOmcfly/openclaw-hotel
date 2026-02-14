@@ -17,6 +17,7 @@ import { TradeWindow } from './ui/TradeWindow.js';
 import { WhisperWindow } from './ui/WhisperWindow.js';
 import { FriendsPanel } from './ui/FriendsPanel.js';
 import { ProfilePanel } from './ui/ProfilePanel.js';
+import { NotificationCenter } from './ui/NotificationCenter.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -103,6 +104,10 @@ async function init() {
   const whisperWindow = new WhisperWindow(MY_ID);
   const friendsPanel = new FriendsPanel();
   const profilePanel = new ProfilePanel();
+  
+  // Notification Center (pass HUD element as parent)
+  let notificationCenter: NotificationCenter | null = null;
+  // Will be initialized after HUD is created
   
   // Trade event handlers
   tradeWindow.setOnAccept((tradeId) => {
@@ -243,6 +248,14 @@ async function init() {
     // Switch to game screen
     ui.showScreen('game');
     ui.setCurrentRoom(roomId);
+    
+    // Initialize Notification Center (once)
+    if (!notificationCenter) {
+      const hudControls = document.querySelector('.hud-controls');
+      if (hudControls) {
+        notificationCenter = new NotificationCenter(hudControls as HTMLElement);
+      }
+    }
     
     // Load demo inventory and catalog
     loadInventory();
@@ -973,6 +986,22 @@ async function init() {
     
     toastManager.success(`${agentName} accepted your friend request!`, 5000);
     // TODO: Refresh friends list in FriendsPanel
+  });
+
+  ws.on('notification.new', (msg: any) => {
+    const notification = msg.notification;
+    const unreadCount = msg.unreadCount;
+    
+    console.log('[Notification] New notification:', notification);
+    
+    if (notificationCenter) {
+      notificationCenter.addNotification(notification, unreadCount);
+    }
+    
+    // Also show toast for important notifications
+    if (notification.type === 'friend_request' || notification.type === 'trade_offer') {
+      toastManager.info(notification.title, 4000);
+    }
   });
 
   // Canvas interaction handlers

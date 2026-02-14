@@ -1,4 +1,5 @@
 import type { Sql } from 'postgres';
+import { notifyAgent } from './notifications.js';
 
 export type TradeStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled';
 
@@ -68,6 +69,22 @@ export async function createTrade(
     VALUES (${initiatorId}, ${targetId}, 'pending')
     RETURNING id, initiator_id AS "initiatorId", target_id AS "targetId", status, created_at AS "createdAt", completed_at AS "completedAt"
   `;
+  
+  // Get initiator's display name for notification
+  const [initiator] = await sql<{ displayName: string }[]>`
+    SELECT display_name AS "displayName" FROM agents WHERE id = ${initiatorId}
+  `;
+
+  // Notify target about trade request
+  if (initiator) {
+    notifyAgent({
+      agentId: targetId,
+      type: 'trade_offer',
+      title: 'New Trade Offer',
+      message: `${initiator.displayName} wants to trade with you`,
+      link: `/trade/${trade.id}`,
+    }, sql);
+  }
   
   return trade;
 }

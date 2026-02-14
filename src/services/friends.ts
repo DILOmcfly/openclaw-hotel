@@ -1,4 +1,5 @@
 import type { Sql } from 'postgres';
+import { notifyAgent } from './notifications.js';
 
 export type FriendshipStatus = 'pending' | 'accepted' | 'blocked';
 
@@ -55,6 +56,22 @@ export async function sendFriendRequest(
     RETURNING id, requester_id AS "requesterId", addressee_id AS "addresseeId", status, created_at AS "createdAt", updated_at AS "updatedAt"
   `;
 
+  // Get requester's display name for notification
+  const [requester] = await sql<{ displayName: string }[]>`
+    SELECT display_name AS "displayName" FROM agents WHERE id = ${requesterId}
+  `;
+
+  // Send notification to addressee
+  if (requester) {
+    notifyAgent({
+      agentId: addresseeId,
+      type: 'friend_request',
+      title: 'New Friend Request',
+      message: `${requester.displayName} sent you a friend request`,
+      link: `/friends`,
+    }, sql);
+  }
+
   return friendship;
 }
 
@@ -89,6 +106,22 @@ export async function acceptFriendRequest(
     SET status = 'accepted', updated_at = NOW()
     WHERE id = ${friendshipId}
   `;
+
+  // Get accepter's display name for notification
+  const [accepter] = await sql<{ displayName: string }[]>`
+    SELECT display_name AS "displayName" FROM agents WHERE id = ${agentId}
+  `;
+
+  // Notify the original requester that their request was accepted
+  if (accepter) {
+    notifyAgent({
+      agentId: friendship.requesterId,
+      type: 'friend_request',
+      title: 'Friend Request Accepted',
+      message: `${accepter.displayName} accepted your friend request`,
+      link: `/friends`,
+    }, sql);
+  }
 }
 
 /**

@@ -68,6 +68,18 @@ export function broadcastToRoom(
   }
 }
 
+/**
+ * Send a message to a specific agent
+ */
+export function sendToAgent(agentId: string, message: ServerMessage): void {
+  const ws = connections.get(agentId);
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    return;
+  }
+
+  ws.send(JSON.stringify(message));
+}
+
 function removeAgentFromRoom(roomId: string, agentId: string): boolean {
   const members = roomMembers.get(roomId);
   if (!members) {

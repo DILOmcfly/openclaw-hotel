@@ -3,6 +3,8 @@
  * Manages badges and achievement awards for agents
  */
 
+import { notifyAgent } from './notifications.js';
+
 export type Achievement = {
   id: string;
   name: string;
@@ -108,7 +110,28 @@ export async function awardBadge(
       RETURNING agent_id
     `;
 
-    return result.length > 0; // Returns true if newly awarded, false if already had it
+    const wasNewlyAwarded = result.length > 0;
+
+    // If newly awarded, send notification
+    if (wasNewlyAwarded) {
+      const [achievement] = await sql`
+        SELECT name, description, icon
+        FROM achievements
+        WHERE id = ${achievementId}
+      `;
+
+      if (achievement) {
+        notifyAgent({
+          agentId: agentId,
+          type: 'achievement',
+          title: '🏆 Achievement Unlocked!',
+          message: `${achievement.icon} ${achievement.name}`,
+          link: `/profile`,
+        }, sql);
+      }
+    }
+
+    return wasNewlyAwarded; // Returns true if newly awarded, false if already had it
   } catch (error) {
     console.error('[Achievements] Failed to award badge:', error);
     return false;

@@ -10,6 +10,7 @@ import friendsRouter from './api/friends.routes.js';
 import profileRouter from './api/profile.routes.js';
 import directMessagesRouter from './api/directMessages.routes.js';
 import achievementsRouter from './api/achievements.routes.js';
+import notificationsRouter from './api/notifications.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -26,6 +27,7 @@ app.use(friendsRouter);
 app.use(profileRouter);
 app.use(directMessagesRouter);
 app.use(achievementsRouter);
+app.use(notificationsRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
