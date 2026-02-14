@@ -15,6 +15,8 @@ export interface RoomListItem {
   createdBy: string | null;
   isFavorite?: boolean;
   lastVisited?: Date | null;
+  avgRating?: number;
+  ratingCount?: number;
 }
 
 export interface SearchFilters {
@@ -52,6 +54,8 @@ export async function searchRooms(
       r.category,
       r.max_occupants AS "maxOccupants",
       r.created_by AS "createdBy",
+      COALESCE(r.avg_rating, 0.0) AS "avgRating",
+      COALESCE(r.rating_count, 0) AS "ratingCount",
       COUNT(DISTINCT p.agent_id) AS occupants,
       COALESCE(
         json_agg(DISTINCT rt.tag) FILTER (WHERE rt.tag IS NOT NULL),
@@ -109,7 +113,9 @@ export async function searchRooms(
   return result.map((row: any) => ({
     ...row,
     tags: Array.isArray(row.tags) && row.tags[0] !== null ? row.tags : [],
-    occupants: parseInt(row.occupants, 10)
+    occupants: parseInt(row.occupants, 10),
+    avgRating: parseFloat(row.avgRating) || 0,
+    ratingCount: parseInt(row.ratingCount, 10) || 0
   }));
 }
 

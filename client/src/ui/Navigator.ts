@@ -3,6 +3,8 @@
  * Enhanced room discovery with search, filters, favorites, and recent rooms
  */
 
+import { RatingModal } from './RatingModal.js';
+
 export interface Room {
   id: string;
   name: string;
@@ -14,6 +16,8 @@ export interface Room {
   visibility?: 'public' | 'private' | 'password';
   isFavorite?: boolean;
   lastVisited?: string | null;
+  avgRating?: number;
+  ratingCount?: number;
 }
 
 export class Navigator {
@@ -26,11 +30,24 @@ export class Navigator {
   private currentTab: 'all' | 'favorites' | 'recent' = 'all';
   private categories: string[] = [];
   private tags: string[] = [];
+  private ratingModal: RatingModal;
   
   public onJoinRoom?: (roomId: string, password?: string) => void;
   public onToggleFavorite?: (roomId: string, isFavorite: boolean) => void;
 
   constructor() {
+    this.ratingModal = new RatingModal((roomId, data) => {
+      console.log('Rating submitted:', roomId, data);
+      // Refresh the current view to show updated rating
+      if (this.currentTab === 'all') {
+        this.search();
+      } else if (this.currentTab === 'favorites') {
+        this.loadFavorites();
+      } else if (this.currentTab === 'recent') {
+        this.loadRecent();
+      }
+    });
+    
     this.createPanel();
     this.attachListeners();
     this.loadFilters();
@@ -244,20 +261,46 @@ export class Navigator {
             ${room.tags.map(tag => `<span class="tag">#${tag}</span>`).join('')}
           </div>
           
+          <div class="room-rating">
+            ${this.renderStars(room.avgRating || 0)}
+            ${room.ratingCount ? `<span class="rating-count">(${room.ratingCount})</span>` : '<span class="rating-count">No ratings</span>'}
+          </div>
+          
           <div class="room-card-footer">
             <span class="room-occupancy">
               ${room.occupants}/${room.maxOccupants}
               <span class="occupancy-icon">${room.occupants > 0 ? '👥' : '🏠'}</span>
             </span>
-            <button class="btn-primary btn-sm join-room-btn" data-room-id="${room.id}" data-visibility="${room.visibility || 'public'}">
-              Join Room
-            </button>
+            <div class="room-actions">
+              <button class="btn-secondary btn-sm rate-room-btn" data-room-id="${room.id}" data-room-name="${this.escapeHtml(room.name)}" title="Rate this room">
+                ⭐ Rate
+              </button>
+              <button class="btn-primary btn-sm join-room-btn" data-room-id="${room.id}" data-visibility="${room.visibility || 'public'}">
+                Join Room
+              </button>
+            </div>
           </div>
         </div>
       `;
     }).join('');
 
     // Attach event listeners
+    
+    // Rate button listeners
+    this.roomsContainer.querySelectorAll('.rate-room-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const target = e.target as HTMLElement;
+        const roomId = target.getAttribute('data-room-id');
+        const roomName = target.getAttribute('data-room-name');
+        
+        if (roomId && roomName) {
+          this.ratingModal.show(roomId, roomName);
+        }
+      });
+    });
+    
+    // Join button listeners
     this.roomsContainer.querySelectorAll('.join-room-btn').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         const target = e.target as HTMLElement;
@@ -376,6 +419,19 @@ export class Navigator {
 
   public hide(): void {
     this.panel.classList.remove('visible');
+  }
+
+  private renderStars(rating: number): string {
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+    
+    let stars = '';
+    for (let i = 0; i < fullStars; i++) stars += '⭐';
+    if (hasHalfStar) stars += '✨';
+    for (let i = 0; i < emptyStars; i++) stars += '☆';
+    
+    return `<span class="stars" title="${rating.toFixed(1)} / 5.0">${stars}</span>`;
   }
 
   private capitalize(str: string): string {
