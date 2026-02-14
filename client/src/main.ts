@@ -14,6 +14,9 @@ import { VirtualJoystick, type Direction } from './VirtualJoystick.js';
 import { memoryProfiler } from './renderer/MemoryProfiler.js';
 import { RoomEditor } from './RoomEditor.js';
 import { TradeWindow } from './ui/TradeWindow.js';
+import { WhisperWindow } from './ui/WhisperWindow.js';
+import { FriendsPanel } from './ui/FriendsPanel.js';
+import { ProfilePanel } from './ui/ProfilePanel.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -96,6 +99,11 @@ async function init() {
   // Trade Window
   const tradeWindow = new TradeWindow();
   
+  // Whisper, Friends, and Profile panels
+  const whisperWindow = new WhisperWindow(MY_ID);
+  const friendsPanel = new FriendsPanel();
+  const profilePanel = new ProfilePanel();
+  
   // Trade event handlers
   tradeWindow.setOnAccept((tradeId) => {
     console.log('[Trade] Accepting trade:', tradeId);
@@ -124,6 +132,62 @@ async function init() {
       ws.send({ type: 'trade.update', tradeId, items });
     }
   });
+  
+  // Whisper Window event handlers
+  whisperWindow.onSendMessage = (recipientId, content) => {
+    console.log('[Whisper] Sending message to:', recipientId);
+    if (isConnected) {
+      ws.send({
+        type: 'whisper.send',
+        recipientId,
+        content,
+      });
+    }
+  };
+
+  whisperWindow.onTyping = (recipientId) => {
+    if (isConnected) {
+      ws.send({
+        type: 'whisper.typing',
+        recipientId,
+      });
+    }
+  };
+  
+  // Friends Panel event handlers
+  friendsPanel.onWhisper = async (agentId) => {
+    console.log('[Friends] Opening whisper window for:', agentId);
+    const friend = friendsPanel['friends'].find((f: any) => f.agentId === agentId);
+    if (!friend) return;
+    
+    // Load conversation history
+    await whisperWindow.loadHistory(agentId);
+    
+    // Open window
+    whisperWindow.open(agentId, friend.displayName);
+    
+    // Mark messages as read
+    whisperWindow.markAsRead(agentId);
+  };
+
+  friendsPanel.onAcceptRequest = (friendshipId) => {
+    console.log('[Friends] Accepting friend request:', friendshipId);
+    if (isConnected) {
+      ws.send({ type: 'friend.accept', friendshipId });
+    }
+  };
+
+  friendsPanel.onRejectRequest = (friendshipId) => {
+    console.log('[Friends] Rejecting friend request:', friendshipId);
+    // TODO: Implement reject endpoint when backend is ready
+    toastManager.info('Reject friend request not implemented yet');
+  };
+
+  friendsPanel.onRemoveFriend = (friendshipId) => {
+    console.log('[Friends] Removing friend:', friendshipId);
+    // TODO: Implement remove endpoint when backend is ready
+    toastManager.info('Remove friend not implemented yet');
+  };
 
   // WebSocket connection
   const ws = new HotelWSClient();
@@ -134,6 +198,9 @@ async function init() {
   ui.onAuthSuccess = async (username: string, token: string) => {
     console.log('[Auth] Success:', username);
     MY_ID = username; // Use username as agent ID
+    
+    // Update whisper window with correct agent ID
+    whisperWindow['myAgentId'] = MY_ID;
     
     // Initialize audio system (requires user interaction)
     if (!SoundManager.isInitialized()) {
@@ -610,7 +677,7 @@ async function init() {
   };
 
   // WebSocket Event Handlers
-  ws.on('connected', () => {
+  ws.on('connected', async () => {
     console.log('[Hotel] Connected to server');
     isConnected = true;
     ws.joinRoom(currentRoom);
@@ -618,6 +685,24 @@ async function init() {
     // Show success toast on reconnection (not on first connect)
     if (ws['reconnectAttempts'] > 0) {
       toastManager.success('Reconnected to server!');
+    }
+    
+    // Load friends list on connection
+    try {
+      const token = ui.getToken();
+      if (token) {
+        const response = await fetch('/api/friends', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          friendsPanel.setFriends(data.friends || []);
+          friendsPanel.setPendingRequests(data.pending || []);
+        }
+      }
+    } catch (error) {
+      console.error('[Friends] Failed to load friends list:', error);
     }
   });
 
@@ -812,6 +897,82 @@ async function init() {
       toastManager.warning(`Trade ${reason}`, 3000);
       tradeWindow.showCancelled(reason);
     }
+  });
+
+  // Whisper WebSocket handlers
+  ws.on('whisper.received', (msg) => {
+    const messageId = msg.messageId as string;
+    const senderId = msg.senderId as string;
+    const senderName = msg.senderName as string;
+    const content = msg.content as string;
+    const createdAt = msg.createdAt as string;
+    
+    console.log('[Whisper] Received message from:', senderId);
+    SoundManager.play('chat_message');
+    
+    // Add message to open window if active
+    if (whisperWindow.isOpenFor(senderId)) {
+      whisperWindow.addMessage({
+        id: messageId,
+        senderId,
+        senderName,
+        content,
+        createdAt,
+        isMine: false,
+      });
+      whisperWindow.markAsRead(senderId);
+    } else {
+      // Show toast notification
+      toastManager.info(`New message from ${senderName}`, 3000);
+    }
+  });
+
+  ws.on('whisper.sent', (msg) => {
+    const messageId = msg.messageId as string;
+    const recipientId = msg.recipientId as string;
+    const content = msg.content as string;
+    const createdAt = msg.createdAt as string;
+    
+    console.log('[Whisper] Message sent confirmation');
+    
+    // Add to window if it's open for this recipient
+    if (whisperWindow.isOpenFor(recipientId)) {
+      whisperWindow.addMessage({
+        id: messageId,
+        senderId: MY_ID,
+        senderName: 'You',
+        content,
+        createdAt,
+        isMine: true,
+      });
+    }
+  });
+
+  ws.on('whisper.typing', (msg) => {
+    const senderId = msg.senderId as string;
+    const senderName = msg.senderName as string;
+    
+    if (whisperWindow.isOpenFor(senderId)) {
+      whisperWindow.showTypingIndicator(senderName);
+    }
+  });
+
+  ws.on('friend.request.received', (msg) => {
+    const friendshipId = msg.friendshipId as string;
+    const requesterId = msg.requesterId as string;
+    const requesterName = msg.requesterName as string;
+    
+    toastManager.info(`Friend request from ${requesterName}`, 5000);
+    // TODO: Refresh pending requests in FriendsPanel
+  });
+
+  ws.on('friend.accepted', (msg) => {
+    const friendshipId = msg.friendshipId as string;
+    const agentId = msg.agentId as string;
+    const agentName = msg.agentName as string;
+    
+    toastManager.success(`${agentName} accepted your friend request!`, 5000);
+    // TODO: Refresh friends list in FriendsPanel
   });
 
   // Canvas interaction handlers

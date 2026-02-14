@@ -11,6 +11,16 @@ import { sql } from '../db/index.js';
 const router = Router();
 const dmService = new DirectMessageService(sql);
 
+// Helper to safely extract string from query param
+function getQueryParam(value: any): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
+    return value[0];
+  }
+  return String(value);
+}
+
 /**
  * POST /api/messages/send
  * Send a direct message (whisper)
@@ -51,11 +61,11 @@ router.post('/api/messages/send', async (req: Request, res: Response): Promise<v
  */
 router.get('/api/messages/conversation/:otherAgentId', async (req: Request, res: Response): Promise<void> => {
     try {
-      const { otherAgentId } = req.params;
-      const limit = parseInt(req.query.limit as string) || 50;
+      const otherAgentId = req.params.otherAgentId as string;
+      const limit = parseInt(getQueryParam(req.query.limit)) || 50;
 
       // TODO: Extract agentId from auth token
-      const agentId = req.query.agentId as string || 'agent_test';
+      const agentId = (getQueryParam(req.query.agentId) || 'agent_test') as string;
 
       const messages = await dmService.getConversation(agentId, otherAgentId, limit);
 
@@ -74,7 +84,7 @@ router.get('/api/messages/conversation/:otherAgentId', async (req: Request, res:
 router.get('/api/messages/inbox', async (req: Request, res: Response): Promise<void> => {
     try {
       // TODO: Extract agentId from auth token
-      const agentId = req.query.agentId as string || 'agent_test';
+      const agentId = getQueryParam(req.query.agentId) || 'agent_test';
 
       const previews = await dmService.getConversationPreviews(agentId);
 
@@ -92,10 +102,10 @@ router.get('/api/messages/inbox', async (req: Request, res: Response): Promise<v
  */
 router.put('/api/messages/mark-read/:senderId', async (req: Request, res: Response): Promise<void> => {
     try {
-      const { senderId } = req.params;
+      const senderId = req.params.senderId as string;
 
       // TODO: Extract recipientId from auth token
-      const recipientId = req.body.recipientId || 'agent_test';
+      const recipientId = (req.body.recipientId || 'agent_test') as string;
 
       const count = await dmService.markAsRead(recipientId, senderId);
 
@@ -114,7 +124,7 @@ router.put('/api/messages/mark-read/:senderId', async (req: Request, res: Respon
 router.get('/api/messages/unread-count', async (req: Request, res: Response): Promise<void> => {
   try {
     // TODO: Extract agentId from auth token
-    const agentId = req.query.agentId as string || 'agent_test';
+    const agentId = getQueryParam(req.query.agentId) || 'agent_test';
 
     const count = await dmService.getUnreadCount(agentId);
 
