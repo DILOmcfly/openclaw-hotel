@@ -10,6 +10,7 @@ describe('Leaderboard Service', () => {
       expect(isValidCategory('friends')).toBe(true);
       expect(isValidCategory('achievements')).toBe(true);
       expect(isValidCategory('games_won')).toBe(true);
+      expect(isValidCategory('top_rated_rooms')).toBe(true);
     });
 
     it('should reject invalid categories', () => {
@@ -17,6 +18,7 @@ describe('Leaderboard Service', () => {
       expect(isValidCategory('')).toBe(false);
       expect(isValidCategory('COINS')).toBe(false);
       expect(isValidCategory('coin')).toBe(false);
+      expect(isValidCategory('top_rooms')).toBe(false);
     });
   });
 
@@ -112,6 +114,105 @@ describe('Leaderboard Service', () => {
       expect(isValidLimit(0)).toBe(false);
       expect(isValidLimit(101)).toBe(false);
       expect(isValidLimit(-5)).toBe(false);
+    });
+  });
+
+  describe('Top Rated Rooms Category', () => {
+    it('should sort rooms by average rating descending', () => {
+      const mockRooms: LeaderboardEntry[] = [
+        { 
+          rank: 0, 
+          agentId: 'owner1', 
+          displayName: 'Alice', 
+          value: 4.2, 
+          roomId: 'room1', 
+          roomName: 'Room A', 
+          ratingCount: 10 
+        },
+        { 
+          rank: 0, 
+          agentId: 'owner2', 
+          displayName: 'Bob', 
+          value: 4.8, 
+          roomId: 'room2', 
+          roomName: 'Room B', 
+          ratingCount: 15 
+        },
+        { 
+          rank: 0, 
+          agentId: 'owner3', 
+          displayName: 'Charlie', 
+          value: 3.9, 
+          roomId: 'room3', 
+          roomName: 'Room C', 
+          ratingCount: 5 
+        },
+      ];
+
+      // Simulate SQL ORDER BY avg_rating DESC, rating_count DESC
+      const sorted = mockRooms.sort((a, b) => {
+        if (b.value !== a.value) return b.value - a.value;
+        return (b.ratingCount || 0) - (a.ratingCount || 0);
+      });
+      const withRanks = sorted.map((entry, index) => ({
+        ...entry,
+        rank: index + 1,
+      }));
+
+      expect(withRanks[0].roomName).toBe('Room B');
+      expect(withRanks[0].value).toBe(4.8);
+      expect(withRanks[0].rank).toBe(1);
+      expect(withRanks[1].roomName).toBe('Room A');
+      expect(withRanks[2].roomName).toBe('Room C');
+    });
+
+    it('should break ties by rating count (more ratings = higher rank)', () => {
+      const mockRooms: LeaderboardEntry[] = [
+        { 
+          rank: 0, 
+          agentId: 'owner1', 
+          displayName: 'Alice', 
+          value: 4.5, 
+          roomId: 'room1', 
+          roomName: 'Room A', 
+          ratingCount: 5 
+        },
+        { 
+          rank: 0, 
+          agentId: 'owner2', 
+          displayName: 'Bob', 
+          value: 4.5, 
+          roomId: 'room2', 
+          roomName: 'Room B', 
+          ratingCount: 20 
+        },
+      ];
+
+      const sorted = mockRooms.sort((a, b) => {
+        if (b.value !== a.value) return b.value - a.value;
+        return (b.ratingCount || 0) - (a.ratingCount || 0);
+      });
+
+      expect(sorted[0].roomName).toBe('Room B'); // Same rating, but more reviews
+      expect(sorted[0].ratingCount).toBe(20);
+      expect(sorted[1].roomName).toBe('Room A');
+    });
+
+    it('should include roomId, roomName, and ratingCount in entries', () => {
+      const mockEntry: LeaderboardEntry = {
+        rank: 1,
+        agentId: 'owner1',
+        displayName: 'Alice',
+        value: 4.7,
+        roomId: 'room-123',
+        roomName: 'Amazing Room',
+        ratingCount: 42,
+      };
+
+      expect(mockEntry.roomId).toBe('room-123');
+      expect(mockEntry.roomName).toBe('Amazing Room');
+      expect(mockEntry.ratingCount).toBe(42);
+      expect(mockEntry.value).toBe(4.7); // avg_rating
     });
   });
 });

@@ -424,6 +424,12 @@ async function init() {
     await loadLeaderboard(category);
   };
 
+  leaderboardPanel.onJoinRoom = (roomId) => {
+    console.log('[Leaderboard] Joining room:', roomId);
+    ui.onJoinRoom?.(roomId);
+    leaderboardPanel.hide();
+  };
+
   // Helper function to load leaderboard data
   async function loadLeaderboard(category: string) {
     try {

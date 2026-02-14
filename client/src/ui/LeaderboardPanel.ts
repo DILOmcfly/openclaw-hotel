@@ -3,13 +3,16 @@
  * Leaderboard rankings interface for OpenClaw Hotel
  */
 
-export type LeaderboardCategory = 'coins' | 'trades' | 'friends' | 'achievements' | 'games_won';
+export type LeaderboardCategory = 'coins' | 'trades' | 'friends' | 'achievements' | 'games_won' | 'top_rated_rooms';
 
 export type LeaderboardEntry = {
   rank: number;
   agentId: string;
   displayName: string;
   value: number;
+  roomId?: string; // For top_rated_rooms category
+  roomName?: string; // For top_rated_rooms category
+  ratingCount?: number; // For top_rated_rooms category
 };
 
 export class LeaderboardPanel {
@@ -19,6 +22,7 @@ export class LeaderboardPanel {
   private currentAgentId: string = '';
 
   public onCategoryChange?: (category: LeaderboardCategory) => void;
+  public onJoinRoom?: (roomId: string) => void;
 
   constructor() {
     this.createUI();
@@ -54,6 +58,9 @@ export class LeaderboardPanel {
         </button>
         <button class="panel-tab" data-category="games_won" title="Most games won">
           🎮 Games
+        </button>
+        <button class="panel-tab" data-category="top_rated_rooms" title="Highest rated rooms">
+          ⭐ Rooms
         </button>
       </div>
 
@@ -145,8 +152,29 @@ export class LeaderboardPanel {
     listContainer.innerHTML = this.entries.map(entry => {
       const isCurrentUser = entry.agentId === this.currentAgentId;
       const medal = this.getMedal(entry.rank);
-      const valueLabel = this.getValueLabel(entry.value);
 
+      // Special rendering for top_rated_rooms
+      if (this.currentCategory === 'top_rated_rooms' && entry.roomId && entry.roomName) {
+        const stars = this.renderStars(entry.value);
+        return `
+          <div class="leaderboard-item room-item" data-rank="${entry.rank}">
+            <div class="rank-badge ${medal ? 'medal' : ''}">
+              ${medal || `#${entry.rank}`}
+            </div>
+            <div class="leaderboard-info room-info">
+              <span class="room-name">${this.escapeHtml(entry.roomName)}</span>
+              <span class="room-owner">by ${this.escapeHtml(entry.displayName)}</span>
+              <span class="room-rating">${stars} (${entry.ratingCount} rating${entry.ratingCount !== 1 ? 's' : ''})</span>
+            </div>
+            <div class="leaderboard-value">
+              <button class="join-room-btn" data-room-id="${entry.roomId}">Join</button>
+            </div>
+          </div>
+        `;
+      }
+
+      // Default rendering for other categories
+      const valueLabel = this.getValueLabel(entry.value);
       return `
         <div class="leaderboard-item ${isCurrentUser ? 'current-user' : ''}" data-rank="${entry.rank}">
           <div class="rank-badge ${medal ? 'medal' : ''}">
@@ -162,6 +190,35 @@ export class LeaderboardPanel {
         </div>
       `;
     }).join('');
+
+    // Attach event listeners to join buttons
+    if (this.currentCategory === 'top_rated_rooms') {
+      this.attachJoinButtonListeners();
+    }
+  }
+
+  private attachJoinButtonListeners(): void {
+    const joinButtons = this.container.querySelectorAll('.join-room-btn');
+    joinButtons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const roomId = (e.target as HTMLElement).getAttribute('data-room-id');
+        if (roomId && this.onJoinRoom) {
+          this.onJoinRoom(roomId);
+        }
+      });
+    });
+  }
+
+  private renderStars(avgRating: number): string {
+    const fullStars = Math.floor(avgRating);
+    const hasHalfStar = avgRating - fullStars >= 0.5;
+    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+
+    let stars = '★'.repeat(fullStars);
+    if (hasHalfStar) stars += '☆';
+    stars += '☆'.repeat(emptyStars);
+
+    return `<span class="stars">${stars}</span>`;
   }
 
   private getMedal(rank: number): string {
@@ -189,6 +246,8 @@ export class LeaderboardPanel {
         return `${value} achievement${value !== 1 ? 's' : ''}`;
       case 'games_won':
         return `${value} win${value !== 1 ? 's' : ''}`;
+      case 'top_rated_rooms':
+        return `${value.toFixed(1)} ⭐`;
       default:
         return value.toString();
     }
