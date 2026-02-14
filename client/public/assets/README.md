@@ -1,74 +1,82 @@
-# OpenClaw Hotel Pixel Art Assets
+# Asset Management
 
-This directory contains isometric pixel art assets for the OpenClaw Hotel client.
+## Asset Structure
 
-## Assets Generated
+All visual assets for OpenClaw Hotel are organized in this directory.
 
-### Floor Tiles (64x32 isometric diamond)
-- `floor_plain.png` - Plain floor tile
-- `floor_carpet.png` - Carpeted floor tile with pattern
-- `floor_checker.png` - Checkerboard floor tile
+### File Naming Convention
 
-### Wall Tiles (64x64 isometric)
-- `wall_left.png` - Left wall face
-- `wall_right.png` - Right wall face
-- `wall_corner.png` - Corner wall piece (both faces visible)
+Each sprite type exists in **two versions**:
 
-### Character Sprites (32x48 isometric)
-Individual frames:
-- `char_north.png` - Character facing north
-- `char_south.png` - Character facing south
-- `char_east.png` - Character facing east
-- `char_west.png` - Character facing west
+1. **Base version** (`sprite_name.png`) — Small placeholder (32-64px)
+2. **Gemini version** (`sprite_name_gemini.png`) — AI-generated high-quality (1024×1024)
 
-Combined spritesheet:
-- `character_spritesheet.png` - 128x48 spritesheet with all 4 directions (horizontal layout)
+**Example:**
+- `char_east.png` — 32×48 placeholder
+- `char_east_gemini.png` — 1024×1024 AI render (auto-scaled to 32×48 in-game)
 
-### Furniture (various sizes)
-- `furn_chair.png` - Isometric chair (32x40)
-- `furn_table.png` - Isometric table (32x40)
-- `furn_lamp.png` - Isometric lamp with glow (24x48)
+### Asset Types
 
-### Sprite Atlas
-- `sprites.json` - Pixi.js-compatible sprite atlas with frame coordinates and metadata
+| Type | Prefix | Dimensions (base) | Dimensions (Gemini) |
+|------|--------|-------------------|---------------------|
+| **Characters** | `char_` | 32×48 | 1024×1024 → 32×48 |
+| **Floors** | `floor_` | 64×32 | 1024×1024 → 64×32 |
+| **Walls** | `wall_` | 32×64 | 1024×1024 → 32×64 |
+| **Furniture** | `furn_` | 48×64 | 1024×1024 → 48×64 |
 
-## Usage
+### Loading Strategy
 
-Assets are loaded via `AssetLoader.ts` in the client source. The loader:
-1. Fetches `sprites.json` for frame data
-2. Loads individual PNG files
-3. Creates sub-textures for spritesheet frames
-4. Provides helper methods for accessing textures by type
+`AssetLoader.ts` implements a **fallback system**:
 
-Example:
 ```typescript
-import { AssetLoader } from './AssetLoader.js';
-
-// Load assets (call once at app startup)
-await AssetLoader.load();
-
-// Get textures
-const floorTexture = AssetLoader.getFloorTexture('plain');
-const charTexture = AssetLoader.getCharacterTexture(2); // 0=N, 1=E, 2=S, 3=W
-const furnitureTexture = AssetLoader.getFurnitureTexture('chair');
+1. Try to load {name}_gemini.png
+2. If successful → scale down to game size
+3. If not found → fallback to {name}.png
+4. If not found → create placeholder graphic
 ```
 
-## Generation
+This ensures:
+- **Quality**: Gemini assets are used when available
+- **Reliability**: Base versions serve as fallback
+- **Graceful degradation**: Missing assets don't break the game
 
-Assets are generated programmatically using:
-- `scripts/generate-pixel-art.mjs` - Main asset generator
-- `scripts/create-spritesheet.mjs` - Character spritesheet combiner
-- `scripts/canvas-polyfill.mjs` - Pure JS PNG encoder (no native deps)
+### Spritesheets
 
-To regenerate:
-```bash
-node scripts/generate-pixel-art.mjs
-node scripts/create-spritesheet.mjs
-```
+Some assets are bundled into spritesheets for efficiency:
 
-## Style Guide
+- `character_spritesheet.png` — All 4 character directions (north, south, east, west)
+- `walls_spritesheet_gemini.png` — All wall pieces
 
-- **Palette**: Habbo-inspired but original colors
-- **Format**: PNG with transparency
-- **Style**: Pixel art, 16-32px base scaled to isometric dimensions
-- **Consistency**: All sprites use black (#000000) outlines for clarity
+Spritesheet frames are defined in `sprites.json`.
+
+### Legacy Assets
+
+The following directories contain **unused** legacy assets:
+
+- `/client/assets/sprites/*.svg` — Original SVG placeholders (pre-PNG migration)
+
+These are kept for reference but **not loaded** by the game.
+
+---
+
+## Asset Credits
+
+All Gemini-generated assets created using:
+
+**AI Model**: Google Gemini 2.0 Flash Experimental  
+**Style**: Isometric pixel art, low-poly 3D render aesthetic  
+**Generation Date**: February 2026
+
+---
+
+## Adding New Assets
+
+To add a new sprite:
+
+1. Generate high-quality version with Gemini AI
+2. Save as `{type}_{name}_gemini.png` (1024×1024)
+3. Create small placeholder `{type}_{name}.png` (appropriate size)
+4. Add entry to `sprites.json` if using spritesheet
+5. Update `AssetLoader.ts` getter methods if needed
+
+The loader will automatically prefer the `_gemini` version and scale it appropriately.

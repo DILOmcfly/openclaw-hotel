@@ -6,6 +6,7 @@ import { FurnitureManager } from './renderer/FurnitureManager.js';
 import { HotelWSClient } from './ws/client.js';
 import { AssetLoader } from './AssetLoader.js';
 import { UIManager } from './ui/UIManager.js';
+import { SoundManager } from './SoundManager.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -85,6 +86,7 @@ async function init() {
 
   ui.onJoinRoom = (roomId: string) => {
     console.log('[Room] Joining:', roomId);
+    SoundManager.play('door_open');
     currentRoom = roomId;
     
     if (isConnected) {
@@ -115,6 +117,9 @@ async function init() {
   };
 
   ui.onChatMessage = (message: string) => {
+    // Play sound effect
+    SoundManager.play('chat_message');
+    
     // Show own bubble
     const me = agentRenderer.getAll().find((a) => a.agentId === MY_ID);
     if (me) {
@@ -197,6 +202,7 @@ async function init() {
   // Furniture manager callbacks
   furnitureManager.onPlacementSuccess = () => {
     console.log('[Furniture] Placement successful');
+    SoundManager.play('furniture_place');
     ui.addChatMessage('System', 'Furniture placed!');
   };
 
@@ -223,9 +229,18 @@ async function init() {
     contextMenu.style.top = `${screenY}px`;
 
     const options = [
-      { label: 'ROTATE', emoji: '🔄', action: () => furnitureManager.rotateSelectedFurniture() },
-      { label: 'MOVE', emoji: '↔️', action: () => furnitureManager.startDragMode(itemId) },
-      { label: 'PICK UP', emoji: '🗑️', action: () => furnitureManager.removeSelectedFurniture() },
+      { label: 'ROTATE', emoji: '🔄', action: () => {
+        SoundManager.play('furniture_rotate');
+        furnitureManager.rotateSelectedFurniture();
+      }},
+      { label: 'MOVE', emoji: '↔️', action: () => {
+        SoundManager.play('furniture_move');
+        furnitureManager.startDragMode(itemId);
+      }},
+      { label: 'PICK UP', emoji: '🗑️', action: () => {
+        SoundManager.play('ui_click');
+        furnitureManager.removeSelectedFurniture();
+      }},
     ];
 
     options.forEach((opt) => {
@@ -289,12 +304,14 @@ async function init() {
 
   ws.on('agent.joined', (msg) => {
     const agentId = msg.agentId as string;
+    SoundManager.play('agent_join');
     agentRenderer.addOrUpdate({ agentId, x: 4, y: 4, color: 0x666666 });
     ui.addChatMessage('System', `${agentId} joined the room`);
   });
 
   ws.on('agent.left', (msg) => {
     const agentId = msg.agentId as string;
+    SoundManager.play('agent_leave');
     agentRenderer.remove(agentId);
     ui.addChatMessage('System', `${agentId} left the room`);
   });
@@ -397,8 +414,10 @@ async function init() {
     }
   });
 
-  // Game loop for bubble cleanup
-  app.ticker.add(() => {
+  // Game loop for animations and bubble cleanup
+  app.ticker.add((ticker) => {
+    const deltaMs = ticker.deltaMS;
+    agentRenderer.updateAnimations(deltaMs);
     bubbleSystem.update();
   });
 
