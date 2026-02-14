@@ -46,7 +46,7 @@ async function init() {
 
   // Renderers
   const agentRenderer = new AgentRenderer(world);
-  const bubbleSystem = new BubbleSystem(world);
+  const bubbleSystem = new BubbleSystem(world, app.screen.width / 2, app.screen.height / 3);
   const furnitureRenderer = new FurnitureRenderer(world);
 
   // Add self as initial agent

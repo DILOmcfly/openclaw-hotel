@@ -1,50 +1,106 @@
-import { Container, Graphics } from 'pixi.js';
 import { gridToScreen } from './IsoRenderer.js';
 
 interface Bubble {
   agentId: string;
-  container: Container;
+  element: HTMLDivElement;
   expiresAt: number;
+  gridX: number;
+  gridY: number;
 }
 
-const BUBBLE_DURATION = 4000; // ms
+const BUBBLE_DURATION = 5000;
 
 export class BubbleSystem {
   private bubbles: Bubble[] = [];
-  private world: Container;
+  private worldEl: HTMLElement;
+  private offsetX: number;
+  private offsetY: number;
 
-  constructor(world: Container) {
-    this.world = world;
+  constructor(_worldContainer: unknown, offsetX: number, offsetY: number) {
+    // Create an overlay div for HTML-based speech bubbles
+    this.offsetX = offsetX;
+    this.offsetY = offsetY;
+    this.worldEl = document.createElement('div');
+    this.worldEl.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:50';
+    document.body.appendChild(this.worldEl);
   }
 
-  show(agentId: string, _content: string, gridX: number, gridY: number): void {
-    // Remove existing bubble for this agent
+  updateOffset(x: number, y: number): void {
+    this.offsetX = x;
+    this.offsetY = y;
+  }
+
+  show(agentId: string, content: string, gridX: number, gridY: number): void {
     this.removeBubble(agentId);
 
-    const container = new Container();
     const { x, y } = gridToScreen(gridX, gridY, 0);
+    const screenX = x + this.offsetX;
+    const screenY = y + this.offsetY - 60;
 
-    // Bubble background
-    const bg = new Graphics();
-    bg.roundRect(-50, -40, 100, 24, 6);
-    bg.fill(0xffffff);
-    bg.stroke({ width: 1, color: 0x000000 });
-    // Tail
-    bg.poly([-4, -16, 4, -16, 0, -10]);
-    bg.fill(0xffffff);
-    container.addChild(bg);
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position: absolute;
+      left: ${screenX}px;
+      top: ${screenY}px;
+      transform: translateX(-50%);
+      background: #fff;
+      color: #000;
+      border: 2px solid #000;
+      border-radius: 12px;
+      padding: 6px 14px;
+      font-family: 'Arial', sans-serif;
+      font-size: 13px;
+      font-weight: bold;
+      white-space: nowrap;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      box-shadow: 2px 2px 0px rgba(0,0,0,0.2);
+      animation: bubbleIn 0.2s ease-out;
+    `;
 
-    // Note: Pixi.js Text requires the full library — for CDN we keep it simple
-    // In production, add Text rendering here
+    // Add agent name prefix
+    const nameSpan = document.createElement('span');
+    nameSpan.style.color = '#7E57C2';
+    nameSpan.textContent = agentId.slice(0, 10) + ': ';
+    el.appendChild(nameSpan);
+    el.appendChild(document.createTextNode(content));
 
-    container.position.set(x, y - 48);
-    container.zIndex = 9999;
-    this.world.addChild(container);
+    // Tail (CSS triangle)
+    const tail = document.createElement('div');
+    tail.style.cssText = `
+      position: absolute;
+      bottom: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 8px solid #000;
+    `;
+    el.appendChild(tail);
+    const tailInner = document.createElement('div');
+    tailInner.style.cssText = `
+      position: absolute;
+      bottom: -5px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 7px solid #fff;
+    `;
+    el.appendChild(tailInner);
 
+    this.worldEl.appendChild(el);
     this.bubbles.push({
       agentId,
-      container,
+      element: el,
       expiresAt: Date.now() + BUBBLE_DURATION,
+      gridX,
+      gridY,
     });
   }
 
@@ -52,7 +108,7 @@ export class BubbleSystem {
     const now = Date.now();
     const expired = this.bubbles.filter((b) => b.expiresAt <= now);
     for (const b of expired) {
-      this.world.removeChild(b.container);
+      b.element.remove();
     }
     this.bubbles = this.bubbles.filter((b) => b.expiresAt > now);
   }
@@ -60,7 +116,7 @@ export class BubbleSystem {
   private removeBubble(agentId: string): void {
     const idx = this.bubbles.findIndex((b) => b.agentId === agentId);
     if (idx >= 0) {
-      this.world.removeChild(this.bubbles[idx].container);
+      this.bubbles[idx].element.remove();
       this.bubbles.splice(idx, 1);
     }
   }
