@@ -19,6 +19,7 @@ import { FriendsPanel } from './ui/FriendsPanel.js';
 import { ProfilePanel } from './ui/ProfilePanel.js';
 import { NotificationCenter } from './ui/NotificationCenter.js';
 import { Navigator } from './ui/Navigator.js';
+import { GamePanel } from './ui/GamePanel.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -106,6 +107,9 @@ async function init() {
   const friendsPanel = new FriendsPanel();
   const profilePanel = new ProfilePanel();
   const navigator = new Navigator();
+  
+  // Game Panel
+  const gamePanel = new GamePanel();
   
   // Navigator event handlers
   navigator.onJoinRoom = (roomId) => {
@@ -196,6 +200,29 @@ async function init() {
     // Mark messages as read
     whisperWindow.markAsRead(agentId);
   };
+  
+  // Game Panel event handlers
+  gamePanel.setOnCreateGame((gameType) => {
+    console.log('[Game] Creating game:', gameType);
+    if (isConnected && currentRoom) {
+      ws.send({
+        type: 'game.create',
+        roomId: currentRoom,
+        gameType,
+      });
+    }
+  });
+  
+  gamePanel.setOnMakeMove((gameId, move) => {
+    console.log('[Game] Making move:', gameId, move);
+    if (isConnected) {
+      ws.send({
+        type: 'game.move',
+        gameId,
+        move,
+      });
+    }
+  });
 
   friendsPanel.onAcceptRequest = (friendshipId) => {
     console.log('[Friends] Accepting friend request:', friendshipId);
@@ -321,6 +348,11 @@ async function init() {
       loadRooms();
       ui.addChatMessage('System', `Room "${name}" created!`);
     }, 500);
+  };
+
+  ui.onGamesToggle = () => {
+    console.log('[UI] Toggling games panel');
+    gamePanel.show();
   };
 
   ui.onChatMessage = (message: string) => {
@@ -934,6 +966,58 @@ async function init() {
       toastManager.warning(`Trade ${reason}`, 3000);
       tradeWindow.showCancelled(reason);
     }
+  });
+
+  // Game WebSocket handlers
+  ws.on('game.created', (msg) => {
+    const gameId = msg.gameId as string;
+    const gameType = msg.gameType as string;
+    const hostId = msg.hostId as string;
+    
+    console.log('[Game] Game created:', gameId, gameType);
+    
+    // If I created the game, show the game panel
+    if (hostId === MY_ID) {
+      gamePanel.gameCreated(gameId, gameType as any);
+      toastManager.info(`${gameType} game created!`, 3000);
+    } else {
+      toastManager.info(`New ${gameType} game available!`, 3000);
+    }
+  });
+  
+  ws.on('game.state', (msg) => {
+    const gameId = msg.gameId as string;
+    const status = msg.status as string;
+    const participants = msg.participants as string[];
+    const result = msg.result as any;
+    
+    console.log('[Game] Game state updated:', gameId, status);
+    
+    // If game completed, show result
+    if (status === 'completed' && result) {
+      gamePanel.showResult(result.details);
+    }
+  });
+  
+  ws.on('game.completed', (msg) => {
+    const gameId = msg.gameId as string;
+    const winnerId = msg.winnerId as string | null;
+    const result = msg.result as any;
+    
+    console.log('[Game] Game completed:', gameId, winnerId);
+    
+    SoundManager.play('furniture_purchase'); // Reuse sound
+    
+    if (winnerId === MY_ID) {
+      toastManager.success('You won!', 3000);
+    } else if (winnerId === null) {
+      toastManager.info('Draw!', 3000);
+    } else {
+      toastManager.warning('You lost!', 3000);
+    }
+    
+    // Show result in panel
+    gamePanel.showResult(result);
   });
 
   // Whisper WebSocket handlers

@@ -15,6 +15,7 @@ import economyRouter from './api/economy.routes.js';
 import adminRouter from './api/admin.routes.js';
 import navigatorRouter from './api/navigator.routes.js';
 import moderationToolsRouter from './api/moderationTools.routes.js';
+import gamesRouter from './api/games.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -36,6 +37,7 @@ app.use(economyRouter);
 app.use(adminRouter);
 app.use('/api/navigator', navigatorRouter);
 app.use('/api/moderation', moderationToolsRouter);
+app.use(gamesRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });

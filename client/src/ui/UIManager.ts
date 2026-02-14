@@ -150,6 +150,9 @@ export class UIManager {
             <button class="hud-btn" id="friends-toggle" title="Friends">
               <span class="icon">👥</span>
             </button>
+            <button class="hud-btn" id="games-toggle" title="Mini-Games">
+              <span class="icon">🎮</span>
+            </button>
             <button class="hud-btn" id="inventory-toggle" title="Inventory">
               <span class="icon">📦</span>
             </button>
@@ -350,6 +353,12 @@ export class UIManager {
     const friendsToggle = document.getElementById('friends-toggle');
     friendsToggle?.addEventListener('click', () => {
       this.onFriendsToggle?.();
+    });
+
+    // Games toggle
+    const gamesToggle = document.getElementById('games-toggle');
+    gamesToggle?.addEventListener('click', () => {
+      this.onGamesToggle?.();
     });
 
     // Inventory toggle
@@ -793,6 +802,7 @@ export class UIManager {
   public onRoomEditorToggle?: () => void;
   public onFriendsToggle?: () => void;
   public onProfileToggle?: () => void;
+  public onGamesToggle?: () => void;
   public onClaimDailyBonus?: () => void;
 
   public getToken(): string { return this.token; }

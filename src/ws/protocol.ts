@@ -157,6 +157,37 @@ export const whisperTypingMsgSchema = z.object({
 
 export type WhisperTypingMsg = z.infer<typeof whisperTypingMsgSchema>
 
+// Game schemas
+export const gameCreateMsgSchema = z.object({
+  type: z.literal('game.create'),
+  roomId: z.string(),
+  gameType: z.enum(['dice', 'coinflip', 'rps']),
+})
+
+export type GameCreateMsg = z.infer<typeof gameCreateMsgSchema>
+
+export const gameJoinMsgSchema = z.object({
+  type: z.literal('game.join'),
+  gameId: z.string(),
+})
+
+export type GameJoinMsg = z.infer<typeof gameJoinMsgSchema>
+
+export const gameMoveMsgSchema = z.object({
+  type: z.literal('game.move'),
+  gameId: z.string(),
+  move: z.union([z.string(), z.number()]),
+})
+
+export type GameMoveMsg = z.infer<typeof gameMoveMsgSchema>
+
+export const gameEndMsgSchema = z.object({
+  type: z.literal('game.end'),
+  gameId: z.string(),
+})
+
+export type GameEndMsg = z.infer<typeof gameEndMsgSchema>
+
 export const clientMessageSchema = z.discriminatedUnion('type', [
   roomJoinMsgSchema,
   roomLeaveMsgSchema,
@@ -177,6 +208,10 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   friendAcceptMsgSchema,
   whisperSendMsgSchema,
   whisperTypingMsgSchema,
+  gameCreateMsgSchema,
+  gameJoinMsgSchema,
+  gameMoveMsgSchema,
+  gameEndMsgSchema,
 ])
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>
@@ -364,6 +399,30 @@ export type NotificationNewMsg = {
   unreadCount: number
 }
 
+// Game server messages
+export type GameCreatedMsg = {
+  type: 'game.created'
+  gameId: string
+  roomId: string
+  gameType: string
+  hostId: string
+}
+
+export type GameStateMsg = {
+  type: 'game.state'
+  gameId: string
+  status: string
+  participants: string[]
+  result: any
+}
+
+export type GameCompletedMsg = {
+  type: 'game.completed'
+  gameId: string
+  winnerId: string | null
+  result: any
+}
+
 export type ServerMessage =
   | ConnectedMsg
   | RoomJoinedMsg
@@ -388,6 +447,9 @@ export type ServerMessage =
   | WhisperSentMsg
   | WhisperTypingIndicatorMsg
   | NotificationNewMsg
+  | GameCreatedMsg
+  | GameStateMsg
+  | GameCompletedMsg
 
 export function parseClientMessage(data: string): ClientMessage {
   const parsed = JSON.parse(data)

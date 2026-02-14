@@ -837,6 +837,95 @@ export function setupWebSocket(server: Server): void {
           }
           break;
         }
+
+        case 'game.create': {
+          try {
+            const { createGame } = await import('../services/games.js');
+            
+            const game = createGame(clientMessage.roomId, clientMessage.gameType, agentId);
+
+            // Broadcast to room
+            broadcastToRoom(clientMessage.roomId, {
+              type: 'game.created',
+              gameId: game.id,
+              roomId: game.roomId,
+              gameType: game.type,
+              hostId: game.hostId,
+            });
+          } catch (error: any) {
+            sendError(ws, 'GAME_CREATE_FAILED', error.message || 'Failed to create game');
+          }
+          break;
+        }
+
+        case 'game.join': {
+          try {
+            const { joinGame, getGameState } = await import('../services/games.js');
+            
+            const game = joinGame(clientMessage.gameId, agentId);
+
+            // Broadcast updated state to room
+            broadcastToRoom(game.roomId, {
+              type: 'game.state',
+              gameId: game.id,
+              status: game.status,
+              participants: game.participants,
+              result: game.result,
+            });
+          } catch (error: any) {
+            sendError(ws, 'GAME_JOIN_FAILED', error.message || 'Failed to join game');
+          }
+          break;
+        }
+
+        case 'game.move': {
+          try {
+            const { makeMove } = await import('../services/games.js');
+            
+            const game = makeMove(clientMessage.gameId, agentId, clientMessage.move);
+
+            // Broadcast updated state
+            broadcastToRoom(game.roomId, {
+              type: 'game.state',
+              gameId: game.id,
+              status: game.status,
+              participants: game.participants,
+              result: game.result,
+            });
+
+            // If game completed, send completion message
+            if (game.status === 'completed') {
+              broadcastToRoom(game.roomId, {
+                type: 'game.completed',
+                gameId: game.id,
+                winnerId: game.result?.winnerId || null,
+                result: game.result?.details || {},
+              });
+            }
+          } catch (error: any) {
+            sendError(ws, 'GAME_MOVE_FAILED', error.message || 'Failed to make move');
+          }
+          break;
+        }
+
+        case 'game.end': {
+          try {
+            const { endGame } = await import('../services/games.js');
+            
+            const game = endGame(clientMessage.gameId);
+
+            // Broadcast completion
+            broadcastToRoom(game.roomId, {
+              type: 'game.completed',
+              gameId: game.id,
+              winnerId: game.result?.winnerId || null,
+              result: game.result?.details || {},
+            });
+          } catch (error: any) {
+            sendError(ws, 'GAME_END_FAILED', error.message || 'Failed to end game');
+          }
+          break;
+        }
       }
     });
 
