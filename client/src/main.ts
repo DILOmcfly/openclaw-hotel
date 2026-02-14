@@ -21,6 +21,7 @@ import { NotificationCenter } from './ui/NotificationCenter.js';
 import { Navigator } from './ui/Navigator.js';
 import { GamePanel } from './ui/GamePanel.js';
 import { LeaderboardPanel } from './ui/LeaderboardPanel.js';
+import { ShopPanel } from './ui/ShopPanel.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -114,6 +115,19 @@ async function init() {
   
   // Leaderboard Panel
   const leaderboardPanel = new LeaderboardPanel();
+  
+  // Shop Panel
+  const shopPanel = new ShopPanel({
+    onPurchase: (itemDefId, quantity) => {
+      console.log('[ShopPanel] Purchased:', itemDefId, 'x', quantity);
+      toastManager.show(`Purchased ${quantity}× ${itemDefId}!`, 'success');
+      // Refresh inventory if it's open (future enhancement)
+      // TODO: Emit event to refresh inventory panel
+    },
+    onClose: () => {
+      shopPanel.hide();
+    },
+  });
   
   // Navigator event handlers
   navigator.onJoinRoom = (roomId) => {
@@ -366,6 +380,11 @@ async function init() {
     
     // Load initial category (coins)
     await loadLeaderboard(leaderboardPanel.getCurrentCategory());
+  };
+
+  ui.onShopToggle = () => {
+    console.log('[UI] Toggling shop panel');
+    shopPanel.show();
   };
 
   // Leaderboard Panel event handlers
