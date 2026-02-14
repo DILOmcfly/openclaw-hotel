@@ -12,6 +12,7 @@ import directMessagesRouter from './api/directMessages.routes.js';
 import achievementsRouter from './api/achievements.routes.js';
 import notificationsRouter from './api/notifications.routes.js';
 import economyRouter from './api/economy.routes.js';
+import adminRouter from './api/admin.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -30,6 +31,7 @@ app.use(directMessagesRouter);
 app.use(achievementsRouter);
 app.use(notificationsRouter);
 app.use(economyRouter);
+app.use(adminRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
