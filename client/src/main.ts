@@ -13,6 +13,7 @@ import { toastManager } from './ToastManager.js';
 import { VirtualJoystick, type Direction } from './VirtualJoystick.js';
 import { memoryProfiler } from './renderer/MemoryProfiler.js';
 import { RoomEditor } from './RoomEditor.js';
+import { TradeWindow } from './ui/TradeWindow.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -91,6 +92,38 @@ async function init() {
   // Room Editor
   const roomEditor = new RoomEditor();
   let currentRoomOwnerId: string | null = null; // Track if current user owns the room
+
+  // Trade Window
+  const tradeWindow = new TradeWindow();
+  
+  // Trade event handlers
+  tradeWindow.setOnAccept((tradeId) => {
+    console.log('[Trade] Accepting trade:', tradeId);
+    if (isConnected) {
+      ws.send({ type: 'trade.accept', tradeId });
+    }
+  });
+  
+  tradeWindow.setOnReject((tradeId) => {
+    console.log('[Trade] Rejecting trade:', tradeId);
+    if (isConnected) {
+      ws.send({ type: 'trade.reject', tradeId });
+    }
+  });
+  
+  tradeWindow.setOnCancel((tradeId) => {
+    console.log('[Trade] Cancelling trade:', tradeId);
+    if (isConnected) {
+      ws.send({ type: 'trade.cancel', tradeId });
+    }
+  });
+  
+  tradeWindow.setOnUpdateItems((tradeId, items) => {
+    console.log('[Trade] Updating items:', tradeId, items);
+    if (isConnected) {
+      ws.send({ type: 'trade.update', tradeId, items });
+    }
+  });
 
   // WebSocket connection
   const ws = new HotelWSClient();
@@ -187,6 +220,31 @@ async function init() {
   };
 
   ui.onChatMessage = (message: string) => {
+    // Check if message is a trade command: /trade @agentId
+    if (message.startsWith('/trade ')) {
+      const targetId = message.slice(7).trim();
+      if (!targetId) {
+        ui.addChatMessage('System', 'Usage: /trade @agentId');
+        return;
+      }
+      
+      if (!isConnected) {
+        ui.addChatMessage('System', 'Not connected to server');
+        return;
+      }
+      
+      // Send trade request
+      console.log('[Trade] Requesting trade with:', targetId);
+      ws.send({
+        type: 'trade.request',
+        roomId: currentRoom,
+        targetAgentId: targetId,
+      });
+      
+      ui.addChatMessage('System', `Trade request sent to ${targetId}`);
+      return;
+    }
+    
     // Check if message is an emote command
     const emoteName = EmoteManager.parseEmoteCommand(message);
     
@@ -341,6 +399,72 @@ async function init() {
         SoundManager.play('ui_click');
         furnitureManager.removeSelectedFurniture();
       }},
+    ];
+
+    options.forEach((opt) => {
+      const btn = document.createElement('div');
+      btn.className = 'furniture-context-menu-option';
+      btn.innerHTML = `<span>${opt.emoji}</span><span>${opt.label}</span>`;
+      btn.onclick = () => {
+        opt.action();
+        contextMenu?.remove();
+        contextMenu = null;
+      };
+      contextMenu.appendChild(btn);
+    });
+
+    document.body.appendChild(contextMenu);
+
+    // Close on click outside
+    setTimeout(() => {
+      document.addEventListener(
+        'click',
+        () => {
+          contextMenu?.remove();
+          contextMenu = null;
+        },
+        { once: true }
+      );
+    }, 100);
+  };
+
+  // Agent context menu handler (for right-click on avatars)
+  agentRenderer.onAgentContextMenu = (agentId: string, screenX: number, screenY: number) => {
+    // Don't show context menu for self
+    if (agentId === MY_ID) return;
+
+    // Remove existing menu
+    if (contextMenu) {
+      contextMenu.remove();
+    }
+
+    contextMenu = document.createElement('div');
+    contextMenu.className = 'furniture-context-menu'; // Reuse same styling
+    contextMenu.style.left = `${screenX}px`;
+    contextMenu.style.top = `${screenY}px`;
+
+    const options = [
+      { 
+        label: 'TRADE', 
+        emoji: '🤝', 
+        action: () => {
+          if (!isConnected) {
+            toastManager.warning('Not connected to server', 2000);
+            return;
+          }
+
+          SoundManager.play('ui_click');
+          
+          // Send trade request via WebSocket
+          ws.send({
+            type: 'trade.request',
+            roomId: currentRoom,
+            targetAgentId: agentId,
+          });
+          
+          toastManager.info(`Trade request sent!`, 3000);
+        }
+      },
     ];
 
     options.forEach((opt) => {
@@ -633,6 +757,60 @@ async function init() {
     // Show toast notification for interesting emotes
     if (['dance', 'wave', 'laugh'].includes(emote)) {
       toastManager.info(`${agentId} ${emote}s!`, 2000);
+    }
+  });
+
+  // Trading WebSocket handlers
+  ws.on('trade.requested', (msg) => {
+    const tradeId = msg.tradeId as string;
+    const initiatorId = msg.initiatorId as string;
+    const initiatorName = msg.initiatorName as string;
+    
+    SoundManager.play('furniture_place'); // Reuse existing sound for notification
+    
+    if (initiatorId === MY_ID) {
+      // I initiated the trade
+      toastManager.info(`Trade request sent!`, 3000);
+    } else {
+      // Someone wants to trade with me
+      toastManager.info(`${initiatorName} wants to trade with you!`, 5000);
+      
+      // Open trade window
+      tradeWindow.open(tradeId, initiatorId, initiatorName);
+    }
+  });
+
+  ws.on('trade.updated', (msg) => {
+    const tradeId = msg.tradeId as string;
+    const agentId = msg.agentId as string;
+    const items = msg.items as Array<{ itemDefId: string; quantity: number }>;
+    
+    // Only update if this is the active trade
+    if (tradeWindow.getTradeId() === tradeId) {
+      tradeWindow.updateTheirOffer(items);
+    }
+  });
+
+  ws.on('trade.completed', (msg) => {
+    const tradeId = msg.tradeId as string;
+    
+    if (tradeWindow.getTradeId() === tradeId) {
+      SoundManager.play('furniture_purchase'); // Reuse purchase sound for success
+      toastManager.success('Trade completed!', 3000);
+      tradeWindow.showCompleted();
+      
+      // Reload inventory after trade
+      setTimeout(() => loadInventory(), 1000);
+    }
+  });
+
+  ws.on('trade.cancelled', (msg) => {
+    const tradeId = msg.tradeId as string;
+    const reason = msg.reason as string;
+    
+    if (tradeWindow.getTradeId() === tradeId) {
+      toastManager.warning(`Trade ${reason}`, 3000);
+      tradeWindow.showCancelled(reason);
     }
   });
 

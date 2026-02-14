@@ -45,6 +45,9 @@ export class AgentRenderer {
   private animationTime: number = 0;
   private containerPool: ObjectPool<Container>;
   private viewportCulling: ViewportCulling;
+  
+  // Callback for agent right-click context menu
+  public onAgentContextMenu?: (agentId: string, screenX: number, screenY: number) => void;
 
   constructor(world: Container) {
     this.world = world;
@@ -231,6 +234,18 @@ export class AgentRenderer {
 
     if (!entry) {
       const container = this.containerPool.acquire();
+      
+      // Make container interactive for context menu
+      container.eventMode = 'static';
+      container.cursor = 'pointer';
+      
+      // Add right-click handler
+      container.on('rightclick', (event: any) => {
+        if (this.onAgentContextMenu) {
+          const globalPos = event.global;
+          this.onAgentContextMenu(state.agentId, globalPos.x, globalPos.y);
+        }
+      });
       
       // Try to use character sprite
       const direction = state.direction ?? 2; // Default to south
