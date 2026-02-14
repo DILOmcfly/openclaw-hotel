@@ -56,11 +56,13 @@ export class FurnitureManager {
   private currentRoomId: string = 'lobby';
   private placementMode: PlacementMode | null = null;
   private selectedItemId: string | null = null;
+  private dragMode: { itemId: string; offsetX: number; offsetY: number } | null = null;
 
   // Callbacks
   public onPlacementSuccess?: () => void;
   public onPlacementFailed?: (reason: string) => void;
   public onItemSelected?: (itemId: string) => void;
+  public onContextMenu?: (itemId: string, screenX: number, screenY: number) => void;
 
   constructor(world: Container) {
     this.world = world;
@@ -135,10 +137,23 @@ export class FurnitureManager {
     // Z-ordering for proper depth sorting
     container.zIndex = depthSort(item.x, item.y, item.z);
 
-    // Make interactive for selection
+    // Make interactive for selection and dragging
     container.eventMode = 'static';
     container.cursor = 'pointer';
-    container.on('pointerdown', () => this.selectFurniture(item.id));
+    container.on('pointerdown', (event) => {
+      if (event.button === 2) {
+        // Right-click → context menu
+        this.showContextMenu(item.id, event.globalX, event.globalY);
+      } else {
+        // Left-click → select
+        this.selectFurniture(item.id);
+      }
+    });
+
+    container.on('rightclick', (event) => {
+      event.preventDefault();
+      this.showContextMenu(item.id, event.globalX, event.globalY);
+    });
 
     this.world.addChild(container);
     this.items.set(item.id, { item, container });
@@ -450,5 +465,206 @@ export class FurnitureManager {
    */
   public getAll(): FurnitureItem[] {
     return Array.from(this.items.values()).map(({ item }) => item);
+  }
+
+  /**
+   * Show context menu for furniture item
+   */
+  private showContextMenu(itemId: string, screenX: number, screenY: number): void {
+    this.selectFurniture(itemId);
+    this.onContextMenu?.(itemId, screenX, screenY);
+  }
+
+  /**
+   * Start dragging a furniture item to reposition it
+   */
+  public startDragMode(itemId: string): void {
+    const entry = this.items.get(itemId);
+    if (!entry) return;
+
+    this.dragMode = {
+      itemId,
+      offsetX: 0,
+      offsetY: 0,
+    };
+
+    console.log(`[FurnitureManager] Drag mode started for ${itemId}`);
+  }
+
+  /**
+   * Update drag preview (called on mouse move)
+   */
+  public updateDragPreview(screenX: number, screenY: number): void {
+    if (!this.dragMode) return;
+
+    const entry = this.items.get(this.dragMode.itemId);
+    if (!entry) return;
+
+    const worldX = screenX - this.world.position.x;
+    const worldY = screenY - this.world.position.y;
+    const { gridX, gridY } = screenToGrid(worldX, worldY);
+
+    const snappedGridX = Math.floor(gridX);
+    const snappedGridY = Math.floor(gridY);
+    const { x, y } = gridToScreen(snappedGridX, snappedGridY, entry.item.z);
+
+    entry.container.position.set(x, y);
+    entry.container.alpha = 0.6; // Semi-transparent while dragging
+  }
+
+  /**
+   * Confirm drag reposition
+   */
+  public confirmDrag(): void {
+    if (!this.dragMode) return;
+
+    const entry = this.items.get(this.dragMode.itemId);
+    if (!entry) return;
+
+    const { gridX, gridY } = screenToGrid(entry.container.position.x, entry.container.position.y);
+    const snappedGridX = Math.floor(gridX);
+    const snappedGridY = Math.floor(gridY);
+
+    // Check collision
+    if (!this.checkMoveValid(this.dragMode.itemId, snappedGridX, snappedGridY, entry.item.rotation)) {
+      this.cancelDrag();
+      this.onPlacementFailed?.('Invalid position: collision detected');
+      return;
+    }
+
+    // Send move to backend
+    if (this.ws) {
+      this.ws.send({
+        type: 'furniture.move',
+        roomId: this.currentRoomId,
+        itemId: this.dragMode.itemId,
+        x: snappedGridX,
+        y: snappedGridY,
+      });
+    }
+
+    entry.container.alpha = 1.0;
+    this.dragMode = null;
+  }
+
+  /**
+   * Cancel drag and restore original position
+   */
+  public cancelDrag(): void {
+    if (!this.dragMode) return;
+
+    const entry = this.items.get(this.dragMode.itemId);
+    if (entry) {
+      const { x, y } = gridToScreen(entry.item.x, entry.item.y, entry.item.z);
+      entry.container.position.set(x, y);
+      entry.container.alpha = 1.0;
+    }
+
+    this.dragMode = null;
+  }
+
+  /**
+   * Rotate selected furniture
+   */
+  public rotateSelectedFurniture(): void {
+    if (!this.selectedItemId) return;
+
+    const entry = this.items.get(this.selectedItemId);
+    if (!entry) return;
+
+    const newRotation = (entry.item.rotation + 1) % 8;
+
+    // Check collision with new rotation
+    if (!this.checkMoveValid(this.selectedItemId, entry.item.x, entry.item.y, newRotation)) {
+      this.onPlacementFailed?.('Cannot rotate: collision detected');
+      return;
+    }
+
+    if (this.ws) {
+      this.ws.send({
+        type: 'furniture.rotate',
+        roomId: this.currentRoomId,
+        itemId: this.selectedItemId,
+        rotation: newRotation,
+      });
+    }
+  }
+
+  /**
+   * Check if move/rotation is valid (no collisions)
+   */
+  private checkMoveValid(itemId: string, gridX: number, gridY: number, rotation: number): boolean {
+    const entry = this.items.get(itemId);
+    if (!entry) return false;
+
+    const itemDef = ITEM_DIMENSIONS[entry.item.itemDefId];
+    if (!itemDef) return false;
+
+    const isSwapped = rotation === 4 || rotation === 6;
+    const width = isSwapped ? itemDef.depth : itemDef.width;
+    const depth = isSwapped ? itemDef.width : itemDef.depth;
+
+    // Check collision with other furniture
+    for (const [otherId, { item }] of this.items) {
+      if (otherId === itemId) continue; // Skip self
+
+      const otherDef = ITEM_DIMENSIONS[item.itemDefId];
+      if (!otherDef) continue;
+
+      const otherWidth = item.rotation === 4 || item.rotation === 6 ? otherDef.depth : otherDef.width;
+      const otherDepth = item.rotation === 4 || item.rotation === 6 ? otherDef.width : otherDef.depth;
+
+      for (let dx = 0; dx < width; dx++) {
+        for (let dy = 0; dy < depth; dy++) {
+          const checkX = gridX + dx;
+          const checkY = gridY + dy;
+
+          for (let ox = 0; ox < otherWidth; ox++) {
+            for (let oy = 0; oy < otherDepth; oy++) {
+              if (item.x + ox === checkX && item.y + oy === checkY) {
+                return false; // Collision
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Handle server furniture.moved event
+   */
+  public onFurnitureMoved(itemId: string, x: number, y: number, z: number): void {
+    const entry = this.items.get(itemId);
+    if (!entry) return;
+
+    entry.item.x = x;
+    entry.item.y = y;
+    entry.item.z = z;
+
+    const { x: screenX, y: screenY } = gridToScreen(x, y, z);
+    entry.container.position.set(screenX, screenY);
+    entry.container.zIndex = depthSort(x, y, z);
+  }
+
+  /**
+   * Handle server furniture.rotated event
+   */
+  public onFurnitureRotated(itemId: string, rotation: number): void {
+    const entry = this.items.get(itemId);
+    if (!entry) return;
+
+    entry.item.rotation = rotation;
+    const sprite = entry.container.children[0] as Sprite;
+    sprite.angle = rotation * 45;
+  }
+
+  /**
+   * Check if in drag mode
+   */
+  public isInDragMode(): boolean {
+    return this.dragMode !== null;
   }
 }

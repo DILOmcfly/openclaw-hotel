@@ -3,6 +3,8 @@ import type { IncomingMessage, Server } from 'node:http';
 import WebSocket, { WebSocketServer } from 'ws';
 import { validateToken } from '../services/auth.js';
 import { parseClientMessage, type ServerMessage } from './protocol.js';
+import { sql } from '../db/index.js';
+import { placeFurniture, removeFurniture, getItemsInRoom } from '../services/furniture.js';
 
 export const connections = new Map<string, WebSocket>();
 export const roomMembers = new Map<string, Set<string>>();
@@ -177,6 +179,21 @@ export function setupWebSocket(server: Server): void {
           members.add(agentId);
           roomMembers.set(clientMessage.roomId, members);
 
+          // Fetch existing furniture in the room
+          let roomItems: any[] = [];
+          try {
+            roomItems = await getItemsInRoom(clientMessage.roomId, sql);
+          } catch (error) {
+            console.error('[WS] Error fetching room items:', error);
+          }
+
+          // Send room.joined to the joining agent with existing items
+          sendMessage(ws, {
+            type: 'room.joined',
+            roomId: clientMessage.roomId,
+            items: roomItems,
+          });
+
           broadcastToRoom(clientMessage.roomId, {
             type: 'presence.join',
             roomId: clientMessage.roomId,
@@ -232,28 +249,193 @@ export function setupWebSocket(server: Server): void {
         }
 
         case 'furniture.place': {
-          broadcastToRoom(clientMessage.roomId, {
-            type: 'furniture.placed',
-            roomId: clientMessage.roomId,
-            item: {
-              id: randomUUID(),
-              itemDefId: clientMessage.itemDefId,
-              x: clientMessage.x,
-              y: clientMessage.y,
-              rotation: clientMessage.rotation,
-              placedBy: agentId,
-              createdAt: new Date().toISOString(),
-            },
-          });
+          try {
+            // Persist to database
+            const placedItem = await placeFurniture(
+              clientMessage.roomId,
+              clientMessage.itemDefId,
+              clientMessage.x,
+              clientMessage.y,
+              clientMessage.rotation || 0,
+              agentId,
+              sql
+            );
+
+            // Deduct from user's inventory
+            await sql`
+              UPDATE user_inventory
+              SET quantity = quantity - 1
+              WHERE agent_id = ${agentId} AND item_def_id = ${clientMessage.itemDefId} AND quantity > 0
+            `;
+
+            // Clean up zero-quantity items
+            await sql`
+              DELETE FROM user_inventory
+              WHERE agent_id = ${agentId} AND quantity <= 0
+            `;
+
+            // Broadcast to all in room
+            broadcastToRoom(clientMessage.roomId, {
+              type: 'furniture.placed',
+              roomId: clientMessage.roomId,
+              item: placedItem,
+            });
+          } catch (error: any) {
+            sendError(ws, 'PLACEMENT_FAILED', error.message || 'Failed to place furniture');
+          }
           break;
         }
 
         case 'furniture.remove': {
-          broadcastToRoom(clientMessage.roomId, {
-            type: 'furniture.removed',
-            roomId: clientMessage.roomId,
-            itemId: clientMessage.itemId,
-          });
+          try {
+            // Get item details before removing
+            const [item] = await sql`
+              SELECT id, item_def_id AS "itemDefId", placed_by AS "placedBy"
+              FROM room_items
+              WHERE id = ${clientMessage.itemId} AND room_id = ${clientMessage.roomId}
+            `;
+
+            if (!item) {
+              sendError(ws, 'ITEM_NOT_FOUND', 'Furniture item not found');
+              break;
+            }
+
+            // Only owner can remove (or admin in future)
+            if (item.placedBy !== agentId) {
+              sendError(ws, 'PERMISSION_DENIED', 'You can only remove your own furniture');
+              break;
+            }
+
+            // Remove from database
+            const removed = await removeFurniture(clientMessage.roomId, clientMessage.itemId, sql);
+            if (!removed) {
+              sendError(ws, 'REMOVAL_FAILED', 'Failed to remove furniture');
+              break;
+            }
+
+            // Return to user's inventory
+            await sql`
+              INSERT INTO user_inventory (agent_id, item_def_id, quantity)
+              VALUES (${agentId}, ${item.itemDefId}, 1)
+              ON CONFLICT (agent_id, item_def_id)
+              DO UPDATE SET quantity = user_inventory.quantity + 1
+            `;
+
+            // Broadcast removal
+            broadcastToRoom(clientMessage.roomId, {
+              type: 'furniture.removed',
+              roomId: clientMessage.roomId,
+              itemId: clientMessage.itemId,
+            });
+          } catch (error: any) {
+            sendError(ws, 'REMOVAL_FAILED', error.message || 'Failed to remove furniture');
+          }
+          break;
+        }
+
+        case 'furniture.move': {
+          try {
+            // Get item to verify ownership
+            const [item] = await sql`
+              SELECT id, item_def_id AS "itemDefId", placed_by AS "placedBy", rotation
+              FROM room_items
+              WHERE id = ${clientMessage.itemId} AND room_id = ${clientMessage.roomId}
+            `;
+
+            if (!item) {
+              sendError(ws, 'ITEM_NOT_FOUND', 'Furniture item not found');
+              break;
+            }
+
+            if (item.placedBy !== agentId) {
+              sendError(ws, 'PERMISSION_DENIED', 'You can only move your own furniture');
+              break;
+            }
+
+            // Check collision at new position
+            const existingItems = await getItemsInRoom(clientMessage.roomId, sql);
+            const otherItems = existingItems.filter((i: any) => i.id !== clientMessage.itemId);
+            
+            const { getAffectedTiles, checkCollision, getStackHeight } = await import('../services/furniture.js');
+            const affectedTiles = getAffectedTiles(item.itemDefId, clientMessage.x, clientMessage.y, item.rotation);
+            
+            if (checkCollision(affectedTiles, otherItems)) {
+              sendError(ws, 'COLLISION', 'Cannot move furniture: collision detected');
+              break;
+            }
+
+            const z = getStackHeight(clientMessage.x, clientMessage.y, otherItems);
+
+            // Update position
+            await sql`
+              UPDATE room_items
+              SET x = ${clientMessage.x}, y = ${clientMessage.y}, z = ${z}
+              WHERE id = ${clientMessage.itemId} AND room_id = ${clientMessage.roomId}
+            `;
+
+            // Broadcast move
+            broadcastToRoom(clientMessage.roomId, {
+              type: 'furniture.moved',
+              roomId: clientMessage.roomId,
+              itemId: clientMessage.itemId,
+              x: clientMessage.x,
+              y: clientMessage.y,
+              z,
+            });
+          } catch (error: any) {
+            sendError(ws, 'MOVE_FAILED', error.message || 'Failed to move furniture');
+          }
+          break;
+        }
+
+        case 'furniture.rotate': {
+          try {
+            // Get item to verify ownership
+            const [item] = await sql`
+              SELECT id, item_def_id AS "itemDefId", placed_by AS "placedBy", x, y
+              FROM room_items
+              WHERE id = ${clientMessage.itemId} AND room_id = ${clientMessage.roomId}
+            `;
+
+            if (!item) {
+              sendError(ws, 'ITEM_NOT_FOUND', 'Furniture item not found');
+              break;
+            }
+
+            if (item.placedBy !== agentId) {
+              sendError(ws, 'PERMISSION_DENIED', 'You can only rotate your own furniture');
+              break;
+            }
+
+            // Check collision with new rotation
+            const existingItems = await getItemsInRoom(clientMessage.roomId, sql);
+            const otherItems = existingItems.filter((i: any) => i.id !== clientMessage.itemId);
+            
+            const { getAffectedTiles, checkCollision } = await import('../services/furniture.js');
+            const affectedTiles = getAffectedTiles(item.itemDefId, item.x, item.y, clientMessage.rotation);
+            
+            if (checkCollision(affectedTiles, otherItems)) {
+              sendError(ws, 'COLLISION', 'Cannot rotate furniture: collision detected');
+              break;
+            }
+
+            // Update rotation
+            await sql`
+              UPDATE room_items
+              SET rotation = ${clientMessage.rotation}
+              WHERE id = ${clientMessage.itemId} AND room_id = ${clientMessage.roomId}
+            `;
+
+            // Broadcast rotation
+            broadcastToRoom(clientMessage.roomId, {
+              type: 'furniture.rotated',
+              roomId: clientMessage.roomId,
+              itemId: clientMessage.itemId,
+              rotation: clientMessage.rotation,
+            });
+          } catch (error: any) {
+            sendError(ws, 'ROTATE_FAILED', error.message || 'Failed to rotate furniture');
+          }
           break;
         }
       }

@@ -23,6 +23,8 @@ x00000000
 const MY_COLOR = Math.floor(Math.random() * 0xffffff);
 let MY_ID = `agent-${Math.random().toString(36).slice(2, 8)}`;
 
+// Simplified - context menu will be created inside init() with closure access
+
 async function init() {
   // Initialize UI Manager first
   const ui = new UIManager();
@@ -179,7 +181,65 @@ async function init() {
 
   furnitureManager.onItemSelected = (itemId: string) => {
     console.log('[Furniture] Item selected:', itemId);
-    // TODO: Show context menu for move/rotate/remove
+  };
+
+  let contextMenu: HTMLDivElement | null = null;
+  
+  furnitureManager.onContextMenu = (itemId: string, screenX: number, screenY: number) => {
+    // Remove existing menu
+    if (contextMenu) {
+      contextMenu.remove();
+    }
+
+    contextMenu = document.createElement('div');
+    contextMenu.className = 'furniture-context-menu';
+    contextMenu.style.position = 'fixed';
+    contextMenu.style.left = `${screenX}px`;
+    contextMenu.style.top = `${screenY}px`;
+    contextMenu.style.background = '#2a2a3e';
+    contextMenu.style.border = '1px solid #444';
+    contextMenu.style.borderRadius = '4px';
+    contextMenu.style.padding = '8px 0';
+    contextMenu.style.zIndex = '10000';
+    contextMenu.style.minWidth = '150px';
+    contextMenu.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+
+    const options = [
+      { label: '🔄 Rotate', action: () => furnitureManager.rotateSelectedFurniture() },
+      { label: '↔️ Move', action: () => furnitureManager.startDragMode(itemId) },
+      { label: '🗑️ Pick Up', action: () => furnitureManager.removeSelectedFurniture() },
+    ];
+
+    options.forEach((opt) => {
+      const btn = document.createElement('div');
+      btn.textContent = opt.label;
+      btn.style.padding = '8px 16px';
+      btn.style.cursor = 'pointer';
+      btn.style.color = '#fff';
+      btn.style.fontSize = '14px';
+      btn.onmouseenter = () => (btn.style.background = '#3a3a4e');
+      btn.onmouseleave = () => (btn.style.background = 'transparent');
+      btn.onclick = () => {
+        opt.action();
+        contextMenu?.remove();
+        contextMenu = null;
+      };
+      contextMenu.appendChild(btn);
+    });
+
+    document.body.appendChild(contextMenu);
+
+    // Close on click outside
+    setTimeout(() => {
+      document.addEventListener(
+        'click',
+        () => {
+          contextMenu?.remove();
+          contextMenu = null;
+        },
+        { once: true }
+      );
+    }, 100);
   };
 
   // WebSocket Event Handlers
@@ -241,6 +301,20 @@ async function init() {
     ui.addChatMessage(agentId, content);
   });
 
+  ws.on('furniture.moved', (msg) => {
+    const itemId = msg.itemId as string;
+    const x = msg.x as number;
+    const y = msg.y as number;
+    const z = msg.z as number;
+    furnitureManager.onFurnitureMoved(itemId, x, y, z);
+  });
+
+  ws.on('furniture.rotated', (msg) => {
+    const itemId = msg.itemId as string;
+    const rotation = msg.rotation as number;
+    furnitureManager.onFurnitureRotated(itemId, rotation);
+  });
+
   // Canvas interaction handlers
   app.canvas.addEventListener('click', (e: MouseEvent) => {
     // Only allow interaction when in game screen
@@ -269,6 +343,8 @@ async function init() {
   app.canvas.addEventListener('mousemove', (e: MouseEvent) => {
     if (furnitureManager.isInPlacementMode()) {
       furnitureManager.updatePlacementPreview(e.clientX, e.clientY);
+    } else if (furnitureManager.isInDragMode()) {
+      furnitureManager.updateDragPreview(e.clientX, e.clientY);
     }
   });
 

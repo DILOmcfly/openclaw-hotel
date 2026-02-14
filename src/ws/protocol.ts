@@ -51,6 +51,25 @@ export const furnitureRemoveMsgSchema = z.object({
 
 export type FurnitureRemoveMsg = z.infer<typeof furnitureRemoveMsgSchema>
 
+export const furnitureMoveMsgSchema = z.object({
+  type: z.literal('furniture.move'),
+  roomId: z.string(),
+  itemId: z.string(),
+  x: z.number(),
+  y: z.number(),
+})
+
+export type FurnitureMoveMsg = z.infer<typeof furnitureMoveMsgSchema>
+
+export const furnitureRotateMsgSchema = z.object({
+  type: z.literal('furniture.rotate'),
+  roomId: z.string(),
+  itemId: z.string(),
+  rotation: z.number(),
+})
+
+export type FurnitureRotateMsg = z.infer<typeof furnitureRotateMsgSchema>
+
 export const pingMsgSchema = z.object({
   type: z.literal('ping'),
 })
@@ -64,6 +83,8 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   agentMoveMsgSchema,
   furniturePlaceMsgSchema,
   furnitureRemoveMsgSchema,
+  furnitureMoveMsgSchema,
+  furnitureRotateMsgSchema,
   pingMsgSchema,
 ])
 
@@ -137,6 +158,22 @@ export type FurnitureRemovedMsg = {
   itemId: string
 }
 
+export type FurnitureMovedMsg = {
+  type: 'furniture.moved'
+  roomId: string
+  itemId: string
+  x: number
+  y: number
+  z: number
+}
+
+export type FurnitureRotatedMsg = {
+  type: 'furniture.rotated'
+  roomId: string
+  itemId: string
+  rotation: number
+}
+
 export type ErrorMsg = {
   type: 'error'
   code: string
@@ -157,6 +194,8 @@ export type ServerMessage =
   | AgentMovedMsg
   | FurniturePlacedMsg
   | FurnitureRemovedMsg
+  | FurnitureMovedMsg
+  | FurnitureRotatedMsg
   | ErrorMsg
   | PongMsg
 
