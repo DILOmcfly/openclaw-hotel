@@ -4,6 +4,7 @@
  */
 import express from 'express';
 import { validateToken } from '../services/auth.js';
+import { sql } from '../db/index.js';
 import * as navigatorService from '../services/navigator.service.js';
 
 const router = express.Router();
@@ -190,7 +191,15 @@ router.put('/room/:roomId/category', async (req, res) => {
       return res.status(400).json({ error: 'Category is required' });
     }
 
-    // TODO: Add ownership check (rooms service)
+    // Ownership check
+    const rooms = await sql`SELECT owner_id FROM rooms WHERE id = ${roomId}`;
+    if (rooms.length === 0) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+    if (rooms[0].owner_id !== agentId) {
+      return res.status(403).json({ error: 'Only room owner can update category' });
+    }
+
     await navigatorService.updateRoomCategory(roomId, category);
     res.json({ success: true });
   } catch (error: any) {
@@ -218,7 +227,15 @@ router.post('/room/:roomId/tags', async (req, res) => {
       return res.status(400).json({ error: 'Tags must be an array' });
     }
 
-    // TODO: Add ownership check (rooms service)
+    // Ownership check
+    const rooms = await sql`SELECT owner_id FROM rooms WHERE id = ${roomId}`;
+    if (rooms.length === 0) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+    if (rooms[0].owner_id !== agentId) {
+      return res.status(403).json({ error: 'Only room owner can add tags' });
+    }
+
     await navigatorService.addRoomTags(roomId, tags);
     res.json({ success: true });
   } catch (error: any) {

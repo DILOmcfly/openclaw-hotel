@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { getProfile, updateProfile, getStats } from '../services/profile.js';
+import { validateToken } from '../services/auth.js';
 import { sql } from '../db/index.js';
 
 const router = Router();
@@ -35,22 +36,20 @@ router.get('/api/profile/:agentId', async (req, res) => {
 /**
  * PUT /api/profile
  * Update own profile (requires auth)
- * For now, expects agentId in body (auth middleware not implemented yet)
  */
 router.put('/api/profile', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  const { agentId } = validateToken(token);
+
   const parsed = updateProfileSchema.safeParse(req.body);
 
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid request body', details: parsed.error });
-    return;
-  }
-
-  // TODO: Extract agentId from auth token once auth middleware is ready
-  // For now, require agentId in body
-  const { agentId } = req.body;
-
-  if (!agentId || typeof agentId !== 'string') {
-    res.status(400).json({ error: 'agentId is required in body' });
     return;
   }
 

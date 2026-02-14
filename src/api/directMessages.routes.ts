@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { DirectMessageService } from '../services/directMessages.js';
+import { validateToken } from '../services/auth.js';
 import { sql } from '../db/index.js';
 
 const router = Router();
@@ -28,10 +29,14 @@ function getQueryParam(value: any): string {
  */
 router.post('/api/messages/send', async (req: Request, res: Response): Promise<void> => {
     try {
-      const { recipientId, content } = req.body;
+      const token = req.headers.authorization?.replace('Bearer ', '');
+      if (!token) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
 
-      // TODO: Extract senderId from auth token once auth middleware is ready
-      const senderId = req.body.senderId || 'agent_test';
+      const { agentId: senderId } = validateToken(token);
+      const { recipientId, content } = req.body;
 
       if (!recipientId || !content) {
         res.status(400).json({ error: 'Missing recipientId or content' });
@@ -61,11 +66,15 @@ router.post('/api/messages/send', async (req: Request, res: Response): Promise<v
  */
 router.get('/api/messages/conversation/:otherAgentId', async (req: Request, res: Response): Promise<void> => {
     try {
+      const token = req.headers.authorization?.replace('Bearer ', '');
+      if (!token) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const { agentId } = validateToken(token);
       const otherAgentId = req.params.otherAgentId as string;
       const limit = parseInt(getQueryParam(req.query.limit)) || 50;
-
-      // TODO: Extract agentId from auth token
-      const agentId = (getQueryParam(req.query.agentId) || 'agent_test') as string;
 
       const messages = await dmService.getConversation(agentId, otherAgentId, limit);
 
@@ -83,8 +92,13 @@ router.get('/api/messages/conversation/:otherAgentId', async (req: Request, res:
  */
 router.get('/api/messages/inbox', async (req: Request, res: Response): Promise<void> => {
     try {
-      // TODO: Extract agentId from auth token
-      const agentId = getQueryParam(req.query.agentId) || 'agent_test';
+      const token = req.headers.authorization?.replace('Bearer ', '');
+      if (!token) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const { agentId } = validateToken(token);
 
       const previews = await dmService.getConversationPreviews(agentId);
 
@@ -102,10 +116,14 @@ router.get('/api/messages/inbox', async (req: Request, res: Response): Promise<v
  */
 router.put('/api/messages/mark-read/:senderId', async (req: Request, res: Response): Promise<void> => {
     try {
-      const senderId = req.params.senderId as string;
+      const token = req.headers.authorization?.replace('Bearer ', '');
+      if (!token) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
 
-      // TODO: Extract recipientId from auth token
-      const recipientId = (req.body.recipientId || 'agent_test') as string;
+      const { agentId: recipientId } = validateToken(token);
+      const senderId = req.params.senderId as string;
 
       const count = await dmService.markAsRead(recipientId, senderId);
 
@@ -123,8 +141,13 @@ router.put('/api/messages/mark-read/:senderId', async (req: Request, res: Respon
  */
 router.get('/api/messages/unread-count', async (req: Request, res: Response): Promise<void> => {
   try {
-    // TODO: Extract agentId from auth token
-    const agentId = getQueryParam(req.query.agentId) || 'agent_test';
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const { agentId } = validateToken(token);
 
     const count = await dmService.getUnreadCount(agentId);
 

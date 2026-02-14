@@ -168,6 +168,9 @@ export class UIManager {
             <button class="hud-btn hidden" id="room-editor-toggle" title="Edit Room">
               <span class="icon">🏗️</span>
             </button>
+            <button class="hud-btn" id="templates-toggle" title="Room Templates">
+              <span class="icon">📐</span>
+            </button>
             <button class="hud-btn" id="settings-btn" title="Settings">
               <span class="icon">⚙️</span>
             </button>
@@ -386,6 +389,12 @@ export class UIManager {
     const shopToggle = document.getElementById('shop-toggle');
     shopToggle?.addEventListener('click', () => {
       this.onShopToggle?.();
+    });
+
+    // Templates toggle
+    const templatesToggle = document.getElementById('templates-toggle');
+    templatesToggle?.addEventListener('click', () => {
+      this.onTemplatesToggle?.();
     });
 
     // Inventory toggle
@@ -833,6 +842,7 @@ export class UIManager {
   public onGamesToggle?: () => void;
   public onLeaderboardToggle?: () => void;
   public onShopToggle?: () => void;
+  public onTemplatesToggle?: () => void;
   public onClaimDailyBonus?: () => void;
 
   public getToken(): string { return this.token; }

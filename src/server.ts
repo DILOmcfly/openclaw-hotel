@@ -19,6 +19,7 @@ import gamesRouter from './api/games.routes.js';
 import botsRouter from './api/bots.routes.js';
 import leaderboardRouter from './api/leaderboard.routes.js';
 import appearanceRouter from './api/appearance.routes.js';
+import roomTemplatesRouter from './api/roomTemplates.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -46,6 +47,7 @@ app.use(gamesRouter);
 app.use(botsRouter);
 app.use(leaderboardRouter);
 app.use(appearanceRouter);
+app.use('/api/room-templates', roomTemplatesRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });

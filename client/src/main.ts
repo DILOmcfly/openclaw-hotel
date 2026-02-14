@@ -23,6 +23,7 @@ import { Navigator } from './ui/Navigator.js';
 import { GamePanel } from './ui/GamePanel.js';
 import { LeaderboardPanel } from './ui/LeaderboardPanel.js';
 import { ShopPanel } from './ui/ShopPanel.js';
+import { TemplatesBrowser } from './ui/TemplatesBrowser.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -129,6 +130,14 @@ async function init() {
       shopPanel.hide();
     },
   });
+  
+  // Templates Browser
+  const templatesBrowser = new TemplatesBrowser();
+  templatesBrowser.onCreateRoom = (roomId, roomName) => {
+    toastManager.show(`Room "${roomName}" created from template!`, 'success');
+    // Optionally auto-join the new room
+    ui.onJoinRoom?.(roomId);
+  };
   
   // Navigator event handlers
   navigator.onJoinRoom = (roomId) => {
@@ -386,6 +395,11 @@ async function init() {
   ui.onShopToggle = () => {
     console.log('[UI] Toggling shop panel');
     shopPanel.show();
+  };
+
+  ui.onTemplatesToggle = () => {
+    console.log('[UI] Toggling templates browser');
+    templatesBrowser.show();
   };
 
   // Avatar Customizer (initialized after login)
