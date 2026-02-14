@@ -21,6 +21,18 @@ export type ProfileStats = {
   joinedAt: string;
 };
 
+export type AchievementWithStatus = {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  conditionType: string;
+  conditionValue: number;
+  createdAt: string;
+  earned: boolean;
+  awardedAt: string | null;
+};
+
 export class ProfilePanel {
   private container!: HTMLElement;
   private currentProfile: ProfileData | null = null;
@@ -114,6 +126,14 @@ export class ProfilePanel {
               </div>
             </div>
           </div>
+
+          <!-- Badges Section -->
+          <div class="profile-section">
+            <h4>Badges</h4>
+            <div class="profile-badges" id="profile-badges">
+              <div class="badges-loading">Loading badges...</div>
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -179,6 +199,9 @@ export class ProfilePanel {
       const stats: ProfileStats = await statsResponse.json();
 
       this.renderProfile(profile, stats);
+      
+      // Load badges
+      await this.loadBadges(agentId);
     } catch (error) {
       console.error('[ProfilePanel] Failed to load profile:', error);
       this.showError('Failed to load profile. Please try again.');
@@ -323,6 +346,52 @@ export class ProfilePanel {
       console.error('[ProfilePanel] Failed to save bio:', error);
       alert('Failed to save bio. Please try again.');
     }
+  }
+
+  private async loadBadges(agentId: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/achievements/${agentId}`);
+      if (!response.ok) {
+        throw new Error('Failed to load badges');
+      }
+
+      const achievements: AchievementWithStatus[] = await response.json();
+      this.renderBadges(achievements);
+    } catch (error) {
+      console.error('[ProfilePanel] Failed to load badges:', error);
+      const badgesContainer = document.getElementById('profile-badges');
+      if (badgesContainer) {
+        badgesContainer.innerHTML = '<p class="badges-error">Failed to load badges</p>';
+      }
+    }
+  }
+
+  private renderBadges(achievements: AchievementWithStatus[]): void {
+    const badgesContainer = document.getElementById('profile-badges');
+    if (!badgesContainer) return;
+
+    if (achievements.length === 0) {
+      badgesContainer.innerHTML = '<p class="badges-empty">No badges yet. Start exploring!</p>';
+      return;
+    }
+
+    const badgesHtml = achievements
+      .map((achievement) => {
+        const earnedClass = achievement.earned ? 'badge-earned' : 'badge-locked';
+        const opacity = achievement.earned ? '1' : '0.3';
+        const title = achievement.earned
+          ? `${achievement.name}: ${achievement.description} (Earned: ${this.formatDate(achievement.awardedAt || '')})`
+          : `${achievement.name}: ${achievement.description} (Locked)`;
+
+        return `
+          <div class="badge-item ${earnedClass}" title="${this.escapeHtml(title)}" style="opacity: ${opacity}">
+            <span class="badge-icon">${achievement.icon}</span>
+          </div>
+        `;
+      })
+      .join('');
+
+    badgesContainer.innerHTML = `<div class="badges-grid">${badgesHtml}</div>`;
   }
 
   private setStatValue(elementId: string, value: number): void {

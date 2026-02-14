@@ -2225,6 +2225,59 @@
   padding: var(--spacing-lg);
 }
 
+/* Badges Section */
+.profile-badges {
+  padding: var(--spacing-md) 0;
+  min-height: 80px;
+}
+
+.badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: var(--spacing-md);
+  justify-items: center;
+}
+
+.badge-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  background: var(--habbo-light-blue);
+  border: 2px solid var(--habbo-gray);
+  border-radius: 8px;
+  cursor: help;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.badge-item:hover {
+  transform: scale(1.1);
+  border-color: var(--habbo-accent);
+}
+
+.badge-icon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.badge-locked {
+  filter: grayscale(100%);
+}
+
+.badges-loading,
+.badges-empty,
+.badges-error {
+  text-align: center;
+  color: var(--habbo-dark-gray);
+  padding: var(--spacing-md);
+  font-size: 12px;
+}
+
+.badges-error {
+  color: var(--habbo-red, #f44336);
+}
+
 /* Mobile adjustments for Profile Panel */
 @media (max-width: 768px) {
   .profile-panel {
