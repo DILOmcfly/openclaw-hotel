@@ -488,6 +488,20 @@ export type AgentAppearanceMsg = {
   }
 }
 
+// Spectator server messages
+export type SpectatorConnectedMsg = {
+  type: 'spectator.connected'
+  roomId: string
+  spectatorCount: number
+  serverTime: string
+}
+
+export type SpectatorCountMsg = {
+  type: 'spectator.count'
+  roomId: string
+  count: number
+}
+
 export type ServerMessage =
   | ConnectedMsg
   | RoomJoinedMsg
@@ -521,6 +535,8 @@ export type ServerMessage =
   | BotSpawnedMsg
   | BotDespawnedMsg
   | AgentAppearanceMsg
+  | SpectatorConnectedMsg
+  | SpectatorCountMsg
 
 export function parseClientMessage(data: string): ClientMessage {
   const parsed = JSON.parse(data)

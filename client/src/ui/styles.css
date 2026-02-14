@@ -4128,3 +4128,37 @@
     font-size: 28px;
   }
 }
+
+/* Spectator Count */
+.spectator-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #ff6b6b;
+  margin-top: 2px;
+  animation: fadeIn 0.3s ease;
+}
+
+.spectator-count.hidden {
+  display: none;
+}
+
+.spectator-icon {
+  font-size: 14px;
+}
+
+.spectator-number {
+  font-weight: bold;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

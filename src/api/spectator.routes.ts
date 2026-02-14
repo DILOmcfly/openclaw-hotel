@@ -1,0 +1,174 @@
+import express from 'express';
+import { sql } from '../db/index.js';
+import { roomMembers } from '../ws/handler.js';
+import { getSpectatorCount } from '../ws/spectator.js';
+
+const router = express.Router();
+
+/**
+ * GET /api/spectate/rooms
+ * List all active rooms with agent count and spectator count
+ * Public endpoint - no authentication required
+ */
+router.get('/api/spectate/rooms', async (_req, res) => {
+  try {
+    // Get all rooms from database
+    const rooms = await sql`
+      SELECT 
+        id,
+        name,
+        description,
+        created_at AS "createdAt",
+        metadata
+      FROM rooms
+      ORDER BY created_at DESC
+      LIMIT 100
+    `;
+
+    // Enrich with live counts
+    const activeRooms = rooms.map((room) => {
+      const members = roomMembers.get(room.id);
+      const agentCount = members ? members.size : 0;
+      const spectatorCount = getSpectatorCount(room.id);
+
+      return {
+        id: room.id,
+        name: room.name,
+        description: room.description,
+        agentCount,
+        spectatorCount,
+        isActive: agentCount > 0 || spectatorCount > 0,
+        createdAt: room.createdAt,
+      };
+    });
+
+    // Sort by activity (active rooms first, then by agent count)
+    activeRooms.sort((a, b) => {
+      if (a.isActive && !b.isActive) return -1;
+      if (!a.isActive && b.isActive) return 1;
+      return b.agentCount - a.agentCount;
+    });
+
+    res.json({
+      rooms: activeRooms,
+      totalRooms: activeRooms.length,
+    });
+  } catch (error) {
+    console.error('[Spectator API] Error listing rooms:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/spectate/rooms/:id
+ * Get detailed information about a specific room
+ * Includes agents inside, furniture, and recent chat history
+ * Public endpoint - no authentication required
+ */
+router.get('/api/spectate/rooms/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get room info
+    const [room] = await sql`
+      SELECT 
+        id,
+        name,
+        description,
+        heightmap,
+        created_at AS "createdAt",
+        metadata
+      FROM rooms
+      WHERE id = ${id}::uuid
+    `;
+
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+
+    // Get agents currently in room
+    const members = roomMembers.get(id);
+    const agentIds = members ? Array.from(members) : [];
+
+    let agentsInside: any[] = [];
+    if (agentIds.length > 0) {
+      agentsInside = await sql`
+        SELECT 
+          id,
+          display_name AS "displayName"
+        FROM agents
+        WHERE id = ANY(${agentIds}::uuid[])
+      `;
+    }
+
+    // Get furniture in room
+    const furniture = await sql`
+      SELECT 
+        id,
+        item_def_id AS "itemDefId",
+        x,
+        y,
+        z,
+        rotation
+      FROM room_items
+      WHERE room_id = ${id}::uuid
+    `;
+
+    res.json({
+      id: room.id,
+      name: room.name,
+      description: room.description,
+      heightmap: room.heightmap,
+      agentCount: agentIds.length,
+      spectatorCount: getSpectatorCount(id),
+      agents: agentsInside,
+      furniture: furniture,
+      metadata: room.metadata,
+    });
+  } catch (error) {
+    console.error('[Spectator API] Error getting room details:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/spectate/stats
+ * Get global spectator statistics
+ * Public endpoint - no authentication required
+ */
+router.get('/api/spectate/stats', async (_req, res) => {
+  try {
+    // Count total agents online
+    const totalAgentsOnline = Array.from(roomMembers.values()).reduce(
+      (sum, members) => sum + members.size,
+      0
+    );
+
+    // Count total spectators
+    let totalSpectators = 0;
+    const { spectatorsByRoom } = await import('../ws/spectator.js');
+    for (const spectators of spectatorsByRoom.values()) {
+      totalSpectators += spectators.size;
+    }
+
+    // Count active rooms (rooms with agents or spectators)
+    let activeRooms = 0;
+    const allRoomIds = new Set([
+      ...roomMembers.keys(),
+      ...spectatorsByRoom.keys(),
+    ]);
+    activeRooms = allRoomIds.size;
+
+    res.json({
+      totalAgentsOnline,
+      totalSpectators,
+      activeRooms,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[Spectator API] Error getting stats:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+export default router;

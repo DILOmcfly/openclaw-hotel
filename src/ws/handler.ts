@@ -76,6 +76,10 @@ export function broadcastToRoom(
 
     ws.send(payload);
   }
+
+  // Also broadcast to spectators
+  const { broadcastToSpectators } = require('./spectator.js');
+  broadcastToSpectators(roomId, message);
 }
 
 /**

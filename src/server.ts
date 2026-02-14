@@ -22,10 +22,12 @@ import leaderboardRouter from './api/leaderboard.routes.js';
 import appearanceRouter from './api/appearance.routes.js';
 import roomTemplatesRouter from './api/roomTemplates.routes.js';
 import ratingRouter from './api/rating.routes.js';
+import spectatorRouter from './api/spectator.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
 import { setupWebSocket } from './ws/handler.js';
+import { setupSpectatorWebSocket } from './ws/spectator.js';
 import { initializeBotManager, tickBots } from './services/botManager.js';
 import { sql } from './db/index.js';
 
@@ -52,6 +54,7 @@ app.use(leaderboardRouter);
 app.use(appearanceRouter);
 app.use('/api/room-templates', roomTemplatesRouter);
 app.use('/api/rooms', ratingRouter);
+app.use(spectatorRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
@@ -75,8 +78,15 @@ app.get('/admin', (_req, res) => {
     .send(readFileSync(join(import.meta.dirname, '..', 'client', 'admin.html'), 'utf8'));
 });
 
+app.get('/spectate', (_req, res) => {
+  res
+    .type('html')
+    .send(readFileSync(join(import.meta.dirname, '..', 'client', 'spectate.html'), 'utf8'));
+});
+
 const server = createServer(app);
 setupWebSocket(server);
+setupSpectatorWebSocket(server);
 
 // Initialize bot manager
 initializeBotManager(sql).catch((err) => {

@@ -132,6 +132,10 @@ export class UIManager {
             <div class="player-info">
               <span class="player-name" id="player-name"></span>
               <span class="current-room" id="current-room">Lobby</span>
+              <span class="spectator-count hidden" id="spectator-count">
+                <span class="spectator-icon">👁</span>
+                <span class="spectator-number" id="spectator-number">0</span>
+              </span>
             </div>
           </div>
           <div class="hud-center">
@@ -904,6 +908,23 @@ export class UIManager {
       } else {
         btn.classList.add('disabled');
         btn.setAttribute('title', 'Daily bonus already claimed (24h cooldown)');
+      }
+    }
+  }
+
+  /**
+   * Update spectator count in HUD
+   */
+  public updateSpectatorCount(count: number): void {
+    const spectatorCountEl = document.getElementById('spectator-count');
+    const spectatorNumberEl = document.getElementById('spectator-number');
+    
+    if (spectatorCountEl && spectatorNumberEl) {
+      if (count > 0) {
+        spectatorCountEl.classList.remove('hidden');
+        spectatorNumberEl.textContent = count.toString();
+      } else {
+        spectatorCountEl.classList.add('hidden');
       }
     }
   }

@@ -907,6 +907,12 @@ async function init() {
     }
   });
 
+  // Handle spectator count updates
+  ws.on('spectator.count', (msg) => {
+    const count = msg.count as number;
+    ui.updateSpectatorCount(count);
+  });
+
   // Throttle agent position updates (max 10/s per agent)
   const positionUpdateThrottles = new Map<string, { lastUpdate: number; pending: any }>();
   const THROTTLE_MS = 100; // 10 updates per second max
