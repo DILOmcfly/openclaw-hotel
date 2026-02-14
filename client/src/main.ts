@@ -219,32 +219,19 @@ async function init() {
 
     contextMenu = document.createElement('div');
     contextMenu.className = 'furniture-context-menu';
-    contextMenu.style.position = 'fixed';
     contextMenu.style.left = `${screenX}px`;
     contextMenu.style.top = `${screenY}px`;
-    contextMenu.style.background = '#2a2a3e';
-    contextMenu.style.border = '1px solid #444';
-    contextMenu.style.borderRadius = '4px';
-    contextMenu.style.padding = '8px 0';
-    contextMenu.style.zIndex = '10000';
-    contextMenu.style.minWidth = '150px';
-    contextMenu.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
 
     const options = [
-      { label: '🔄 Rotate', action: () => furnitureManager.rotateSelectedFurniture() },
-      { label: '↔️ Move', action: () => furnitureManager.startDragMode(itemId) },
-      { label: '🗑️ Pick Up', action: () => furnitureManager.removeSelectedFurniture() },
+      { label: 'ROTATE', emoji: '🔄', action: () => furnitureManager.rotateSelectedFurniture() },
+      { label: 'MOVE', emoji: '↔️', action: () => furnitureManager.startDragMode(itemId) },
+      { label: 'PICK UP', emoji: '🗑️', action: () => furnitureManager.removeSelectedFurniture() },
     ];
 
     options.forEach((opt) => {
       const btn = document.createElement('div');
-      btn.textContent = opt.label;
-      btn.style.padding = '8px 16px';
-      btn.style.cursor = 'pointer';
-      btn.style.color = '#fff';
-      btn.style.fontSize = '14px';
-      btn.onmouseenter = () => (btn.style.background = '#3a3a4e');
-      btn.onmouseleave = () => (btn.style.background = 'transparent');
+      btn.className = 'furniture-context-menu-option';
+      btn.innerHTML = `<span>${opt.emoji}</span><span>${opt.label}</span>`;
       btn.onclick = () => {
         opt.action();
         contextMenu?.remove();

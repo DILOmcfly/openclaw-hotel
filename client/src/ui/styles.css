@@ -701,3 +701,52 @@
 .furniture-item {
   animation: fadeIn 0.3s ease;
 }
+
+/* Furniture Context Menu */
+.furniture-context-menu {
+  position: fixed;
+  background: var(--habbo-dark-blue);
+  border: var(--border-width) solid var(--habbo-white);
+  box-shadow: 
+    0 4px 0 var(--habbo-dark-gray),
+    0 0 20px rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  min-width: 180px;
+  padding: 4px 0;
+  font-family: var(--pixel-font);
+  animation: contextMenuPop 0.15s ease-out;
+}
+
+.furniture-context-menu-option {
+  padding: 12px 16px;
+  cursor: pointer;
+  color: var(--habbo-white);
+  font-size: 10px;
+  letter-spacing: 1px;
+  transition: all 0.1s;
+  border-left: 4px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.furniture-context-menu-option:hover {
+  background: var(--habbo-light-blue);
+  border-left-color: var(--habbo-accent);
+  transform: translateX(2px);
+}
+
+.furniture-context-menu-option:active {
+  background: var(--habbo-blue);
+}
+
+@keyframes contextMenuPop {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}

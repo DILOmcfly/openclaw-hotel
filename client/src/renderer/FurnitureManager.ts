@@ -19,15 +19,15 @@ export interface FurnitureItem {
 }
 
 // Mapping from backend itemDefId to sprite filename (without furn_ prefix and .png)
-// Only maps to existing sprites - missing ones will use placeholder
+// AssetLoader will create placeholder sprites for missing items
 const ITEM_SPRITE_MAP: Record<string, string> = {
   chair_wood: 'chair',
   table_round: 'table',
   lamp_floor: 'lamp',
-  plant_pot: 'lamp', // placeholder - use lamp until plant sprite is added
+  plant_pot: 'plant', // Will use colored placeholder
   bookshelf: 'bookshelf',
-  sofa_2seat: 'bed', // placeholder - use bed until sofa sprite is added
-  desk_office: 'table', // placeholder - use table until desk sprite is added
+  sofa_2seat: 'sofa', // Will use colored placeholder
+  desk_office: 'desk', // Will use colored placeholder
   bed_single: 'bed',
 };
 
