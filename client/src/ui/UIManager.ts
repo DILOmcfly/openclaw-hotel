@@ -135,6 +135,9 @@ export class UIManager {
             </div>
           </div>
           <div class="hud-right">
+            <button class="hud-btn" id="profile-toggle" title="Profile">
+              <span class="icon">👤</span>
+            </button>
             <button class="hud-btn" id="friends-toggle" title="Friends">
               <span class="icon">👥</span>
             </button>
@@ -322,6 +325,12 @@ export class UIManager {
   }
 
   private attachGameListeners(): void {
+    // Profile toggle
+    const profileToggle = document.getElementById('profile-toggle');
+    profileToggle?.addEventListener('click', () => {
+      this.onProfileToggle?.();
+    });
+
     // Friends toggle
     const friendsToggle = document.getElementById('friends-toggle');
     friendsToggle?.addEventListener('click', () => {
@@ -768,6 +777,7 @@ export class UIManager {
   public onJoystickPositionChange?: (position: 'left' | 'right') => void;
   public onRoomEditorToggle?: () => void;
   public onFriendsToggle?: () => void;
+  public onProfileToggle?: () => void;
 
   public getToken(): string { return this.token; }
   public getUsername(): string { return this.username; }

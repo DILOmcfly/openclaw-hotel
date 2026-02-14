@@ -7,6 +7,7 @@ import furnitureRouter from './api/furniture.routes.js';
 import roomsRouter from './api/rooms.routes.js';
 import tradesRouter from './api/trades.routes.js';
 import friendsRouter from './api/friends.routes.js';
+import profileRouter from './api/profile.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -20,6 +21,7 @@ app.use(furnitureRouter);
 app.use(roomsRouter);
 app.use(tradesRouter);
 app.use(friendsRouter);
+app.use(profileRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
