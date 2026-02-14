@@ -134,6 +134,15 @@ export class UIManager {
               <span class="current-room" id="current-room">Lobby</span>
             </div>
           </div>
+          <div class="hud-center">
+            <div class="coin-display" id="coin-display">
+              <span class="coin-icon">🪙</span>
+              <span class="coin-amount" id="coin-amount">500</span>
+            </div>
+            <button class="hud-btn daily-bonus-btn" id="daily-bonus-btn" title="Daily Bonus">
+              <span class="icon">🎁</span>
+            </button>
+          </div>
           <div class="hud-right">
             <button class="hud-btn" id="profile-toggle" title="Profile">
               <span class="icon">👤</span>
@@ -325,6 +334,12 @@ export class UIManager {
   }
 
   private attachGameListeners(): void {
+    // Daily Bonus button
+    const dailyBonusBtn = document.getElementById('daily-bonus-btn');
+    dailyBonusBtn?.addEventListener('click', () => {
+      this.onClaimDailyBonus?.();
+    });
+
     // Profile toggle
     const profileToggle = document.getElementById('profile-toggle');
     profileToggle?.addEventListener('click', () => {
@@ -778,6 +793,7 @@ export class UIManager {
   public onRoomEditorToggle?: () => void;
   public onFriendsToggle?: () => void;
   public onProfileToggle?: () => void;
+  public onClaimDailyBonus?: () => void;
 
   public getToken(): string { return this.token; }
   public getUsername(): string { return this.username; }
@@ -814,5 +830,31 @@ export class UIManager {
   public hideRoomEditorPanel(): void {
     const panel = document.getElementById('room-editor-panel');
     panel?.classList.add('hidden');
+  }
+
+  /**
+   * Update coin display in HUD
+   */
+  public updateCoinDisplay(coins: number): void {
+    const coinAmount = document.getElementById('coin-amount');
+    if (coinAmount) {
+      coinAmount.textContent = coins.toString();
+    }
+  }
+
+  /**
+   * Set daily bonus button state
+   */
+  public setDailyBonusAvailable(available: boolean): void {
+    const btn = document.getElementById('daily-bonus-btn');
+    if (btn) {
+      if (available) {
+        btn.classList.remove('disabled');
+        btn.setAttribute('title', 'Claim Daily Bonus (+100 coins)');
+      } else {
+        btn.classList.add('disabled');
+        btn.setAttribute('title', 'Daily bonus already claimed (24h cooldown)');
+      }
+    }
   }
 }
