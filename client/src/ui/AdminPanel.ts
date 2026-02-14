@@ -32,10 +32,11 @@ export type ModerationLog = {
 
 export class AdminPanel {
   private container!: HTMLElement;
-  private currentTab: 'users' | 'rooms' | 'moderation' = 'users';
+  private currentTab: 'users' | 'rooms' | 'moderation' | 'tools' = 'users';
   private agents: Agent[] = [];
   private rooms: Room[] = [];
   private logs: ModerationLog[] = [];
+  private wordFilters: any[] = [];
   private token: string = '';
 
   public onKickAgent?: (agentId: string, reason: string) => void;
@@ -67,6 +68,7 @@ export class AdminPanel {
         <button class="panel-tab active" data-admin-tab="users">Users</button>
         <button class="panel-tab" data-admin-tab="rooms">Rooms</button>
         <button class="panel-tab" data-admin-tab="moderation">Logs</button>
+        <button class="panel-tab" data-admin-tab="tools">Tools</button>
       </div>
 
       <div class="admin-content">
@@ -129,6 +131,70 @@ export class AdminPanel {
             </table>
           </div>
         </div>
+
+        <!-- Moderation Tools Tab -->
+        <div class="tab-content" id="tools-tab">
+          <div class="tools-sections">
+            <!-- Mute Agent Section -->
+            <div class="tool-section">
+              <h4>Mute Agent</h4>
+              <div class="tool-form">
+                <input type="text" id="mute-agent-id" placeholder="Agent ID" />
+                <input type="number" id="mute-duration" placeholder="Duration (minutes)" min="1" value="30" />
+                <input type="text" id="mute-reason" placeholder="Reason" />
+                <button id="btn-mute-agent" class="btn-primary">Mute</button>
+                <button id="btn-unmute-agent" class="btn-secondary">Unmute</button>
+              </div>
+            </div>
+
+            <!-- Word Filters Section -->
+            <div class="tool-section">
+              <h4>Word Filters</h4>
+              <div class="tool-form">
+                <input type="text" id="filter-pattern" placeholder="Regex pattern (e.g. badword|spam)" />
+                <select id="filter-severity">
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+                <select id="filter-action">
+                  <option value="flag">Flag</option>
+                  <option value="block">Block</option>
+                  <option value="auto_mute">Auto-Mute</option>
+                </select>
+                <input type="number" id="filter-mute-duration" placeholder="Auto-mute minutes" min="1" value="60" />
+                <button id="btn-add-filter" class="btn-primary">Add Filter</button>
+              </div>
+              <div class="admin-table-container">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Pattern</th>
+                      <th>Severity</th>
+                      <th>Action</th>
+                      <th>Mute Duration</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="filters-table-body">
+                    <tr><td colspan="5">Loading...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- IP Ban Section -->
+            <div class="tool-section">
+              <h4>IP Ban</h4>
+              <div class="tool-form">
+                <input type="text" id="ip-address" placeholder="IP Address (e.g. 192.168.1.1)" />
+                <input type="number" id="ip-ban-duration" placeholder="Duration (minutes, 0=permanent)" min="0" value="1440" />
+                <input type="text" id="ip-ban-reason" placeholder="Reason" />
+                <button id="btn-ban-ip" class="btn-danger">Ban IP</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     `;
 
@@ -153,7 +219,7 @@ export class AdminPanel {
     });
   }
 
-  private switchTab(tab: 'users' | 'rooms' | 'moderation'): void {
+  private switchTab(tab: 'users' | 'rooms' | 'moderation' | 'tools'): void {
     this.currentTab = tab;
 
     // Update tab buttons
@@ -171,6 +237,7 @@ export class AdminPanel {
     if (tab === 'users') this.loadAgents();
     else if (tab === 'rooms') this.loadRooms();
     else if (tab === 'moderation') this.loadLogs();
+    else if (tab === 'tools') this.loadTools();
   }
 
   public async loadAgents(): Promise<void> {
@@ -456,5 +523,235 @@ export class AdminPanel {
     } else {
       this.hide();
     }
+  }
+
+  // === MODERATION TOOLS METHODS ===
+
+  private loadTools(): void {
+    this.loadWordFilters();
+    this.attachToolsListeners();
+  }
+
+  private attachToolsListeners(): void {
+    // Mute agent
+    this.container.querySelector('#btn-mute-agent')?.addEventListener('click', async () => {
+      const agentId = (this.container.querySelector('#mute-agent-id') as HTMLInputElement)?.value;
+      const duration = parseInt((this.container.querySelector('#mute-duration') as HTMLInputElement)?.value || '30');
+      const reason = (this.container.querySelector('#mute-reason') as HTMLInputElement)?.value;
+
+      if (!agentId) {
+        alert('Please enter an agent ID');
+        return;
+      }
+
+      await this.muteAgent(agentId, duration, reason);
+    });
+
+    // Unmute agent
+    this.container.querySelector('#btn-unmute-agent')?.addEventListener('click', async () => {
+      const agentId = (this.container.querySelector('#mute-agent-id') as HTMLInputElement)?.value;
+
+      if (!agentId) {
+        alert('Please enter an agent ID');
+        return;
+      }
+
+      await this.unmuteAgent(agentId);
+    });
+
+    // Add word filter
+    this.container.querySelector('#btn-add-filter')?.addEventListener('click', async () => {
+      const pattern = (this.container.querySelector('#filter-pattern') as HTMLInputElement)?.value;
+      const severity = (this.container.querySelector('#filter-severity') as HTMLSelectElement)?.value;
+      const action = (this.container.querySelector('#filter-action') as HTMLSelectElement)?.value;
+      const muteDuration = parseInt(
+        (this.container.querySelector('#filter-mute-duration') as HTMLInputElement)?.value || '60'
+      );
+
+      if (!pattern) {
+        alert('Please enter a pattern');
+        return;
+      }
+
+      await this.addWordFilter(pattern, severity, action, action === 'auto_mute' ? muteDuration : null);
+    });
+
+    // Ban IP
+    this.container.querySelector('#btn-ban-ip')?.addEventListener('click', async () => {
+      const ipAddress = (this.container.querySelector('#ip-address') as HTMLInputElement)?.value;
+      const duration = parseInt((this.container.querySelector('#ip-ban-duration') as HTMLInputElement)?.value || '1440');
+      const reason = (this.container.querySelector('#ip-ban-reason') as HTMLInputElement)?.value;
+
+      if (!ipAddress) {
+        alert('Please enter an IP address');
+        return;
+      }
+
+      await this.banIP(ipAddress, duration === 0 ? null : duration, reason);
+    });
+  }
+
+  private async muteAgent(agentId: string, durationMinutes: number, reason: string): Promise<void> {
+    try {
+      const response = await fetch('/api/moderation/mute', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ agentId, durationMinutes, reason }),
+      });
+
+      if (!response.ok) throw new Error('Failed to mute agent');
+
+      alert(`Agent ${agentId} muted for ${durationMinutes} minutes`);
+      (this.container.querySelector('#mute-agent-id') as HTMLInputElement).value = '';
+      (this.container.querySelector('#mute-reason') as HTMLInputElement).value = '';
+    } catch (error) {
+      console.error('Failed to mute agent:', error);
+      alert('Failed to mute agent');
+    }
+  }
+
+  private async unmuteAgent(agentId: string): Promise<void> {
+    try {
+      const response = await fetch('/api/moderation/unmute', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ agentId }),
+      });
+
+      if (!response.ok) throw new Error('Failed to unmute agent');
+
+      alert(`Agent ${agentId} unmuted`);
+      (this.container.querySelector('#mute-agent-id') as HTMLInputElement).value = '';
+    } catch (error) {
+      console.error('Failed to unmute agent:', error);
+      alert('Failed to unmute agent');
+    }
+  }
+
+  private async addWordFilter(
+    pattern: string,
+    severity: string,
+    action: string,
+    autoMuteDurationMinutes: number | null
+  ): Promise<void> {
+    try {
+      const response = await fetch('/api/moderation/filter', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ pattern, severity, action, autoMuteDurationMinutes }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to add filter');
+      }
+
+      alert('Word filter added successfully');
+      (this.container.querySelector('#filter-pattern') as HTMLInputElement).value = '';
+      await this.loadWordFilters();
+    } catch (error) {
+      console.error('Failed to add filter:', error);
+      alert((error as Error).message);
+    }
+  }
+
+  private async deleteWordFilter(filterId: string): Promise<void> {
+    if (!confirm('Are you sure you want to delete this filter?')) return;
+
+    try {
+      const response = await fetch(`/api/moderation/filter/${filterId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${this.token}` },
+      });
+
+      if (!response.ok) throw new Error('Failed to delete filter');
+
+      await this.loadWordFilters();
+    } catch (error) {
+      console.error('Failed to delete filter:', error);
+      alert('Failed to delete filter');
+    }
+  }
+
+  private async banIP(ipAddress: string, durationMinutes: number | null, reason: string): Promise<void> {
+    try {
+      const response = await fetch('/api/moderation/ip-ban', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ipAddress, durationMinutes, reason }),
+      });
+
+      if (!response.ok) throw new Error('Failed to ban IP');
+
+      alert(`IP ${ipAddress} banned ${durationMinutes ? `for ${durationMinutes} minutes` : 'permanently'}`);
+      (this.container.querySelector('#ip-address') as HTMLInputElement).value = '';
+      (this.container.querySelector('#ip-ban-reason') as HTMLInputElement).value = '';
+    } catch (error) {
+      console.error('Failed to ban IP:', error);
+      alert('Failed to ban IP');
+    }
+  }
+
+  private async loadWordFilters(): Promise<void> {
+    try {
+      const response = await fetch('/api/moderation/filters', {
+        headers: { Authorization: `Bearer ${this.token}` },
+      });
+
+      if (!response.ok) throw new Error('Failed to load word filters');
+
+      const data = await response.json();
+      this.wordFilters = data.filters;
+      this.renderWordFilters();
+    } catch (error) {
+      console.error('Failed to load word filters:', error);
+      this.renderError('filters-table-body', 'Failed to load filters');
+    }
+  }
+
+  private renderWordFilters(): void {
+    const tbody = this.container.querySelector('#filters-table-body');
+    if (!tbody) return;
+
+    if (this.wordFilters.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5">No filters found</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = this.wordFilters
+      .map(
+        (filter) => `
+        <tr>
+          <td><code>${this.escapeHtml(filter.pattern)}</code></td>
+          <td><span class="severity-${filter.severity}">${filter.severity}</span></td>
+          <td>${filter.action}</td>
+          <td>${filter.auto_mute_duration_minutes || '-'}</td>
+          <td>
+            <button class="btn-delete-filter" data-filter-id="${filter.id}">Delete</button>
+          </td>
+        </tr>
+      `
+      )
+      .join('');
+
+    // Attach delete listeners
+    tbody.querySelectorAll('.btn-delete-filter').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const filterId = (e.target as HTMLElement).dataset.filterId!;
+        this.deleteWordFilter(filterId);
+      });
+    });
   }
 }

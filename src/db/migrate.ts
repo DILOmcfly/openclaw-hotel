@@ -37,4 +37,7 @@ export async function migrate(): Promise<void> {
   
   const migration013 = await readFile(new URL('./migrations/013_room_privacy.sql', import.meta.url), 'utf8');
   await sql.unsafe(migration013);
+  
+  const migration014 = await readFile(new URL('./migrations/014_moderation.sql', import.meta.url), 'utf8');
+  await sql.unsafe(migration014);
 }

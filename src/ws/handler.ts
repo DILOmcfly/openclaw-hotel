@@ -6,6 +6,7 @@ import { parseClientMessage, type ServerMessage } from './protocol.js';
 import { sql } from '../db/index.js';
 import { placeFurniture, removeFurniture, getItemsInRoom } from '../services/furniture.js';
 import { validateRoomAccess, isRoomFull } from '../services/roomPrivacy.js';
+import { isAgentMuted, checkMessageFilters, muteAgent } from '../services/moderationTools.js';
 
 export const connections = new Map<string, WebSocket>();
 export const roomMembers = new Map<string, Set<string>>();
@@ -265,6 +266,42 @@ export function setupWebSocket(server: Server): void {
         }
 
         case 'message.send': {
+          // Check if agent is muted
+          const muted = await isAgentMuted(agentId);
+          if (muted) {
+            sendError(ws, 'MUTED', 'You are currently muted');
+            break;
+          }
+
+          // Check message against word filters
+          const filterResult = await checkMessageFilters(clientMessage.content);
+
+          // Block message if flagged
+          if (filterResult.blocked) {
+            sendError(ws, 'MESSAGE_BLOCKED', 'Message contains prohibited content');
+            break;
+          }
+
+          // Auto-mute if triggered
+          if (filterResult.autoMute && filterResult.muteDurationMinutes) {
+            await muteAgent(
+              agentId,
+              '00000000-0000-0000-0000-000000000000', // System
+              filterResult.muteDurationMinutes,
+              `Auto-muted for prohibited content: ${filterResult.matchedFilters.join(', ')}`
+            );
+            sendError(ws, 'AUTO_MUTED', `You have been muted for ${filterResult.muteDurationMinutes} minutes`);
+            break;
+          }
+
+          // Flag message (log but allow through)
+          if (filterResult.flagged) {
+            console.warn(`[MODERATION] Flagged message from ${agentId}:`, {
+              content: clientMessage.content,
+              filters: filterResult.matchedFilters,
+            });
+          }
+
           broadcastToRoom(clientMessage.roomId, {
             type: 'message.new',
             roomId: clientMessage.roomId,
