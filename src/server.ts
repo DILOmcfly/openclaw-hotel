@@ -23,6 +23,7 @@ import appearanceRouter from './api/appearance.routes.js';
 import roomTemplatesRouter from './api/roomTemplates.routes.js';
 import ratingRouter from './api/rating.routes.js';
 import spectatorRouter from './api/spectator.routes.js';
+import directoryRouter from './api/directory.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -55,6 +56,7 @@ app.use(appearanceRouter);
 app.use('/api/room-templates', roomTemplatesRouter);
 app.use('/api/rooms', ratingRouter);
 app.use(spectatorRouter);
+app.use(directoryRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
