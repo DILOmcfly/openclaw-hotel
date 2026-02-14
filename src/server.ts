@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import express from 'express';
 import authRouter from './api/auth.routes.js';
+import agentAuthRouter from './api/agentAuth.routes.js';
 import furnitureRouter from './api/furniture.routes.js';
 import roomsRouter from './api/rooms.routes.js';
 import tradesRouter from './api/trades.routes.js';
@@ -32,6 +33,7 @@ const app = express();
 
 app.use(express.json());
 app.use(authRouter);
+app.use(agentAuthRouter);
 app.use(furnitureRouter);
 app.use(roomsRouter);
 app.use(tradesRouter);

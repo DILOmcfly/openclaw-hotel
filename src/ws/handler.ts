@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, Server } from 'node:http';
 import WebSocket, { WebSocketServer } from 'ws';
 import { validateToken } from '../services/auth.js';
+import { authenticateAgent } from '../services/agentAuth.js';
 import { parseClientMessage, type ServerMessage } from './protocol.js';
 import { sql } from '../db/index.js';
 import { placeFurniture, removeFurniture, getItemsInRoom } from '../services/furniture.js';
@@ -43,6 +44,13 @@ function extractToken(req: IncomingMessage): string | null {
   const pathname = req.url ?? '/';
   const url = new URL(pathname, `http://${host}`);
   return url.searchParams.get('token');
+}
+
+function extractApiKey(req: IncomingMessage): string | null {
+  const host = req.headers.host ?? 'localhost';
+  const pathname = req.url ?? '/';
+  const url = new URL(pathname, `http://${host}`);
+  return url.searchParams.get('apiKey');
 }
 
 export function broadcastToRoom(
@@ -128,22 +136,38 @@ function cleanupAgent(agentId: string): string[] {
 export function setupWebSocket(server: Server): void {
   const wss = new WebSocketServer({ noServer: true });
 
-  server.on('upgrade', (req, socket, head) => {
+  server.on('upgrade', async (req, socket, head) => {
     const token = extractToken(req);
+    const apiKey = extractApiKey(req);
 
-    if (!token) {
+    if (!token && !apiKey) {
       wss.handleUpgrade(req, socket, head, (ws) => {
-        ws.close(4001, 'Unauthorized');
+        ws.close(4001, 'Unauthorized: token or apiKey required');
       });
       return;
     }
 
-    let agentId: string;
+    let agentId: string | null = null;
+
     try {
-      ({ agentId } = validateToken(token));
+      // Try JWT token first
+      if (token) {
+        ({ agentId } = validateToken(token));
+      }
+      // Fallback to API key
+      else if (apiKey) {
+        agentId = await authenticateAgent(apiKey, sql);
+      }
+
+      if (!agentId) {
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          ws.close(4001, 'Unauthorized: invalid credentials');
+        });
+        return;
+      }
     } catch {
       wss.handleUpgrade(req, socket, head, (ws) => {
-        ws.close(4001, 'Unauthorized');
+        ws.close(4001, 'Unauthorized: authentication failed');
       });
       return;
     }

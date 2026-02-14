@@ -11,5 +11,7 @@ export const config = {
     process.env.DATABASE_URL ??
     'postgres://openclaw:openclaw@localhost:5432/openclaw_hotel',
   redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
-  jwtSecret: process.env.JWT_SECRET ?? 'change-me-in-production'
+  jwtSecret: process.env.JWT_SECRET ?? 'change-me-in-production',
+  agentRegistrationSecret: process.env.AGENT_REGISTRATION_SECRET ?? 'agent-secret-dev',
+  wsUrl: process.env.WS_URL ?? 'ws://localhost:3000/ws'
 };
