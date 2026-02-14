@@ -2985,3 +2985,140 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Leaderboard Panel */
+.leaderboard-panel {
+  position: absolute;
+  top: 80px;
+  right: 20px;
+  width: 400px;
+  max-height: 600px;
+  background: var(--habbo-white);
+  border: var(--border-width) solid var(--habbo-dark-blue);
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  z-index: 2000;
+  font-family: var(--mono-font);
+}
+
+.leaderboard-panel.hidden {
+  display: none;
+}
+
+.leaderboard-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 300px;
+  max-height: 500px;
+  background: #f5f5f5;
+}
+
+.leaderboard-list {
+  padding: var(--spacing-sm);
+}
+
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+  background: white;
+  border: 2px solid var(--habbo-gray);
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.leaderboard-item:hover {
+  border-color: var(--habbo-blue);
+  transform: translateX(4px);
+}
+
+.leaderboard-item.current-user {
+  background: #fff8dc;
+  border: 3px solid var(--habbo-accent);
+  font-weight: bold;
+}
+
+.rank-badge {
+  min-width: 40px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--habbo-dark-blue);
+  font-family: var(--pixel-font);
+}
+
+.rank-badge.medal {
+  font-size: 24px;
+}
+
+.leaderboard-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.leaderboard-info .player-name {
+  font-size: 16px;
+  color: var(--habbo-dark-blue);
+}
+
+.you-badge {
+  background: var(--habbo-accent);
+  color: var(--habbo-dark-blue);
+  font-size: 10px;
+  font-family: var(--pixel-font);
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.leaderboard-value {
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--habbo-blue);
+  white-space: nowrap;
+}
+
+.leaderboard-panel .loading,
+.leaderboard-panel .empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--habbo-dark-gray);
+  font-size: 14px;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .leaderboard-panel {
+    width: 95%;
+    max-width: 400px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+  }
+  
+  .leaderboard-item {
+    padding: 10px 8px;
+  }
+  
+  .rank-badge {
+    min-width: 35px;
+    font-size: 14px;
+  }
+  
+  .rank-badge.medal {
+    font-size: 20px;
+  }
+  
+  .leaderboard-info .player-name {
+    font-size: 14px;
+  }
+  
+  .leaderboard-value {
+    font-size: 12px;
+  }
+}

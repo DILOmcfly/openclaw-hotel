@@ -20,6 +20,7 @@ import { ProfilePanel } from './ui/ProfilePanel.js';
 import { NotificationCenter } from './ui/NotificationCenter.js';
 import { Navigator } from './ui/Navigator.js';
 import { GamePanel } from './ui/GamePanel.js';
+import { LeaderboardPanel } from './ui/LeaderboardPanel.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -110,6 +111,9 @@ async function init() {
   
   // Game Panel
   const gamePanel = new GamePanel();
+  
+  // Leaderboard Panel
+  const leaderboardPanel = new LeaderboardPanel();
   
   // Navigator event handlers
   navigator.onJoinRoom = (roomId) => {
@@ -354,6 +358,54 @@ async function init() {
     console.log('[UI] Toggling games panel');
     gamePanel.show();
   };
+
+  ui.onLeaderboardToggle = async () => {
+    console.log('[UI] Toggling leaderboard panel');
+    leaderboardPanel.show();
+    leaderboardPanel.setCurrentAgent(MY_ID);
+    
+    // Load initial category (coins)
+    await loadLeaderboard(leaderboardPanel.getCurrentCategory());
+  };
+
+  // Leaderboard Panel event handlers
+  leaderboardPanel.onCategoryChange = async (category) => {
+    console.log('[Leaderboard] Category changed:', category);
+    await loadLeaderboard(category);
+  };
+
+  // Helper function to load leaderboard data
+  async function loadLeaderboard(category: string) {
+    try {
+      leaderboardPanel.showLoading();
+      
+      const token = ui.getToken();
+      if (!token) {
+        console.error('[Leaderboard] No token available');
+        leaderboardPanel.showEmpty();
+        return;
+      }
+
+      const response = await fetch(`/api/leaderboard/${category}?limit=10`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch leaderboard: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      leaderboardPanel.setEntries(data.entries || []);
+      
+      console.log(`[Leaderboard] Loaded ${data.entries.length} entries for ${category}`);
+    } catch (error) {
+      console.error('[Leaderboard] Error loading leaderboard:', error);
+      toastManager.error('Failed to load leaderboard', 3000);
+      leaderboardPanel.showEmpty();
+    }
+  }
 
   ui.onChatMessage = (message: string) => {
     // Check if message is a trade command: /trade @agentId

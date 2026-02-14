@@ -153,6 +153,9 @@ export class UIManager {
             <button class="hud-btn" id="games-toggle" title="Mini-Games">
               <span class="icon">🎮</span>
             </button>
+            <button class="hud-btn" id="leaderboard-toggle" title="Leaderboard">
+              <span class="icon">🏆</span>
+            </button>
             <button class="hud-btn" id="inventory-toggle" title="Inventory">
               <span class="icon">📦</span>
             </button>
@@ -359,6 +362,12 @@ export class UIManager {
     const gamesToggle = document.getElementById('games-toggle');
     gamesToggle?.addEventListener('click', () => {
       this.onGamesToggle?.();
+    });
+
+    // Leaderboard toggle
+    const leaderboardToggle = document.getElementById('leaderboard-toggle');
+    leaderboardToggle?.addEventListener('click', () => {
+      this.onLeaderboardToggle?.();
     });
 
     // Inventory toggle
@@ -803,6 +812,7 @@ export class UIManager {
   public onFriendsToggle?: () => void;
   public onProfileToggle?: () => void;
   public onGamesToggle?: () => void;
+  public onLeaderboardToggle?: () => void;
   public onClaimDailyBonus?: () => void;
 
   public getToken(): string { return this.token; }
