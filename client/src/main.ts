@@ -69,9 +69,14 @@ async function init() {
   let isConnected = false;
 
   // UI Event Handlers
-  ui.onAuthSuccess = (username: string, token: string) => {
+  ui.onAuthSuccess = async (username: string, token: string) => {
     console.log('[Auth] Success:', username);
     MY_ID = username; // Use username as agent ID
+    
+    // Initialize audio system (requires user interaction)
+    if (!SoundManager.isInitialized()) {
+      await SoundManager.initialize();
+    }
     
     // Try to connect to WebSocket
     try {

@@ -1,8 +1,8 @@
 /**
- * SoundManager — Placeholder for future audio implementation
+ * SoundManager — Web Audio API implementation
  * 
- * Currently logs sound events to console.
- * Ready to integrate Web Audio API for .ogg/.mp3 playback.
+ * Loads and plays .ogg sound effects using AudioContext.
+ * Supports volume control, enable/disable, and audio buffer caching.
  */
 
 export type SoundEvent =
@@ -19,20 +19,24 @@ export type SoundEvent =
 interface SoundConfig {
   volume: number;
   loop: boolean;
-  path?: string; // Future: path to audio file
+  path: string;
 }
 
 class SoundManagerClass {
   private enabled: boolean = true;
   private masterVolume: number = 0.7;
   private soundConfigs: Map<SoundEvent, SoundConfig> = new Map();
+  private audioContext: AudioContext | null = null;
+  private audioBuffers: Map<SoundEvent, AudioBuffer> = new Map();
+  private masterGainNode: GainNode | null = null;
+  private initialized: boolean = false;
 
   constructor() {
     this.initializeSoundConfigs();
   }
 
   /**
-   * Define sound configurations (placeholder paths)
+   * Define sound configurations
    */
   private initializeSoundConfigs(): void {
     this.soundConfigs.set('chat_message', {
@@ -91,32 +95,87 @@ class SoundManagerClass {
   }
 
   /**
+   * Initialize AudioContext and load all sounds
+   * Call this after user interaction (browser autoplay policy)
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+
+    try {
+      // Create AudioContext (Safari uses webkitAudioContext)
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      // Create master gain node for volume control
+      this.masterGainNode = this.audioContext.createGain();
+      this.masterGainNode.gain.value = this.masterVolume;
+      this.masterGainNode.connect(this.audioContext.destination);
+
+      // Load all sound files
+      const loadPromises = Array.from(this.soundConfigs.entries()).map(
+        async ([event, config]) => {
+          try {
+            const response = await fetch(config.path);
+            const arrayBuffer = await response.arrayBuffer();
+            const audioBuffer = await this.audioContext!.decodeAudioData(arrayBuffer);
+            this.audioBuffers.set(event, audioBuffer);
+          } catch (error) {
+            console.error(`[SoundManager] Failed to load ${event}:`, error);
+          }
+        }
+      );
+
+      await Promise.all(loadPromises);
+      this.initialized = true;
+      console.log(`[SoundManager] ✅ Initialized with ${this.audioBuffers.size}/${this.soundConfigs.size} sounds loaded`);
+    } catch (error) {
+      console.error('[SoundManager] Initialization failed:', error);
+    }
+  }
+
+  /**
    * Play a sound effect
    * 
    * @param event - Sound event identifier
    * @param volumeMultiplier - Optional volume multiplier (0-1)
    */
   play(event: SoundEvent, volumeMultiplier: number = 1.0): void {
-    if (!this.enabled) return;
+    if (!this.enabled || !this.initialized || !this.audioContext || !this.masterGainNode) {
+      return;
+    }
 
     const config = this.soundConfigs.get(event);
+    const buffer = this.audioBuffers.get(event);
+
     if (!config) {
       console.warn(`[SoundManager] Unknown sound event: ${event}`);
       return;
     }
 
-    const finalVolume = this.masterVolume * config.volume * volumeMultiplier;
+    if (!buffer) {
+      console.warn(`[SoundManager] Audio buffer not loaded for: ${event}`);
+      return;
+    }
 
-    // TODO: Implement Web Audio API playback
-    // const audio = new Audio(config.path);
-    // audio.volume = finalVolume;
-    // audio.loop = config.loop;
-    // audio.play().catch(err => console.error('[SoundManager] Playback error:', err));
+    try {
+      // Create buffer source
+      const source = this.audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.loop = config.loop;
 
-    // For now, just log to console
-    console.log(
-      `[SoundManager] 🔊 ${event} | Volume: ${finalVolume.toFixed(2)} | Path: ${config.path}`
-    );
+      // Create gain node for this sound
+      const gainNode = this.audioContext.createGain();
+      const finalVolume = config.volume * volumeMultiplier;
+      gainNode.gain.value = finalVolume;
+
+      // Connect: source -> gain -> master gain -> destination
+      source.connect(gainNode);
+      gainNode.connect(this.masterGainNode);
+
+      // Play
+      source.start(0);
+    } catch (error) {
+      console.error(`[SoundManager] Playback error for ${event}:`, error);
+    }
   }
 
   /**
@@ -132,6 +191,11 @@ class SoundManagerClass {
    */
   setMasterVolume(volume: number): void {
     this.masterVolume = Math.max(0, Math.min(1, volume));
+    
+    if (this.masterGainNode) {
+      this.masterGainNode.gain.value = this.masterVolume;
+    }
+    
     console.log(`[SoundManager] Master volume: ${this.masterVolume.toFixed(2)}`);
   }
 
@@ -147,6 +211,13 @@ class SoundManagerClass {
    */
   getMasterVolume(): number {
     return this.masterVolume;
+  }
+
+  /**
+   * Check if audio system is initialized
+   */
+  isInitialized(): boolean {
+    return this.initialized;
   }
 }
 

@@ -184,6 +184,27 @@ export class UIManager {
           </div>
         </div>
 
+        <!-- Settings Panel -->
+        <div class="settings-panel hidden" id="settings-panel">
+          <div class="panel-header">
+            <h3>Settings</h3>
+            <button class="panel-close" id="settings-close">×</button>
+          </div>
+          <div class="settings-content">
+            <div class="setting-group">
+              <label for="master-volume">Master Volume</label>
+              <input type="range" id="master-volume" min="0" max="100" value="70" step="1">
+              <span class="volume-value" id="master-volume-value">70%</span>
+            </div>
+            <div class="setting-group">
+              <label>
+                <input type="checkbox" id="sound-enabled" checked>
+                Enable Sound Effects
+              </label>
+            </div>
+          </div>
+        </div>
+
         <!-- Chat -->
         <div class="chat-container">
           <div class="chat-messages" id="chat-messages">
@@ -282,6 +303,42 @@ export class UIManager {
     
     inventoryClose?.addEventListener('click', () => {
       inventoryPanel?.classList.add('hidden');
+    });
+
+    // Settings toggle
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsPanel = document.getElementById('settings-panel');
+    const settingsClose = document.getElementById('settings-close');
+    
+    settingsBtn?.addEventListener('click', () => {
+      settingsPanel?.classList.toggle('hidden');
+    });
+    
+    settingsClose?.addEventListener('click', () => {
+      settingsPanel?.classList.add('hidden');
+    });
+
+    // Volume controls
+    const masterVolumeSlider = document.getElementById('master-volume') as HTMLInputElement;
+    const masterVolumeValue = document.getElementById('master-volume-value');
+    const soundEnabledCheckbox = document.getElementById('sound-enabled') as HTMLInputElement;
+    
+    masterVolumeSlider?.addEventListener('input', (e) => {
+      const volume = parseInt((e.target as HTMLInputElement).value) / 100;
+      if (masterVolumeValue) {
+        masterVolumeValue.textContent = `${Math.round(volume * 100)}%`;
+      }
+      // Import SoundManager at runtime to avoid circular dependency
+      import('../SoundManager.js').then(({ SoundManager }) => {
+        SoundManager.setMasterVolume(volume);
+      });
+    });
+    
+    soundEnabledCheckbox?.addEventListener('change', (e) => {
+      const enabled = (e.target as HTMLInputElement).checked;
+      import('../SoundManager.js').then(({ SoundManager }) => {
+        SoundManager.setEnabled(enabled);
+      });
     });
 
     // Panel tabs (Owned / Catalog)
