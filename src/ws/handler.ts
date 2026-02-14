@@ -311,6 +311,13 @@ export function setupWebSocket(server: Server): void {
             signature: clientMessage.signature,
             timestamp: new Date().toISOString(),
           });
+
+          // Let bots respond to the message
+          const { handleChatToBots } = await import('../services/botManager.js');
+          handleChatToBots(clientMessage.roomId, clientMessage.content, sql).catch((err) => {
+            console.error('[WS] Bot chat handler error:', err);
+          });
+
           break;
         }
 
@@ -986,6 +993,71 @@ export function setupWebSocket(server: Server): void {
               type: 'whisper.typing',
               senderId: agentId,
             });
+          }
+          break;
+        }
+
+        case 'bot.spawn': {
+          try {
+            // Check if agent is admin
+            const [agent] = await sql`
+              SELECT role FROM agents WHERE id = ${agentId}
+            `;
+
+            if (!agent || agent.role !== 'admin') {
+              sendError(ws, 'BOT_SPAWN_FORBIDDEN', 'Admin privileges required');
+              break;
+            }
+
+            const { spawnBot } = await import('../services/botManager.js');
+            
+            const bot = await spawnBot(
+              clientMessage.roomId,
+              {
+                name: clientMessage.name,
+                personality: clientMessage.personality,
+              },
+              sql
+            );
+
+            sendMessage(ws, {
+              type: 'bot.spawned',
+              botId: bot.id,
+              roomId: bot.roomId,
+              name: bot.name,
+            });
+          } catch (error: any) {
+            sendError(ws, 'BOT_SPAWN_FAILED', error.message || 'Failed to spawn bot');
+          }
+          break;
+        }
+
+        case 'bot.despawn': {
+          try {
+            // Check if agent is admin
+            const [agent] = await sql`
+              SELECT role FROM agents WHERE id = ${agentId}
+            `;
+
+            if (!agent || agent.role !== 'admin') {
+              sendError(ws, 'BOT_DESPAWN_FORBIDDEN', 'Admin privileges required');
+              break;
+            }
+
+            const { despawnBot } = await import('../services/botManager.js');
+            
+            const success = await despawnBot(clientMessage.botId, sql);
+
+            if (success) {
+              sendMessage(ws, {
+                type: 'bot.despawned',
+                botId: clientMessage.botId,
+              });
+            } else {
+              sendError(ws, 'BOT_NOT_FOUND', 'Bot not found');
+            }
+          } catch (error: any) {
+            sendError(ws, 'BOT_DESPAWN_FAILED', error.message || 'Failed to despawn bot');
           }
           break;
         }

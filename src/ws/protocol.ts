@@ -188,6 +188,23 @@ export const whisperTypingMsgSchema = z.object({
 
 export type WhisperTypingMsg = z.infer<typeof whisperTypingMsgSchema>
 
+// Bot schemas
+export const botSpawnMsgSchema = z.object({
+  type: z.literal('bot.spawn'),
+  roomId: z.string(),
+  name: z.string(),
+  personality: z.enum(['greeter', 'guide', 'shopkeeper']),
+})
+
+export type BotSpawnMsg = z.infer<typeof botSpawnMsgSchema>
+
+export const botDespawnMsgSchema = z.object({
+  type: z.literal('bot.despawn'),
+  botId: z.string(),
+})
+
+export type BotDespawnMsg = z.infer<typeof botDespawnMsgSchema>
+
 export const clientMessageSchema = z.discriminatedUnion('type', [
   roomJoinMsgSchema,
   roomLeaveMsgSchema,
@@ -212,6 +229,8 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   gameJoinMsgSchema,
   gameMoveMsgSchema,
   gameEndMsgSchema,
+  botSpawnMsgSchema,
+  botDespawnMsgSchema,
 ])
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>
@@ -445,6 +464,19 @@ export type GameEndedMsg = {
   reason: string
 }
 
+// Bot server messages
+export type BotSpawnedMsg = {
+  type: 'bot.spawned'
+  botId: string
+  roomId: string
+  name: string
+}
+
+export type BotDespawnedMsg = {
+  type: 'bot.despawned'
+  botId: string
+}
+
 export type ServerMessage =
   | ConnectedMsg
   | RoomJoinedMsg
@@ -475,6 +507,8 @@ export type ServerMessage =
   | GameUpdatedMsg
   | GameCompletedMsg
   | GameEndedMsg
+  | BotSpawnedMsg
+  | BotDespawnedMsg
 
 export function parseClientMessage(data: string): ClientMessage {
   const parsed = JSON.parse(data)

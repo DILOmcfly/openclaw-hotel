@@ -16,10 +16,13 @@ import adminRouter from './api/admin.routes.js';
 import navigatorRouter from './api/navigator.routes.js';
 import moderationToolsRouter from './api/moderationTools.routes.js';
 import gamesRouter from './api/games.routes.js';
+import botsRouter from './api/bots.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
 import { setupWebSocket } from './ws/handler.js';
+import { initializeBotManager, tickBots } from './services/botManager.js';
+import { sql } from './db/index.js';
 
 const app = express();
 
@@ -38,6 +41,7 @@ app.use(adminRouter);
 app.use('/api/navigator', navigatorRouter);
 app.use('/api/moderation', moderationToolsRouter);
 app.use(gamesRouter);
+app.use(botsRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
@@ -63,6 +67,18 @@ app.get('/admin', (_req, res) => {
 
 const server = createServer(app);
 setupWebSocket(server);
+
+// Initialize bot manager
+initializeBotManager(sql).catch((err) => {
+  logger.error('Failed to initialize bot manager', { error: err });
+});
+
+// Tick bots every 5 seconds
+setInterval(() => {
+  tickBots(sql).catch((err) => {
+    logger.error('Bot tick error', { error: err });
+  });
+}, 5000);
 
 server.listen(config.port, config.host, () => {
   logger.info('Server started', {
