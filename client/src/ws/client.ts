@@ -1,6 +1,7 @@
 /**
  * WebSocket client for OpenClaw Hotel
  * Handles auth, room join, and real-time message routing
+ * Includes auto-reconnect with exponential backoff
  */
 
 export type ServerMessage = {
@@ -16,6 +17,11 @@ export class HotelWSClient {
   private handlers: Map<string, MessageHandler[]> = new Map();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private url: string;
+  private reconnectAttempts: number = 0;
+  private maxReconnectDelay: number = 30000; // 30 seconds
+  private reconnectDelays: number[] = [1000, 2000, 4000, 8000, 16000]; // Exponential backoff
+  private currentRoom: string | null = null;
+  private isManualDisconnect: boolean = false;
 
   constructor(url: string = `ws://${window.location.hostname}:3000`) {
     this.url = url;
@@ -32,11 +38,19 @@ export class HotelWSClient {
 
   connect(token: string): void {
     this.token = token;
+    this.isManualDisconnect = false;
     this.ws = new WebSocket(`${this.url}?token=${token}`);
 
     this.ws.onopen = () => {
       console.log('[WS] Connected');
+      this.reconnectAttempts = 0; // Reset reconnect attempts on successful connection
       this.emit('connected', { type: 'connected' });
+      
+      // Re-join room if we were in one
+      if (this.currentRoom) {
+        console.log('[WS] Re-joining room:', this.currentRoom);
+        this.joinRoom(this.currentRoom);
+      }
     };
 
     this.ws.onmessage = (event) => {
@@ -51,11 +65,20 @@ export class HotelWSClient {
     this.ws.onclose = () => {
       console.log('[WS] Disconnected');
       this.emit('disconnected', { type: 'disconnected' });
-      this.scheduleReconnect();
+      
+      // Only auto-reconnect if not a manual disconnect
+      if (!this.isManualDisconnect) {
+        this.emit('reconnecting', { 
+          type: 'reconnecting', 
+          attempt: this.reconnectAttempts + 1 
+        });
+        this.scheduleReconnect();
+      }
     };
 
     this.ws.onerror = (err) => {
       console.error('[WS] Error:', err);
+      this.emit('error', { type: 'error', error: err });
     };
   }
 
@@ -66,10 +89,14 @@ export class HotelWSClient {
   }
 
   joinRoom(roomId: string): void {
+    this.currentRoom = roomId;
     this.send({ type: 'room.join', roomId });
   }
 
   leaveRoom(roomId: string): void {
+    if (this.currentRoom === roomId) {
+      this.currentRoom = null;
+    }
     this.send({ type: 'room.leave', roomId });
   }
 
@@ -106,18 +133,49 @@ export class HotelWSClient {
 
   private scheduleReconnect(): void {
     if (this.reconnectTimer) return;
+    
+    // Calculate delay using exponential backoff
+    const delayIndex = Math.min(this.reconnectAttempts, this.reconnectDelays.length - 1);
+    const delay = Math.min(this.reconnectDelays[delayIndex], this.maxReconnectDelay);
+    
+    console.log(`[WS] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1})`);
+    
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      if (this.token) this.connect(this.token);
-    }, 3000);
+      this.reconnectAttempts++;
+      
+      if (this.token) {
+        console.log(`[WS] Attempting reconnection #${this.reconnectAttempts}`);
+        this.connect(this.token);
+      }
+    }, delay);
   }
 
   disconnect(): void {
+    this.isManualDisconnect = true;
+    this.currentRoom = null;
+    
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    
     this.ws?.close();
     this.ws = null;
+    this.reconnectAttempts = 0;
+  }
+
+  /**
+   * Get current connection state
+   */
+  public isConnected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  /**
+   * Get current room
+   */
+  public getCurrentRoom(): string | null {
+    return this.currentRoom;
   }
 }

@@ -824,3 +824,260 @@
   margin-right: var(--spacing-xs);
   cursor: pointer;
 }
+
+/* ========================================
+   MOBILE & TABLET RESPONSIVENESS
+   ======================================== */
+
+@media (max-width: 768px) {
+  /* Touch-friendly button sizes */
+  .btn-primary,
+  .btn-secondary {
+    font-size: 12px;
+    padding: 16px 32px;
+    min-height: 48px; /* Touch target size */
+  }
+
+  .btn-sm {
+    font-size: 10px;
+    padding: 12px 24px;
+    min-height: 40px;
+  }
+
+  /* Login Screen - Full width on mobile */
+  .login-container {
+    width: 100%;
+    max-width: 100%;
+    padding: var(--spacing-md);
+    box-shadow: none;
+    border: none;
+  }
+
+  .login-header h1.logo {
+    font-size: 20px;
+  }
+
+  .login-header .tagline {
+    font-size: 12px;
+  }
+
+  .login-tabs {
+    flex-wrap: wrap;
+  }
+
+  .tab-btn {
+    flex: 1 1 auto;
+    min-width: 100px;
+    font-size: 9px;
+    padding: 12px 16px;
+  }
+
+  /* Navigator - Full width room cards */
+  .navigator-container {
+    width: 100%;
+    max-width: 100%;
+    border: none;
+    box-shadow: none;
+  }
+
+  .navigator-header {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    align-items: flex-start;
+  }
+
+  .room-card {
+    width: 100%;
+  }
+
+  .room-create {
+    width: 100%;
+  }
+
+  .create-form {
+    flex-direction: column;
+  }
+
+  .create-form input,
+  .create-form select {
+    width: 100%;
+  }
+
+  /* Game HUD - Responsive layout */
+  .hud {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .hud-left {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  .hud-right {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  .hud-btn {
+    padding: 12px;
+    font-size: 20px; /* Larger touch targets */
+  }
+
+  /* Chat - Full width on mobile */
+  .chat-container {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+    border: none;
+    border-radius: 0;
+  }
+
+  .chat-messages {
+    max-height: 150px; /* Shorter on mobile */
+  }
+
+  .chat-input-wrapper {
+    flex-wrap: nowrap;
+  }
+
+  #chat-input {
+    font-size: 14px;
+    padding: 12px;
+  }
+
+  #chat-send {
+    min-width: 70px;
+    font-size: 10px;
+  }
+
+  /* Inventory Panel - Full width overlay */
+  .inventory-panel {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .inventory-content {
+    max-height: calc(100vh - 250px);
+  }
+
+  .furniture-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+  }
+
+  .furniture-item {
+    padding: 12px;
+  }
+
+  .furniture-icon {
+    font-size: 32px;
+  }
+
+  .furniture-name {
+    font-size: 10px;
+  }
+
+  .panel-footer {
+    padding: 16px;
+  }
+
+  /* Settings Panel - Full width overlay */
+  .settings-panel {
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+    border: none;
+    box-shadow: none;
+  }
+
+  /* Context Menu - Touch friendly */
+  .furniture-context-menu {
+    min-width: 200px;
+  }
+
+  .furniture-context-menu-option {
+    padding: 16px 20px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Extra small screens - even more compact */
+  .login-header h1.logo {
+    font-size: 16px;
+  }
+
+  .tab-btn {
+    font-size: 8px;
+    padding: 10px 12px;
+  }
+
+  .hud-btn .icon {
+    font-size: 18px;
+  }
+
+  .chat-messages {
+    max-height: 120px;
+  }
+
+  .furniture-grid {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+  }
+}
+
+/* Touch gestures support */
+@media (hover: none) and (pointer: coarse) {
+  /* Disable hover effects on touch devices */
+  .btn-primary:hover,
+  .btn-secondary:hover,
+  .room-card:hover,
+  .furniture-item:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Active states for touch feedback */
+  .btn-primary:active {
+    transform: scale(0.95);
+    background: var(--habbo-light-blue);
+  }
+
+  .btn-secondary:active {
+    transform: scale(0.95);
+    background: var(--habbo-white);
+  }
+
+  .room-card:active,
+  .furniture-item:active {
+    transform: scale(0.98);
+  }
+}
+
+/* Landscape orientation on tablets */
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: landscape) {
+  .chat-container {
+    max-width: 400px;
+    right: var(--spacing-md);
+    left: auto;
+  }
+
+  .inventory-panel {
+    width: 450px;
+    right: var(--spacing-md);
+    left: auto;
+  }
+}

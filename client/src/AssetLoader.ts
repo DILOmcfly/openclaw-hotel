@@ -22,9 +22,9 @@ class AssetLoaderClass {
   private loading: Promise<void> | null = null;
 
   /**
-   * Load all PNG assets and sprite atlas
+   * Load all PNG assets and sprite atlas with progress callback
    */
-  async load(): Promise<SpriteAtlas> {
+  async load(onProgress?: (percent: number) => void): Promise<SpriteAtlas> {
     if (this.loading) {
       await this.loading;
       return this.atlas;
@@ -34,20 +34,26 @@ class AssetLoaderClass {
       return this.atlas;
     }
 
-    this.loading = this._loadAssets();
+    this.loading = this._loadAssets(onProgress);
     await this.loading;
     return this.atlas;
   }
 
-  private async _loadAssets(): Promise<void> {
+  private async _loadAssets(onProgress?: (percent: number) => void): Promise<void> {
     try {
+      onProgress?.(5); // Initial progress
+      
       // Load sprite atlas JSON
       const atlasData = await fetch('/assets/sprites.json').then(r => r.json());
+      onProgress?.(10); // Atlas loaded
       
       // Load individual textures
       const texturePromises: Promise<void>[] = [];
+      const frameEntries = Object.entries(atlasData.frames);
+      const totalFrames = frameEntries.length;
+      let loadedFrames = 0;
       
-      for (const [frameName, frameData] of Object.entries(atlasData.frames)) {
+      for (const [frameName, frameData] of frameEntries) {
         const fileName = frameName.replace('char_spritesheet_', '');
         
         // For spritesheet frames, we need to load the base spritesheet
@@ -64,6 +70,11 @@ class AssetLoaderClass {
                   frame: { x: frame.x, y: frame.y, width: frame.w, height: frame.h }
                 });
                 this.atlas.textures[frameName] = subTexture;
+                
+                // Update progress
+                loadedFrames++;
+                const percent = 10 + Math.floor((loadedFrames / totalFrames) * 85);
+                onProgress?.(percent);
               })
             );
           }
@@ -80,22 +91,37 @@ class AssetLoaderClass {
                 // Scale down large gemini images
                 const scaled = this.scaleTexture(texture, frameName);
                 this.atlas.textures[frameName] = scaled;
+                
+                // Update progress
+                loadedFrames++;
+                const percent = 10 + Math.floor((loadedFrames / totalFrames) * 85);
+                onProgress?.(percent);
               })
               .catch(() => {
                 // Fallback to original small sprite
                 return Assets.load(fallbackPath).then((texture) => {
                   this.atlas.textures[frameName] = texture;
+                  
+                  // Update progress
+                  loadedFrames++;
+                  const percent = 10 + Math.floor((loadedFrames / totalFrames) * 85);
+                  onProgress?.(percent);
                 });
               })
               .catch(err => {
                 console.warn(`Failed to load ${frameName}:`, err);
+                loadedFrames++;
+                const percent = 10 + Math.floor((loadedFrames / totalFrames) * 85);
+                onProgress?.(percent);
               })
           );
         }
       }
       
       await Promise.all(texturePromises);
+      onProgress?.(95);
       this.atlas.loaded = true;
+      onProgress?.(100);
       console.log(`✓ Loaded ${Object.keys(this.atlas.textures).length} textures`);
     } catch (error) {
       console.error('Failed to load assets:', error);

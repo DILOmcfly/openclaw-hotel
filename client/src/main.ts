@@ -8,6 +8,8 @@ import { AssetLoader } from './AssetLoader.js';
 import { UIManager } from './ui/UIManager.js';
 import { SoundManager } from './SoundManager.js';
 import { EmoteManager, type EmoteName } from './EmoteManager.js';
+import { LoadingScreen } from './LoadingScreen.js';
+import { toastManager } from './ToastManager.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -28,6 +30,10 @@ let MY_ID = `agent-${Math.random().toString(36).slice(2, 8)}`;
 // Simplified - context menu will be created inside init() with closure access
 
 async function init() {
+  // Show loading screen
+  const loadingScreen = new LoadingScreen();
+  loadingScreen.show();
+
   // Initialize UI Manager first
   const ui = new UIManager();
 
@@ -39,10 +45,15 @@ async function init() {
     antialias: true,
   });
 
-  // Load pixel art assets
+  // Load pixel art assets with progress
   console.log('Loading pixel art assets...');
-  await AssetLoader.load();
+  await AssetLoader.load((percent) => {
+    loadingScreen.setProgress(percent);
+  });
   console.log('Assets loaded!');
+  
+  // Hide loading screen with fade-out
+  loadingScreen.hide();
 
   const appEl = document.getElementById('app');
   if (!appEl) throw new Error('Missing #app element');
@@ -310,6 +321,25 @@ async function init() {
     console.log('[Hotel] Connected to server');
     isConnected = true;
     ws.joinRoom(currentRoom);
+    
+    // Show success toast on reconnection (not on first connect)
+    if (ws['reconnectAttempts'] > 0) {
+      toastManager.success('Reconnected to server!');
+    }
+  });
+
+  ws.on('disconnected', () => {
+    isConnected = false;
+    toastManager.warning('Connection lost. Reconnecting...');
+  });
+
+  ws.on('reconnecting', (msg) => {
+    const attempt = msg.attempt as number;
+    console.log(`[Hotel] Reconnection attempt ${attempt}`);
+  });
+
+  ws.on('error', (msg) => {
+    console.error('[Hotel] WebSocket error:', msg.error);
   });
 
   ws.on('room.state', (msg) => {
@@ -328,12 +358,39 @@ async function init() {
     }
   });
 
+  // Throttle agent position updates (max 10/s per agent)
+  const positionUpdateThrottles = new Map<string, { lastUpdate: number; pending: any }>();
+  const THROTTLE_MS = 100; // 10 updates per second max
+
   ws.on('agent.moved', (msg) => {
     const agentId = msg.agentId as string;
     const x = msg.x as number;
     const y = msg.y as number;
-    if (agentId !== MY_ID) {
+    
+    if (agentId === MY_ID) return;
+
+    const now = Date.now();
+    const throttle = positionUpdateThrottles.get(agentId);
+
+    if (!throttle || now - throttle.lastUpdate >= THROTTLE_MS) {
+      // Update immediately
       agentRenderer.addOrUpdate({ agentId, x, y, color: 0x666666 });
+      positionUpdateThrottles.set(agentId, { lastUpdate: now, pending: null });
+    } else {
+      // Queue update for later
+      throttle.pending = { agentId, x, y, color: 0x666666 };
+    }
+  });
+
+  // Process pending position updates every frame
+  app.ticker.add(() => {
+    const now = Date.now();
+    for (const [agentId, throttle] of positionUpdateThrottles.entries()) {
+      if (throttle.pending && now - throttle.lastUpdate >= THROTTLE_MS) {
+        agentRenderer.addOrUpdate(throttle.pending);
+        throttle.lastUpdate = now;
+        throttle.pending = null;
+      }
     }
   });
 
@@ -403,10 +460,15 @@ async function init() {
     
     // Show in chat
     ui.addChatMessage(agentId, `*${emote}*`);
+    
+    // Show toast notification for interesting emotes
+    if (['dance', 'wave', 'laugh'].includes(emote)) {
+      toastManager.info(`${agentId} ${emote}s!`, 2000);
+    }
   });
 
   // Canvas interaction handlers
-  app.canvas.addEventListener('click', (e: MouseEvent) => {
+  const handlePointerDown = (clientX: number, clientY: number) => {
     // Only allow interaction when in game screen
     if (ui['currentScreen'] !== 'game') return;
     
@@ -422,8 +484,8 @@ async function init() {
       return;
     }
     
-    const localX = e.clientX - world.position.x;
-    const localY = e.clientY - world.position.y;
+    const localX = clientX - world.position.x;
+    const localY = clientY - world.position.y;
     const tile = tileMap.getTileAt(localX, localY);
     
     if (tile) {
@@ -433,6 +495,54 @@ async function init() {
       if (isConnected) {
         ws.move(currentRoom, tile.gridX, tile.gridY);
       }
+    }
+  };
+
+  // Mouse click handler
+  app.canvas.addEventListener('click', (e: MouseEvent) => {
+    handlePointerDown(e.clientX, e.clientY);
+  });
+
+  // Touch handler (tap to walk)
+  app.canvas.addEventListener('touchstart', (e: TouchEvent) => {
+    if (e.touches.length === 1) {
+      e.preventDefault(); // Prevent default touch behavior
+      const touch = e.touches[0];
+      handlePointerDown(touch.clientX, touch.clientY);
+    }
+  });
+
+  // Pinch-to-zoom support
+  let lastPinchDistance = 0;
+  let currentScale = 1;
+
+  app.canvas.addEventListener('touchmove', (e: TouchEvent) => {
+    if (e.touches.length === 2) {
+      e.preventDefault(); // Prevent default zoom
+      
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      
+      const distance = Math.hypot(
+        touch2.clientX - touch1.clientX,
+        touch2.clientY - touch1.clientY
+      );
+
+      if (lastPinchDistance > 0) {
+        const delta = distance - lastPinchDistance;
+        const scaleChange = delta * 0.01;
+        currentScale = Math.max(0.5, Math.min(2, currentScale + scaleChange));
+        
+        world.scale.set(currentScale, currentScale);
+      }
+
+      lastPinchDistance = distance;
+    }
+  });
+
+  app.canvas.addEventListener('touchend', (e: TouchEvent) => {
+    if (e.touches.length < 2) {
+      lastPinchDistance = 0;
     }
   });
 
