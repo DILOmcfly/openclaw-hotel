@@ -9,6 +9,8 @@ export interface AgentState {
   color: number;
   name?: string;
   direction?: number; // 0=N, 1=E, 2=S, 3=W
+  isSitting?: boolean;
+  furnitureId?: string;
 }
 
 interface AnimationState {
@@ -17,6 +19,16 @@ interface AnimationState {
   walkFrame: number;
   lastX: number;
   lastY: number;
+  // Smooth movement (lerp)
+  currentX: number;
+  currentY: number;
+  targetX: number;
+  targetY: number;
+  moveProgress: number;
+  moveDuration: number; // ms per tile
+  // Idle variations
+  nextIdleVariation: number;
+  idleVariationType: 'none' | 'flip' | 'stretch';
 }
 
 export class AgentRenderer {
@@ -50,31 +62,114 @@ export class AgentRenderer {
   ): void {
     const { state, container, sprite, animation } = entry;
 
-    // Detect if agent is moving
-    const isMoving = state.x !== animation.lastX || state.y !== animation.lastY;
-    animation.isMoving = isMoving;
+    // Detect if target position changed
+    const targetChanged = state.x !== animation.targetX || state.y !== animation.targetY;
+    
+    if (targetChanged) {
+      // Start new smooth movement
+      animation.targetX = state.x;
+      animation.targetY = state.y;
+      animation.moveProgress = 0;
+      animation.isMoving = true;
+    }
 
-    if (isMoving) {
-      // Walking animation: cycle frames
-      animation.walkFrame = (animation.walkFrame + deltaMs / 150) % 2;
-      animation.idleTime = 0;
-      animation.lastX = state.x;
-      animation.lastY = state.y;
+    // Smooth movement (lerp between tiles)
+    if (animation.isMoving && animation.moveProgress < 1) {
+      animation.moveProgress = Math.min(1, animation.moveProgress + deltaMs / animation.moveDuration);
+      
+      // Easing function (ease-out cubic)
+      const t = animation.moveProgress;
+      const eased = 1 - Math.pow(1 - t, 3);
+      
+      animation.currentX = animation.lastX + (animation.targetX - animation.lastX) * eased;
+      animation.currentY = animation.lastY + (animation.targetY - animation.lastY) * eased;
 
-      // If sprite exists, apply subtle bounce
-      if (sprite) {
+      // Update container position
+      const { x, y } = gridToScreen(animation.currentX, animation.currentY, 0);
+      container.position.set(x, y);
+      container.zIndex = depthSort(Math.floor(animation.currentX), Math.floor(animation.currentY), 0);
+
+      // Walking bounce
+      if (sprite && !state.isSitting) {
         const bounce = Math.sin(this.animationTime / 100) * 1.5;
         sprite.position.y = bounce;
       }
-    } else {
-      // Idle animation: gentle bob up and down
+
+      // Movement complete
+      if (animation.moveProgress >= 1) {
+        animation.isMoving = false;
+        animation.lastX = animation.targetX;
+        animation.lastY = animation.targetY;
+        animation.currentX = animation.targetX;
+        animation.currentY = animation.targetY;
+        animation.idleTime = 0;
+      }
+    } else if (!animation.isMoving) {
+      // Idle state
       animation.idleTime += deltaMs;
-      
+
       if (sprite) {
-        const bobAmplitude = 2; // pixels
-        const bobSpeed = 0.002; // radians per ms
-        const bob = Math.sin(animation.idleTime * bobSpeed) * bobAmplitude;
-        sprite.position.y = bob;
+        // Sitting pose
+        if (state.isSitting) {
+          // Lower sprite and apply sitting offset
+          sprite.position.y = 8; // Lowered position
+          sprite.scale.y = 0.85; // Slightly compressed
+        } else {
+          // Idle bob
+          const bobAmplitude = 2; // pixels
+          const bobSpeed = 0.002; // radians per ms
+          const bob = Math.sin(animation.idleTime * bobSpeed) * bobAmplitude;
+          sprite.position.y = bob;
+          sprite.scale.y = 1.0;
+
+          // Idle variations
+          if (animation.idleTime >= animation.nextIdleVariation) {
+            this.triggerIdleVariation(animation, sprite);
+            // Schedule next variation (8-12 seconds)
+            animation.nextIdleVariation = animation.idleTime + 8000 + Math.random() * 4000;
+          }
+
+          // Apply active idle variation
+          this.applyIdleVariation(animation, sprite, animation.idleTime);
+        }
+      }
+    }
+  }
+
+  /**
+   * Trigger a random idle variation
+   */
+  private triggerIdleVariation(animation: AnimationState, sprite: Sprite): void {
+    const variations: Array<'flip' | 'stretch'> = ['flip', 'stretch'];
+    animation.idleVariationType = variations[Math.floor(Math.random() * variations.length)];
+    animation.idleTime = 0; // Reset for variation timing
+  }
+
+  /**
+   * Apply current idle variation effect
+   */
+  private applyIdleVariation(animation: AnimationState, sprite: Sprite, elapsed: number): void {
+    if (animation.idleVariationType === 'none') return;
+
+    if (animation.idleVariationType === 'flip') {
+      // Quick head turn (sprite flip)
+      if (elapsed < 150) {
+        sprite.scale.x = -Math.abs(sprite.scale.x);
+      } else if (elapsed < 300) {
+        sprite.scale.x = Math.abs(sprite.scale.x);
+      } else {
+        animation.idleVariationType = 'none';
+      }
+    } else if (animation.idleVariationType === 'stretch') {
+      // Subtle stretch (scale Y 1.0 → 1.05 → 1.0)
+      const duration = 600;
+      if (elapsed < duration) {
+        const t = elapsed / duration;
+        const scale = 1.0 + Math.sin(t * Math.PI) * 0.05;
+        sprite.scale.y = scale;
+      } else {
+        sprite.scale.y = 1.0;
+        animation.idleVariationType = 'none';
       }
     }
   }
@@ -95,6 +190,14 @@ export class AgentRenderer {
         walkFrame: 0,
         lastX: state.x,
         lastY: state.y,
+        currentX: state.x,
+        currentY: state.y,
+        targetX: state.x,
+        targetY: state.y,
+        moveProgress: 1,
+        moveDuration: 300, // 300ms per tile
+        nextIdleVariation: 8000 + Math.random() * 4000, // 8-12 seconds
+        idleVariationType: 'none',
       };
 
       if (texture) {
@@ -150,5 +253,30 @@ export class AgentRenderer {
 
   getAll(): AgentState[] {
     return Array.from(this.agents.values()).map((e) => e.state);
+  }
+
+  /**
+   * Update agent sitting state
+   */
+  setSitting(agentId: string, isSitting: boolean, furnitureId?: string): void {
+    const entry = this.agents.get(agentId);
+    if (!entry) return;
+
+    entry.state.isSitting = isSitting;
+    entry.state.furnitureId = furnitureId;
+  }
+
+  /**
+   * Get agent container for emote rendering
+   */
+  getContainer(agentId: string): Container | undefined {
+    return this.agents.get(agentId)?.container;
+  }
+
+  /**
+   * Get agent sprite for emote rendering
+   */
+  getSprite(agentId: string): Sprite | undefined {
+    return this.agents.get(agentId)?.sprite;
   }
 }

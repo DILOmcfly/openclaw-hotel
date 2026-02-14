@@ -81,6 +81,10 @@ export class HotelWSClient {
     this.send({ type: 'chat.send', roomId, content, signature });
   }
 
+  emote(roomId: string, emote: string): void {
+    this.send({ type: 'emote', roomId, emote });
+  }
+
   on(type: string, handler: MessageHandler): void {
     const list = this.handlers.get(type) ?? [];
     list.push(handler);

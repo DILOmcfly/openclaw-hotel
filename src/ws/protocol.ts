@@ -70,6 +70,14 @@ export const furnitureRotateMsgSchema = z.object({
 
 export type FurnitureRotateMsg = z.infer<typeof furnitureRotateMsgSchema>
 
+export const emoteMsgSchema = z.object({
+  type: z.literal('emote'),
+  roomId: z.string(),
+  emote: z.enum(['wave', 'dance', 'laugh', 'sit', 'stand']),
+})
+
+export type EmoteMsg = z.infer<typeof emoteMsgSchema>
+
 export const pingMsgSchema = z.object({
   type: z.literal('ping'),
 })
@@ -85,6 +93,7 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   furnitureRemoveMsgSchema,
   furnitureMoveMsgSchema,
   furnitureRotateMsgSchema,
+  emoteMsgSchema,
   pingMsgSchema,
 ])
 
@@ -174,6 +183,13 @@ export type FurnitureRotatedMsg = {
   rotation: number
 }
 
+export type EmoteBroadcastMsg = {
+  type: 'emote.broadcast'
+  roomId: string
+  agentId: string
+  emote: string
+}
+
 export type ErrorMsg = {
   type: 'error'
   code: string
@@ -196,6 +212,7 @@ export type ServerMessage =
   | FurnitureRemovedMsg
   | FurnitureMovedMsg
   | FurnitureRotatedMsg
+  | EmoteBroadcastMsg
   | ErrorMsg
   | PongMsg
 

@@ -7,6 +7,7 @@ import { HotelWSClient } from './ws/client.js';
 import { AssetLoader } from './AssetLoader.js';
 import { UIManager } from './ui/UIManager.js';
 import { SoundManager } from './SoundManager.js';
+import { EmoteManager, type EmoteName } from './EmoteManager.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -62,6 +63,7 @@ async function init() {
   const agentRenderer = new AgentRenderer(world);
   const bubbleSystem = new BubbleSystem(world, app.screen.width / 2, app.screen.height / 3);
   const furnitureManager = new FurnitureManager(world);
+  const emoteManager = new EmoteManager();
 
   // WebSocket connection
   const ws = new HotelWSClient();
@@ -122,21 +124,49 @@ async function init() {
   };
 
   ui.onChatMessage = (message: string) => {
-    // Play sound effect
-    SoundManager.play('chat_message');
+    // Check if message is an emote command
+    const emoteName = EmoteManager.parseEmoteCommand(message);
     
-    // Show own bubble
-    const me = agentRenderer.getAll().find((a) => a.agentId === MY_ID);
-    if (me) {
-      bubbleSystem.show(MY_ID, message, me.x, me.y);
-    }
-    
-    // Add to chat history
-    ui.addChatMessage(ui.getUsername(), message);
-    
-    // Send to server
-    if (isConnected) {
-      ws.chat(currentRoom, message);
+    if (emoteName) {
+      // Trigger emote locally
+      const container = agentRenderer.getContainer(MY_ID);
+      const sprite = agentRenderer.getSprite(MY_ID);
+      
+      if (container) {
+        emoteManager.play(MY_ID, emoteName, container, sprite);
+        
+        // Handle sit/stand state
+        if (emoteName === 'sit') {
+          agentRenderer.setSitting(MY_ID, true);
+        } else if (emoteName === 'stand') {
+          agentRenderer.setSitting(MY_ID, false);
+        }
+      }
+      
+      // Send to server for broadcast
+      if (isConnected) {
+        ws.emote(currentRoom, emoteName);
+      }
+      
+      // Show in chat
+      ui.addChatMessage(ui.getUsername(), `*${emoteName}*`);
+    } else {
+      // Regular chat message
+      SoundManager.play('chat_message');
+      
+      // Show own bubble
+      const me = agentRenderer.getAll().find((a) => a.agentId === MY_ID);
+      if (me) {
+        bubbleSystem.show(MY_ID, message, me.x, me.y);
+      }
+      
+      // Add to chat history
+      ui.addChatMessage(ui.getUsername(), message);
+      
+      // Send to server
+      if (isConnected) {
+        ws.chat(currentRoom, message);
+      }
     }
   };
 
@@ -350,6 +380,31 @@ async function init() {
     furnitureManager.onFurnitureRotated(itemId, rotation);
   });
 
+  ws.on('emote.broadcast', (msg) => {
+    const agentId = msg.agentId as string;
+    const emote = msg.emote as EmoteName;
+    
+    // Don't play emote for self (already played locally)
+    if (agentId === MY_ID) return;
+    
+    const container = agentRenderer.getContainer(agentId);
+    const sprite = agentRenderer.getSprite(agentId);
+    
+    if (container) {
+      emoteManager.play(agentId, emote, container, sprite);
+      
+      // Handle sit/stand state
+      if (emote === 'sit') {
+        agentRenderer.setSitting(agentId, true);
+      } else if (emote === 'stand') {
+        agentRenderer.setSitting(agentId, false);
+      }
+    }
+    
+    // Show in chat
+    ui.addChatMessage(agentId, `*${emote}*`);
+  });
+
   // Canvas interaction handlers
   app.canvas.addEventListener('click', (e: MouseEvent) => {
     // Only allow interaction when in game screen
@@ -424,6 +479,7 @@ async function init() {
     const deltaMs = ticker.deltaMS;
     agentRenderer.updateAnimations(deltaMs);
     bubbleSystem.update();
+    emoteManager.update(deltaMs);
   });
 
   // Helper functions

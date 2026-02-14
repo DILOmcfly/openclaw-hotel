@@ -438,6 +438,17 @@ export function setupWebSocket(server: Server): void {
           }
           break;
         }
+
+        case 'emote': {
+          // Broadcast emote to all room members
+          broadcastToRoom(clientMessage.roomId, {
+            type: 'emote.broadcast',
+            roomId: clientMessage.roomId,
+            agentId,
+            emote: clientMessage.emote,
+          });
+          break;
+        }
       }
     });
 
