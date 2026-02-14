@@ -7,6 +7,9 @@ import { Container, Sprite, Graphics, Texture } from 'pixi.js';
 import { gridToScreen, depthSort, screenToGrid, TILE_WIDTH, TILE_HEIGHT } from './IsoRenderer.js';
 import { AssetLoader } from '../AssetLoader.js';
 import type { HotelWSClient } from '../ws/client.js';
+import { ObjectPool } from './ObjectPool.js';
+import { memoryProfiler } from './MemoryProfiler.js';
+import { ViewportCulling } from './ViewportCulling.js';
 
 export interface FurnitureItem {
   id: string;
@@ -57,6 +60,10 @@ export class FurnitureManager {
   private placementMode: PlacementMode | null = null;
   private selectedItemId: string | null = null;
   private dragMode: { itemId: string; offsetX: number; offsetY: number } | null = null;
+  private containerPool: ObjectPool<Container>;
+  private viewportCulling: ViewportCulling;
+  private textureCache: Map<string, Texture | Promise<Texture>> = new Map();
+  private loadingPlaceholder: Texture | null = null;
 
   // Callbacks
   public onPlacementSuccess?: () => void;
@@ -66,6 +73,129 @@ export class FurnitureManager {
 
   constructor(world: Container) {
     this.world = world;
+    
+    // Initialize object pool for containers
+    this.containerPool = new ObjectPool({
+      factory: () => {
+        const container = new Container();
+        memoryProfiler.trackContainerCreate();
+        return container;
+      },
+      reset: (container) => {
+        container.removeChildren();
+        container.position.set(0, 0);
+        container.visible = true;
+        container.alpha = 1;
+        container.scale.set(1, 1);
+        container.rotation = 0;
+        container.zIndex = 0;
+        container.eventMode = 'none';
+        container.cursor = 'default';
+        container.removeAllListeners();
+      },
+      destroy: (container) => {
+        container.destroy({ children: true });
+        memoryProfiler.trackContainerDestroy();
+      },
+      maxSize: 100,
+      preAllocate: 20,
+    });
+
+    // Initialize viewport culling
+    this.viewportCulling = new ViewportCulling(world);
+    
+    // Create loading placeholder texture
+    this.loadingPlaceholder = this.createLoadingPlaceholder();
+  }
+
+  /**
+   * Create loading placeholder texture (gray box with "loading...")
+   */
+  private createLoadingPlaceholder(): Texture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 48;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+    
+    // Gray box
+    ctx.fillStyle = '#999999';
+    ctx.fillRect(0, 16, 48, 48);
+    ctx.strokeStyle = '#666666';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, 16, 48, 48);
+    
+    // "Loading..." text
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 8px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('LOADING', 24, 36);
+    ctx.fillText('...', 24, 46);
+    
+    return Texture.from(canvas);
+  }
+
+  /**
+   * Lazy load furniture texture (only load when first needed)
+   */
+  private async loadFurnitureTexture(spriteKey: string): Promise<Texture> {
+    // Check if already in cache
+    const cached = this.textureCache.get(spriteKey);
+    if (cached) {
+      if (cached instanceof Promise) {
+        return await cached;
+      }
+      return cached;
+    }
+
+    // Check if AssetLoader already has it
+    let texture = AssetLoader.getFurnitureTexture(spriteKey);
+    if (texture) {
+      this.textureCache.set(spriteKey, texture);
+      return texture;
+    }
+
+    // If not available, return placeholder for now
+    // (In a real implementation, you'd load from server here)
+    console.log(`[FurnitureManager] Lazy loading texture: ${spriteKey}`);
+    
+    // Simulate async loading (replace with actual fetch if needed)
+    const loadingPromise = new Promise<Texture>((resolve) => {
+      setTimeout(() => {
+        // Try again after a delay
+        texture = AssetLoader.getFurnitureTexture(spriteKey);
+        if (texture) {
+          this.textureCache.set(spriteKey, texture);
+          resolve(texture);
+        } else {
+          // Still not available, use placeholder
+          resolve(this.loadingPlaceholder!);
+        }
+      }, 100);
+    });
+
+    this.textureCache.set(spriteKey, loadingPromise);
+    return await loadingPromise;
+  }
+
+  /**
+   * Update viewport for culling
+   */
+  public updateViewport(screenWidth: number, screenHeight: number, scale: number = 1): void {
+    this.viewportCulling.updateViewport(screenWidth, screenHeight, scale);
+  }
+
+  /**
+   * Perform viewport culling on all furniture
+   */
+  public cullFurniture(): number {
+    const cullableObjects = Array.from(this.items.values()).map(entry => ({
+      gridX: entry.item.x,
+      gridY: entry.item.y,
+      container: entry.container,
+    }));
+    
+    return this.viewportCulling.cullObjects(cullableObjects);
   }
 
   /**
@@ -103,32 +233,34 @@ export class FurnitureManager {
   /**
    * Add or update furniture in the room
    */
-  public addFurniture(item: FurnitureItem): void {
+  public async addFurniture(item: FurnitureItem): Promise<void> {
     // Remove existing if updating
     if (this.items.has(item.id)) {
       this.removeFurniture(item.id);
     }
 
-    const container = new Container();
+    const container = this.containerPool.acquire();
     const spriteKey = ITEM_SPRITE_MAP[item.itemDefId] || 'chair'; // fallback
     
-    let sprite: Sprite;
-    const texture = AssetLoader.getFurnitureTexture(spriteKey);
-    if (texture) {
-      sprite = new Sprite(texture);
-      sprite.anchor.set(0.5, 1); // Bottom-center anchor for isometric
-      
-      // Apply rotation if needed
-      if (item.rotation !== 0) {
-        sprite.angle = item.rotation * 45; // Assuming 8-direction rotation
-      }
-    } else {
-      console.warn(`[FurnitureManager] Sprite not found for ${spriteKey}, using placeholder`);
-      // Fallback to colored box
-      sprite = this.createPlaceholderSprite(item.itemDefId);
-    }
-
+    // Start with loading placeholder
+    let sprite = new Sprite(this.loadingPlaceholder!);
+    sprite.anchor.set(0.5, 1);
     container.addChild(sprite);
+    memoryProfiler.trackSpriteCreate();
+    
+    // Lazy load the actual texture
+    this.loadFurnitureTexture(spriteKey).then((texture) => {
+      if (sprite && !sprite.destroyed) {
+        sprite.texture = texture;
+        
+        // Apply rotation if needed
+        if (item.rotation !== 0) {
+          sprite.angle = item.rotation * 45; // Assuming 8-direction rotation
+        }
+      }
+    }).catch((err) => {
+      console.warn(`[FurnitureManager] Failed to load texture for ${spriteKey}:`, err);
+    });
 
     // Position in isometric space
     const { x, y } = gridToScreen(item.x, item.y, item.z);
@@ -166,7 +298,15 @@ export class FurnitureManager {
     const entry = this.items.get(itemId);
     if (entry) {
       this.world.removeChild(entry.container);
-      entry.container.destroy({ children: true });
+      
+      // Track sprite destruction
+      if (entry.container.children.length > 0) {
+        memoryProfiler.trackSpriteDestroy();
+      }
+      
+      // Return container to pool
+      this.containerPool.release(entry.container);
+      
       this.items.delete(itemId);
     }
   }
@@ -178,6 +318,16 @@ export class FurnitureManager {
     for (const [id] of this.items) {
       this.removeFurniture(id);
     }
+  }
+
+  /**
+   * Cleanup all furniture and release resources
+   */
+  public cleanup(): void {
+    this.clear();
+    this.containerPool.clear();
+    this.textureCache.clear();
+    memoryProfiler.cleanup();
   }
 
   /**

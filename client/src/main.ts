@@ -11,6 +11,7 @@ import { EmoteManager, type EmoteName } from './EmoteManager.js';
 import { LoadingScreen } from './LoadingScreen.js';
 import { toastManager } from './ToastManager.js';
 import { VirtualJoystick, type Direction } from './VirtualJoystick.js';
+import { memoryProfiler } from './renderer/MemoryProfiler.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -68,7 +69,7 @@ async function init() {
 
   // Parse and render tilemap
   const heightmap = parseHeightmap(DEMO_MAP);
-  const tileMap = new TileMap(heightmap, world);
+  let tileMap = new TileMap(heightmap, world);
   tileMap.render();
 
   // Renderers
@@ -115,6 +116,15 @@ async function init() {
   ui.onJoinRoom = (roomId: string) => {
     console.log('[Room] Joining:', roomId);
     SoundManager.play('door_open');
+    
+    // Cleanup previous room if changing rooms
+    if (currentRoom !== roomId) {
+      console.log('[Room] Cleaning up previous room');
+      agentRenderer.cleanup();
+      furnitureManager.cleanup();
+      // Note: TileMap doesn't change between rooms in current implementation
+    }
+    
     currentRoom = roomId;
     
     if (isConnected) {
@@ -199,11 +209,13 @@ async function init() {
       isConnected = false;
     }
     
-    // Clear agents and furniture
-    agentRenderer.getAll().forEach(agent => {
-      agentRenderer.remove(agent.agentId);
-    });
-    furnitureManager.clear();
+    // Cleanup all resources
+    agentRenderer.cleanup();
+    furnitureManager.cleanup();
+    tileMap.cleanup();
+    
+    // Log final memory stats
+    memoryProfiler.logStats();
   };
 
   ui.onPlaceFurniture = (itemDefId: string) => {
@@ -657,12 +669,48 @@ async function init() {
     }
   });
 
-  // Game loop for animations and bubble cleanup
+  // Update viewport on window resize
+  const updateViewport = () => {
+    const scale = world.scale.x; // Use current zoom scale
+    agentRenderer.updateViewport(app.screen.width, app.screen.height, scale);
+    furnitureManager.updateViewport(app.screen.width, app.screen.height, scale);
+  };
+  
+  // Initial viewport setup
+  updateViewport();
+  
+  // Update viewport on resize
+  window.addEventListener('resize', updateViewport);
+  
+  // Update viewport when zoom changes
+  let lastScale = world.scale.x;
+  
+  // Game loop for animations, bubble cleanup, and viewport culling
+  let frameCount = 0;
   app.ticker.add((ticker) => {
     const deltaMs = ticker.deltaMS;
+    
+    // Update animations
     agentRenderer.updateAnimations(deltaMs);
     bubbleSystem.update();
     emoteManager.update(deltaMs);
+    
+    // Perform viewport culling every frame
+    // (only render sprites within visible area)
+    const culledAgents = agentRenderer.cullAgents();
+    const culledFurniture = furnitureManager.cullFurniture();
+    
+    // Check if zoom changed
+    if (Math.abs(world.scale.x - lastScale) > 0.01) {
+      lastScale = world.scale.x;
+      updateViewport();
+    }
+    
+    // Memory leak detection (every 30 seconds)
+    frameCount++;
+    if (frameCount % (60 * 30) === 0) {
+      memoryProfiler.checkLeaks();
+    }
   });
 
   // Helper functions

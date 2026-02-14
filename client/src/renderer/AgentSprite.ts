@@ -1,6 +1,9 @@
 import { Container, Graphics, Sprite } from 'pixi.js';
 import { gridToScreen, depthSort } from './IsoRenderer.js';
 import { AssetLoader } from '../AssetLoader.js';
+import { ObjectPool } from './ObjectPool.js';
+import { memoryProfiler } from './MemoryProfiler.js';
+import { ViewportCulling } from './ViewportCulling.js';
 
 export interface AgentState {
   agentId: string;
@@ -40,9 +43,38 @@ export class AgentRenderer {
   }> = new Map();
   private world: Container;
   private animationTime: number = 0;
+  private containerPool: ObjectPool<Container>;
+  private viewportCulling: ViewportCulling;
 
   constructor(world: Container) {
     this.world = world;
+    
+    // Initialize object pool for containers
+    this.containerPool = new ObjectPool({
+      factory: () => {
+        const container = new Container();
+        memoryProfiler.trackContainerCreate();
+        return container;
+      },
+      reset: (container) => {
+        container.removeChildren();
+        container.position.set(0, 0);
+        container.visible = true;
+        container.alpha = 1;
+        container.scale.set(1, 1);
+        container.rotation = 0;
+        container.zIndex = 0;
+      },
+      destroy: (container) => {
+        container.destroy({ children: true });
+        memoryProfiler.trackContainerDestroy();
+      },
+      maxSize: 50,
+      preAllocate: 10,
+    });
+
+    // Initialize viewport culling
+    this.viewportCulling = new ViewportCulling(world);
   }
 
   /**
@@ -174,11 +206,31 @@ export class AgentRenderer {
     }
   }
 
+  /**
+   * Update viewport for culling (call on window resize or camera move)
+   */
+  public updateViewport(screenWidth: number, screenHeight: number, scale: number = 1): void {
+    this.viewportCulling.updateViewport(screenWidth, screenHeight, scale);
+  }
+
+  /**
+   * Perform viewport culling on all agents
+   */
+  public cullAgents(): number {
+    const cullableObjects = Array.from(this.agents.values()).map(entry => ({
+      gridX: entry.state.x,
+      gridY: entry.state.y,
+      container: entry.container,
+    }));
+    
+    return this.viewportCulling.cullObjects(cullableObjects);
+  }
+
   addOrUpdate(state: AgentState): void {
     let entry = this.agents.get(state.agentId);
 
     if (!entry) {
-      const container = new Container();
+      const container = this.containerPool.acquire();
       
       // Try to use character sprite
       const direction = state.direction ?? 2; // Default to south
@@ -205,6 +257,7 @@ export class AgentRenderer {
         sprite.anchor.set(0.5, 1); // Anchor at bottom center
         sprite.tint = state.color;
         container.addChild(sprite);
+        memoryProfiler.trackSpriteCreate();
         entry = { state, container, sprite, animation };
       } else {
         // Fallback to graphics
@@ -247,8 +300,29 @@ export class AgentRenderer {
     const entry = this.agents.get(agentId);
     if (entry) {
       this.world.removeChild(entry.container);
+      
+      // Track sprite destruction
+      if (entry.sprite) {
+        memoryProfiler.trackSpriteDestroy();
+      }
+      
+      // Return container to pool
+      this.containerPool.release(entry.container);
+      
       this.agents.delete(agentId);
     }
+  }
+
+  /**
+   * Cleanup all agents and release resources
+   */
+  public cleanup(): void {
+    const agentIds = Array.from(this.agents.keys());
+    for (const agentId of agentIds) {
+      this.remove(agentId);
+    }
+    
+    memoryProfiler.cleanup();
   }
 
   getAll(): AgentState[] {
