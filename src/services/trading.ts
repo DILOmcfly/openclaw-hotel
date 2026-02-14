@@ -105,9 +105,14 @@ export async function updateTradeItems(
   items: Array<{ itemDefId: string; quantity: number }>,
   sql: Sql
 ): Promise<void> {
-  await sql.begin(async (sql) => {
+  await sql.begin(async (tx: any) => {
     // Verify trade exists and is pending
-    const trade = await getTrade(tradeId, sql);
+    const [trade] = await tx`
+      SELECT id, initiator_id AS "initiatorId", target_id AS "targetId", status, created_at AS "createdAt", completed_at AS "completedAt"
+      FROM trades
+      WHERE id = ${tradeId}
+    `;
+    
     if (!trade) {
       throw new Error('Trade not found');
     }
@@ -122,7 +127,7 @@ export async function updateTradeItems(
     
     // Verify agent owns the items
     for (const item of items) {
-      const [inventory] = await sql`
+      const [inventory] = await tx`
         SELECT quantity
         FROM user_inventory
         WHERE agent_id = ${agentId} AND item_def_id = ${item.itemDefId}
@@ -134,22 +139,16 @@ export async function updateTradeItems(
     }
     
     // Delete existing items for this agent in this trade
-    await sql`
+    await tx`
       DELETE FROM trade_items
       WHERE trade_id = ${tradeId} AND agent_id = ${agentId}
     `;
     
     // Insert new items
-    if (items.length > 0) {
-      await sql`
-        INSERT INTO trade_items ${sql(
-          items.map(item => ({
-            trade_id: tradeId,
-            agent_id: agentId,
-            item_def_id: item.itemDefId,
-            quantity: item.quantity,
-          }))
-        )}
+    for (const item of items) {
+      await tx`
+        INSERT INTO trade_items (trade_id, agent_id, item_def_id, quantity)
+        VALUES (${tradeId}, ${agentId}, ${item.itemDefId}, ${item.quantity})
       `;
     }
   });
@@ -159,9 +158,14 @@ export async function updateTradeItems(
  * Accept a trade and transfer items atomically
  */
 export async function acceptTrade(tradeId: string, acceptingAgentId: string, sql: Sql): Promise<void> {
-  await sql.begin(async (sql) => {
+  await sql.begin(async (tx: any) => {
     // Get trade
-    const trade = await getTrade(tradeId, sql);
+    const [trade] = await tx`
+      SELECT id, initiator_id AS "initiatorId", target_id AS "targetId", status, created_at AS "createdAt", completed_at AS "completedAt"
+      FROM trades
+      WHERE id = ${tradeId}
+    `;
+    
     if (!trade) {
       throw new Error('Trade not found');
     }
@@ -175,11 +179,15 @@ export async function acceptTrade(tradeId: string, acceptingAgentId: string, sql
     }
     
     // Get all trade items
-    const tradeItems = await getTradeItems(tradeId, sql);
+    const tradeItems = await tx`
+      SELECT id, trade_id AS "tradeId", agent_id AS "agentId", item_def_id AS "itemDefId", quantity
+      FROM trade_items
+      WHERE trade_id = ${tradeId}
+    `;
     
     // Verify both agents still have the items
     for (const item of tradeItems) {
-      const [inventory] = await sql`
+      const [inventory] = await tx`
         SELECT quantity
         FROM user_inventory
         WHERE agent_id = ${item.agentId} AND item_def_id = ${item.itemDefId}
@@ -195,14 +203,14 @@ export async function acceptTrade(tradeId: string, acceptingAgentId: string, sql
       const recipientId = item.agentId === trade.initiatorId ? trade.targetId : trade.initiatorId;
       
       // Deduct from sender
-      await sql`
+      await tx`
         UPDATE user_inventory
         SET quantity = quantity - ${item.quantity}
         WHERE agent_id = ${item.agentId} AND item_def_id = ${item.itemDefId}
       `;
       
       // Add to recipient
-      await sql`
+      await tx`
         INSERT INTO user_inventory (agent_id, item_def_id, quantity)
         VALUES (${recipientId}, ${item.itemDefId}, ${item.quantity})
         ON CONFLICT (agent_id, item_def_id)
@@ -211,13 +219,13 @@ export async function acceptTrade(tradeId: string, acceptingAgentId: string, sql
     }
     
     // Clean up zero-quantity items
-    await sql`
+    await tx`
       DELETE FROM user_inventory
       WHERE quantity <= 0
     `;
     
     // Mark trade as accepted
-    await sql`
+    await tx`
       UPDATE trades
       SET status = 'accepted', completed_at = NOW()
       WHERE id = ${tradeId}

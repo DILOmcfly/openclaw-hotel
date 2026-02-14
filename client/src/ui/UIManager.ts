@@ -135,6 +135,9 @@ export class UIManager {
             </div>
           </div>
           <div class="hud-right">
+            <button class="hud-btn" id="friends-toggle" title="Friends">
+              <span class="icon">👥</span>
+            </button>
             <button class="hud-btn" id="inventory-toggle" title="Inventory">
               <span class="icon">📦</span>
             </button>
@@ -319,6 +322,12 @@ export class UIManager {
   }
 
   private attachGameListeners(): void {
+    // Friends toggle
+    const friendsToggle = document.getElementById('friends-toggle');
+    friendsToggle?.addEventListener('click', () => {
+      this.onFriendsToggle?.();
+    });
+
     // Inventory toggle
     const inventoryToggle = document.getElementById('inventory-toggle');
     const inventoryPanel = document.getElementById('inventory-panel');
@@ -758,6 +767,7 @@ export class UIManager {
   public onJoystickEnabledChange?: (enabled: boolean) => void;
   public onJoystickPositionChange?: (position: 'left' | 'right') => void;
   public onRoomEditorToggle?: () => void;
+  public onFriendsToggle?: () => void;
 
   public getToken(): string { return this.token; }
   public getUsername(): string { return this.username; }

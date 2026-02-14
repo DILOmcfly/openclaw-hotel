@@ -125,6 +125,21 @@ export const tradeCancelMsgSchema = z.object({
 
 export type TradeCancelMsg = z.infer<typeof tradeCancelMsgSchema>
 
+// Friend schemas
+export const friendRequestMsgSchema = z.object({
+  type: z.literal('friend.request'),
+  targetAgentId: z.string(),
+})
+
+export type FriendRequestMsg = z.infer<typeof friendRequestMsgSchema>
+
+export const friendAcceptMsgSchema = z.object({
+  type: z.literal('friend.accept'),
+  friendshipId: z.string(),
+})
+
+export type FriendAcceptMsg = z.infer<typeof friendAcceptMsgSchema>
+
 export const clientMessageSchema = z.discriminatedUnion('type', [
   roomJoinMsgSchema,
   roomLeaveMsgSchema,
@@ -141,6 +156,8 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   tradeAcceptMsgSchema,
   tradeRejectMsgSchema,
   tradeCancelMsgSchema,
+  friendRequestMsgSchema,
+  friendAcceptMsgSchema,
 ])
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>
@@ -276,6 +293,21 @@ export type TradeCancelledMsg = {
   reason: string
 }
 
+// Friend server messages
+export type FriendRequestReceivedMsg = {
+  type: 'friend.request.received'
+  friendshipId: string
+  requesterId: string
+  requesterName: string
+}
+
+export type FriendAcceptedMsg = {
+  type: 'friend.accepted'
+  friendshipId: string
+  agentId: string
+  agentName: string
+}
+
 export type ServerMessage =
   | ConnectedMsg
   | RoomJoinedMsg
@@ -294,6 +326,8 @@ export type ServerMessage =
   | TradeUpdatedMsg
   | TradeCompletedMsg
   | TradeCancelledMsg
+  | FriendRequestReceivedMsg
+  | FriendAcceptedMsg
 
 export function parseClientMessage(data: string): ClientMessage {
   const parsed = JSON.parse(data)

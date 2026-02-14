@@ -9,6 +9,14 @@ import { placeFurniture, removeFurniture, getItemsInRoom } from '../services/fur
 export const connections = new Map<string, WebSocket>();
 export const roomMembers = new Map<string, Set<string>>();
 
+/**
+ * Check if an agent is currently online
+ */
+export function isAgentOnline(agentId: string): boolean {
+  const ws = connections.get(agentId);
+  return !!ws && ws.readyState === WebSocket.OPEN;
+}
+
 const socketAgentIds = new WeakMap<WebSocket, string>();
 const pongTimeouts = new Map<string, NodeJS.Timeout>();
 
@@ -622,6 +630,84 @@ export function setupWebSocket(server: Server): void {
             }
           } catch (error: any) {
             sendError(ws, 'TRADE_CANCEL_FAILED', error.message || 'Failed to cancel trade');
+          }
+          break;
+        }
+
+        case 'friend.request': {
+          try {
+            const { sendFriendRequest } = await import('../services/friends.js');
+            
+            const friendship = await sendFriendRequest(agentId, clientMessage.targetAgentId, sql);
+
+            // Get requester name
+            const [requester] = await sql`
+              SELECT display_name FROM agents WHERE id = ${agentId}
+            `;
+
+            // Notify target agent
+            const targetWs = connections.get(clientMessage.targetAgentId);
+            if (targetWs && targetWs.readyState === WebSocket.OPEN) {
+              sendMessage(targetWs, {
+                type: 'friend.request.received',
+                friendshipId: friendship.id,
+                requesterId: agentId,
+                requesterName: requester?.display_name || 'Agent',
+              });
+            }
+
+            // Confirm to requester
+            sendMessage(ws, {
+              type: 'friend.request.received',
+              friendshipId: friendship.id,
+              requesterId: agentId,
+              requesterName: requester?.display_name || 'Agent',
+            });
+          } catch (error: any) {
+            sendError(ws, 'FRIEND_REQUEST_FAILED', error.message || 'Failed to send friend request');
+          }
+          break;
+        }
+
+        case 'friend.accept': {
+          try {
+            const { acceptFriendRequest } = await import('../services/friends.js');
+            
+            // Get friendship details before accepting
+            const [friendship] = await sql`
+              SELECT requester_id, addressee_id FROM friendships WHERE id = ${clientMessage.friendshipId}
+            `;
+
+            if (!friendship) {
+              sendError(ws, 'FRIENDSHIP_NOT_FOUND', 'Friendship not found');
+              break;
+            }
+
+            await acceptFriendRequest(clientMessage.friendshipId, agentId, sql);
+
+            const otherAgentId = friendship.requester_id === agentId ? friendship.addressee_id : friendship.requester_id;
+
+            // Get names
+            const [accepter] = await sql`
+              SELECT display_name FROM agents WHERE id = ${agentId}
+            `;
+
+            // Notify both parties
+            const acceptedMsg: ServerMessage = {
+              type: 'friend.accepted',
+              friendshipId: clientMessage.friendshipId,
+              agentId,
+              agentName: accepter?.display_name || 'Agent',
+            };
+
+            sendMessage(ws, acceptedMsg);
+
+            const otherWs = connections.get(otherAgentId);
+            if (otherWs && otherWs.readyState === WebSocket.OPEN) {
+              sendMessage(otherWs, acceptedMsg);
+            }
+          } catch (error: any) {
+            sendError(ws, 'FRIEND_ACCEPT_FAILED', error.message || 'Failed to accept friend request');
           }
           break;
         }
