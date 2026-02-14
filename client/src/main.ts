@@ -154,13 +154,39 @@ async function init() {
     inventoryPanel?.classList.add('hidden');
   };
 
-  ui.onBuyFurniture = (itemDefId: string) => {
+  ui.onBuyFurniture = async (itemDefId: string) => {
     console.log('[Furniture] Buying:', itemDefId);
-    // TODO: Implement actual purchase API
-    ui.addChatMessage('System', `Purchased ${itemDefId}! Check your inventory.`);
-    
-    // Reload inventory to show new item
-    setTimeout(() => loadInventory(), 500);
+
+    try {
+      const token = localStorage.getItem('hotel_token');
+      if (!token) {
+        ui.addChatMessage('System', 'You must be logged in to purchase furniture');
+        return;
+      }
+
+      const res = await fetch('/api/furniture/purchase', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ itemDefId, quantity: 1 }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Purchase failed');
+      }
+
+      const data = await res.json();
+      ui.addChatMessage('System', `Purchased ${humanizeName(itemDefId)}! Check your inventory.`);
+
+      // Reload inventory to show new item
+      setTimeout(() => loadInventory(), 500);
+    } catch (error: any) {
+      console.error('[Furniture] Purchase error:', error);
+      ui.addChatMessage('System', `Failed to purchase: ${error.message}`);
+    }
   };
 
   ui.onFurnitureDragStart = (itemDefId: string) => {
@@ -326,6 +352,12 @@ async function init() {
       return;
     }
     
+    // If in drag mode, confirm drag
+    if (furnitureManager.isInDragMode()) {
+      furnitureManager.confirmDrag();
+      return;
+    }
+    
     const localX = e.clientX - world.position.x;
     const localY = e.clientY - world.position.y;
     const tile = tileMap.getTileAt(localX, localY);
@@ -352,14 +384,21 @@ async function init() {
     e.preventDefault();
     if (furnitureManager.isInPlacementMode()) {
       furnitureManager.cancelPlacementMode();
+    } else if (furnitureManager.isInDragMode()) {
+      furnitureManager.cancelDrag();
     }
   });
 
   // Keyboard shortcuts
   window.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && furnitureManager.isInPlacementMode()) {
-      furnitureManager.cancelPlacementMode();
-      ui.addChatMessage('System', 'Placement cancelled');
+    if (e.key === 'Escape') {
+      if (furnitureManager.isInPlacementMode()) {
+        furnitureManager.cancelPlacementMode();
+        ui.addChatMessage('System', 'Placement cancelled');
+      } else if (furnitureManager.isInDragMode()) {
+        furnitureManager.cancelDrag();
+        ui.addChatMessage('System', 'Move cancelled');
+      }
     }
     
     if (e.key === 'r' && furnitureManager.isInPlacementMode()) {
@@ -390,34 +429,84 @@ async function init() {
     ui.loadRooms(demoRooms);
   }
 
-  function loadInventory() {
-    // Demo furniture data (user's owned furniture)
-    const demoFurniture = [
-      { itemDefId: 'chair_wood', name: 'Wooden Chair', count: 3 },
-      { itemDefId: 'table_round', name: 'Round Table', count: 1 },
-      { itemDefId: 'plant_pot', name: 'Potted Plant', count: 2 },
-      { itemDefId: 'lamp_floor', name: 'Floor Lamp', count: 1 },
-      { itemDefId: 'sofa_2seat', name: '2-Seat Sofa', count: 1 },
-      { itemDefId: 'bed_single', name: 'Single Bed', count: 1 },
-    ];
-    
-    ui.loadInventory(demoFurniture);
+  async function loadInventory() {
+    try {
+      const token = localStorage.getItem('hotel_token');
+      if (!token) {
+        // Fallback to demo data if not logged in
+        const demoFurniture = [
+          { itemDefId: 'chair_wood', name: 'Wooden Chair', count: 3 },
+          { itemDefId: 'table_round', name: 'Round Table', count: 1 },
+          { itemDefId: 'lamp_floor', name: 'Floor Lamp', count: 1 },
+        ];
+        ui.loadInventory(demoFurniture);
+        return;
+      }
+
+      const res = await fetch('/api/furniture/inventory', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error('Failed to fetch inventory');
+
+      const data = await res.json();
+      const inventory = data.items.map((item: any) => ({
+        itemDefId: item.itemDefId,
+        name: humanizeName(item.itemDefId),
+        count: item.quantity,
+      }));
+
+      ui.loadInventory(inventory);
+    } catch (error) {
+      console.error('[Inventory] Error loading:', error);
+      // Fallback to demo data
+      const demoFurniture = [
+        { itemDefId: 'chair_wood', name: 'Wooden Chair', count: 3 },
+        { itemDefId: 'table_round', name: 'Round Table', count: 1 },
+        { itemDefId: 'lamp_floor', name: 'Floor Lamp', count: 1 },
+      ];
+      ui.loadInventory(demoFurniture);
+    }
   }
 
-  function loadCatalog() {
-    // Demo catalog data (available for purchase)
-    const demoCatalog = [
-      { itemDefId: 'chair_wood', name: 'Wooden Chair', category: 'seating', price: 50 },
-      { itemDefId: 'sofa_2seat', name: '2-Seat Sofa', category: 'seating', price: 150 },
-      { itemDefId: 'table_round', name: 'Round Table', category: 'tables', price: 100 },
-      { itemDefId: 'desk_office', name: 'Office Desk', category: 'tables', price: 120 },
-      { itemDefId: 'lamp_floor', name: 'Floor Lamp', category: 'decoration', price: 60 },
-      { itemDefId: 'plant_pot', name: 'Potted Plant', category: 'decoration', price: 30 },
-      { itemDefId: 'bookshelf', name: 'Bookshelf', category: 'storage', price: 200 },
-      { itemDefId: 'bed_single', name: 'Single Bed', category: 'seating', price: 250 },
-    ];
-    
-    ui.loadCatalog(demoCatalog);
+  async function loadCatalog() {
+    try {
+      const res = await fetch('/api/furniture/catalog');
+      if (!res.ok) throw new Error('Failed to fetch catalog');
+
+      const data = await res.json();
+      const catalog = data.items.map((item: any) => ({
+        itemDefId: item.itemDefId,
+        name: humanizeName(item.itemDefId),
+        category: determineCategory(item),
+        price: item.price,
+      }));
+
+      ui.loadCatalog(catalog);
+    } catch (error) {
+      console.error('[Catalog] Error loading:', error);
+      // Fallback to demo data
+      const demoCatalog = [
+        { itemDefId: 'chair_wood', name: 'Wooden Chair', category: 'seating', price: 150 },
+        { itemDefId: 'table_round', name: 'Round Table', category: 'tables', price: 280 },
+        { itemDefId: 'lamp_floor', name: 'Floor Lamp', category: 'decoration', price: 195 },
+        { itemDefId: 'sofa_2seat', name: '2-Seat Sofa', category: 'seating', price: 330 },
+      ];
+      ui.loadCatalog(demoCatalog);
+    }
+  }
+
+  function humanizeName(itemDefId: string): string {
+    return itemDefId
+      .split('_')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+  }
+
+  function determineCategory(item: any): string {
+    if (item.canSit) return 'seating';
+    if (item.width >= 2 || item.depth >= 2) return 'tables';
+    return 'decoration';
   }
 
   console.log('OpenClaw Hotel client ready');

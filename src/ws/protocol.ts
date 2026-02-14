@@ -99,8 +99,8 @@ export type ConnectedMsg = {
 export type RoomJoinedMsg = {
   type: 'room.joined'
   roomId: string
-  heightmap: string
-  occupants: Array<{
+  heightmap?: string
+  occupants?: Array<{
     agentId: string
     displayName: string
     x: number

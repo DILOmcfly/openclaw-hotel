@@ -154,7 +154,7 @@ export function setupWebSocket(server: Server): void {
       }
     });
 
-    ws.on('message', (rawData) => {
+    ws.on('message', async (rawData) => {
       const data = typeof rawData === 'string' ? rawData : rawData.toString();
 
       let clientMessage;
