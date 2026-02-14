@@ -711,6 +711,62 @@ export function setupWebSocket(server: Server): void {
           }
           break;
         }
+
+        case 'whisper.send': {
+          try {
+            const { DirectMessageService } = await import('../services/directMessages.js');
+            const dmService = new DirectMessageService(sql);
+            
+            // Send message
+            const message = await dmService.sendMessage(
+              agentId,
+              clientMessage.recipientId,
+              clientMessage.content
+            );
+
+            // Get sender name
+            const [sender] = await sql`
+              SELECT display_name FROM agents WHERE id = ${agentId}
+            `;
+
+            // Notify recipient
+            const recipientWs = connections.get(clientMessage.recipientId);
+            if (recipientWs && recipientWs.readyState === WebSocket.OPEN) {
+              sendMessage(recipientWs, {
+                type: 'whisper.received',
+                messageId: message.id,
+                senderId: agentId,
+                senderName: sender?.display_name || 'Agent',
+                content: message.content,
+                createdAt: message.createdAt,
+              });
+            }
+
+            // Confirm to sender
+            sendMessage(ws, {
+              type: 'whisper.sent',
+              messageId: message.id,
+              recipientId: clientMessage.recipientId,
+              content: message.content,
+              createdAt: message.createdAt,
+            });
+          } catch (error: any) {
+            sendError(ws, 'WHISPER_FAILED', error.message || 'Failed to send whisper');
+          }
+          break;
+        }
+
+        case 'whisper.typing': {
+          // Forward typing indicator to recipient
+          const recipientWs = connections.get(clientMessage.recipientId);
+          if (recipientWs && recipientWs.readyState === WebSocket.OPEN) {
+            sendMessage(recipientWs, {
+              type: 'whisper.typing',
+              senderId: agentId,
+            });
+          }
+          break;
+        }
       }
     });
 

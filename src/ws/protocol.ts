@@ -140,6 +140,22 @@ export const friendAcceptMsgSchema = z.object({
 
 export type FriendAcceptMsg = z.infer<typeof friendAcceptMsgSchema>
 
+// Whisper schemas
+export const whisperSendMsgSchema = z.object({
+  type: z.literal('whisper.send'),
+  recipientId: z.string(),
+  content: z.string().min(1).max(500),
+})
+
+export type WhisperSendMsg = z.infer<typeof whisperSendMsgSchema>
+
+export const whisperTypingMsgSchema = z.object({
+  type: z.literal('whisper.typing'),
+  recipientId: z.string(),
+})
+
+export type WhisperTypingMsg = z.infer<typeof whisperTypingMsgSchema>
+
 export const clientMessageSchema = z.discriminatedUnion('type', [
   roomJoinMsgSchema,
   roomLeaveMsgSchema,
@@ -158,6 +174,8 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   tradeCancelMsgSchema,
   friendRequestMsgSchema,
   friendAcceptMsgSchema,
+  whisperSendMsgSchema,
+  whisperTypingMsgSchema,
 ])
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>
@@ -308,6 +326,29 @@ export type FriendAcceptedMsg = {
   agentName: string
 }
 
+// Whisper server messages
+export type WhisperReceivedMsg = {
+  type: 'whisper.received'
+  messageId: string
+  senderId: string
+  senderName: string
+  content: string
+  createdAt: string
+}
+
+export type WhisperSentMsg = {
+  type: 'whisper.sent'
+  messageId: string
+  recipientId: string
+  content: string
+  createdAt: string
+}
+
+export type WhisperTypingIndicatorMsg = {
+  type: 'whisper.typing'
+  senderId: string
+}
+
 export type ServerMessage =
   | ConnectedMsg
   | RoomJoinedMsg
@@ -328,6 +369,9 @@ export type ServerMessage =
   | TradeCancelledMsg
   | FriendRequestReceivedMsg
   | FriendAcceptedMsg
+  | WhisperReceivedMsg
+  | WhisperSentMsg
+  | WhisperTypingIndicatorMsg
 
 export function parseClientMessage(data: string): ClientMessage {
   const parsed = JSON.parse(data)

@@ -8,6 +8,7 @@ import roomsRouter from './api/rooms.routes.js';
 import tradesRouter from './api/trades.routes.js';
 import friendsRouter from './api/friends.routes.js';
 import profileRouter from './api/profile.routes.js';
+import directMessagesRouter from './api/directMessages.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -22,6 +23,7 @@ app.use(roomsRouter);
 app.use(tradesRouter);
 app.use(friendsRouter);
 app.use(profileRouter);
+app.use(directMessagesRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
