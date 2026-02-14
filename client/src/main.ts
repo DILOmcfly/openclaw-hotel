@@ -10,6 +10,7 @@ import { SoundManager } from './SoundManager.js';
 import { EmoteManager, type EmoteName } from './EmoteManager.js';
 import { LoadingScreen } from './LoadingScreen.js';
 import { toastManager } from './ToastManager.js';
+import { VirtualJoystick, type Direction } from './VirtualJoystick.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -75,6 +76,15 @@ async function init() {
   const bubbleSystem = new BubbleSystem(world, app.screen.width / 2, app.screen.height / 3);
   const furnitureManager = new FurnitureManager(world);
   const emoteManager = new EmoteManager();
+
+  // Virtual Joystick for mobile
+  const joystick = new VirtualJoystick();
+  let joystickMoveThrottle = 0;
+  const JOYSTICK_THROTTLE_MS = 300; // Match walk animation duration
+  
+  // Initialize joystick UI state
+  ui.setJoystickEnabled(joystick.isEnabled());
+  ui.setJoystickPosition(joystick.getPosition().side);
 
   // WebSocket connection
   const ws = new HotelWSClient();
@@ -314,6 +324,69 @@ async function init() {
         { once: true }
       );
     }, 100);
+  };
+
+  // Virtual Joystick Event Handlers
+  const directionToTileOffset = (direction: Direction): { dx: number; dy: number } => {
+    switch (direction) {
+      case 'up': return { dx: 0, dy: -1 };
+      case 'down': return { dx: 0, dy: 1 };
+      case 'left': return { dx: -1, dy: 0 };
+      case 'right': return { dx: 1, dy: 0 };
+      case 'up-left': return { dx: -1, dy: -1 };
+      case 'up-right': return { dx: 1, dy: -1 };
+      case 'down-left': return { dx: -1, dy: 1 };
+      case 'down-right': return { dx: 1, dy: 1 };
+      default: return { dx: 0, dy: 0 };
+    }
+  };
+
+  joystick.onDirection((direction: Direction) => {
+    // Only allow joystick movement when in game screen
+    if (ui['currentScreen'] !== 'game') return;
+    
+    // Throttle movement updates
+    const now = Date.now();
+    if (now - joystickMoveThrottle < JOYSTICK_THROTTLE_MS) return;
+    joystickMoveThrottle = now;
+    
+    if (direction) {
+      const offset = directionToTileOffset(direction);
+      
+      // Get current position
+      const me = agentRenderer.getAll().find((a) => a.agentId === MY_ID);
+      if (!me) return;
+      
+      // Calculate new position
+      const newX = me.x + offset.dx;
+      const newY = me.y + offset.dy;
+      
+      // Validate tile exists (bounds check)
+      if (newX < 0 || newY < 0) return;
+      
+      // Update position locally
+      agentRenderer.addOrUpdate({ agentId: MY_ID, x: newX, y: newY, color: MY_COLOR });
+      
+      // Send to server
+      if (isConnected) {
+        ws.move(currentRoom, newX, newY);
+      }
+    }
+  });
+
+  joystick.onRelease(() => {
+    // Optional: Could send a "stop movement" message if needed
+    console.log('[Joystick] Released');
+  });
+
+  ui.onJoystickEnabledChange = (enabled: boolean) => {
+    joystick.setEnabled(enabled);
+    console.log('[Joystick] Enabled:', enabled);
+  };
+
+  ui.onJoystickPositionChange = (position: 'left' | 'right') => {
+    joystick.setPosition(position);
+    console.log('[Joystick] Position:', position);
   };
 
   // WebSocket Event Handlers

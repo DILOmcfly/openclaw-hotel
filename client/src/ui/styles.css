@@ -1081,3 +1081,123 @@
     left: auto;
   }
 }
+
+/* ======================
+   Virtual Joystick Styles
+   ====================== */
+
+.virtual-joystick-container {
+  position: fixed;
+  bottom: 80px;
+  z-index: 900;
+  pointer-events: auto;
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.virtual-joystick-container.joystick-left {
+  left: 20px;
+}
+
+.virtual-joystick-container.joystick-right {
+  right: 20px;
+}
+
+.virtual-joystick-base {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(43, 87, 154, 0.6) 0%, rgba(27, 59, 111, 0.8) 100%);
+  border: 3px solid var(--habbo-light-blue);
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5),
+              inset 0 2px 4px rgba(255, 255, 255, 0.2);
+}
+
+.virtual-joystick-knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 50px;
+  height: 50px;
+  margin-left: -25px;
+  margin-top: -25px;
+  background: radial-gradient(circle, rgba(255, 215, 0, 0.9) 0%, rgba(218, 165, 32, 0.9) 100%);
+  border: 3px solid var(--habbo-accent);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4),
+              inset 0 1px 3px rgba(255, 255, 255, 0.4);
+  transition: transform 0.05s ease;
+  cursor: pointer;
+  will-change: transform;
+}
+
+/* Directional Indicators */
+.joystick-direction {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  opacity: 0.3;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.joystick-direction.active {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.joystick-up {
+  top: 8px;
+  left: 50%;
+  margin-left: -8px;
+  border-width: 0 8px 12px 8px;
+  border-color: transparent transparent var(--habbo-accent) transparent;
+}
+
+.joystick-down {
+  bottom: 8px;
+  left: 50%;
+  margin-left: -8px;
+  border-width: 12px 8px 0 8px;
+  border-color: var(--habbo-accent) transparent transparent transparent;
+}
+
+.joystick-left {
+  top: 50%;
+  left: 8px;
+  margin-top: -8px;
+  border-width: 8px 12px 8px 0;
+  border-color: transparent var(--habbo-accent) transparent transparent;
+}
+
+.joystick-right {
+  top: 50%;
+  right: 8px;
+  margin-top: -8px;
+  border-width: 8px 0 8px 12px;
+  border-color: transparent transparent transparent var(--habbo-accent);
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 768px) {
+  .virtual-joystick-container {
+    bottom: 60px;
+  }
+  
+  .virtual-joystick-container.joystick-left {
+    left: 15px;
+  }
+  
+  .virtual-joystick-container.joystick-right {
+    right: 15px;
+  }
+  
+  /* Ensure joystick doesn't overlap with chat */
+  .chat-container {
+    padding-bottom: 200px;
+  }
+}

@@ -202,6 +202,19 @@ export class UIManager {
                 Enable Sound Effects
               </label>
             </div>
+            <div class="setting-group">
+              <label>
+                <input type="checkbox" id="joystick-enabled">
+                Virtual Joystick (Mobile)
+              </label>
+            </div>
+            <div class="setting-group">
+              <label for="joystick-position">Joystick Position</label>
+              <select id="joystick-position">
+                <option value="left">Left Side</option>
+                <option value="right">Right Side</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -339,6 +352,24 @@ export class UIManager {
       import('../SoundManager.js').then(({ SoundManager }) => {
         SoundManager.setEnabled(enabled);
       });
+    });
+
+    // Virtual Joystick controls
+    const joystickEnabledCheckbox = document.getElementById('joystick-enabled') as HTMLInputElement;
+    const joystickPositionSelect = document.getElementById('joystick-position') as HTMLSelectElement;
+    
+    joystickEnabledCheckbox?.addEventListener('change', (e) => {
+      const enabled = (e.target as HTMLInputElement).checked;
+      if (this.onJoystickEnabledChange) {
+        this.onJoystickEnabledChange(enabled);
+      }
+    });
+    
+    joystickPositionSelect?.addEventListener('change', (e) => {
+      const position = (e.target as HTMLSelectElement).value as 'left' | 'right';
+      if (this.onJoystickPositionChange) {
+        this.onJoystickPositionChange(position);
+      }
     });
 
     // Panel tabs (Owned / Catalog)
@@ -696,7 +727,23 @@ export class UIManager {
   public onPlaceFurniture?: (itemDefId: string) => void;
   public onBuyFurniture?: (itemDefId: string) => void;
   public onFurnitureDragStart?: (itemDefId: string) => void;
+  public onJoystickEnabledChange?: (enabled: boolean) => void;
+  public onJoystickPositionChange?: (position: 'left' | 'right') => void;
 
   public getToken(): string { return this.token; }
   public getUsername(): string { return this.username; }
+  
+  public setJoystickEnabled(enabled: boolean): void {
+    const checkbox = document.getElementById('joystick-enabled') as HTMLInputElement;
+    if (checkbox) {
+      checkbox.checked = enabled;
+    }
+  }
+  
+  public setJoystickPosition(position: 'left' | 'right'): void {
+    const select = document.getElementById('joystick-position') as HTMLSelectElement;
+    if (select) {
+      select.value = position;
+    }
+  }
 }
