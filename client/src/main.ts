@@ -24,6 +24,7 @@ import { GamePanel } from './ui/GamePanel.js';
 import { LeaderboardPanel } from './ui/LeaderboardPanel.js';
 import { ShopPanel } from './ui/ShopPanel.js';
 import { TemplatesBrowser } from './ui/TemplatesBrowser.js';
+import { InventoryPanel } from './ui/InventoryPanel.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -123,13 +124,87 @@ async function init() {
     onPurchase: (itemDefId, quantity) => {
       console.log('[ShopPanel] Purchased:', itemDefId, 'x', quantity);
       toastManager.show(`Purchased ${quantity}× ${itemDefId}!`, 'success');
-      // Refresh inventory if it's open (future enhancement)
-      // TODO: Emit event to refresh inventory panel
+      // Refresh inventory when purchase succeeds
+      loadInventory();
     },
     onClose: () => {
       shopPanel.hide();
     },
   });
+
+  // Inventory Panel
+  const inventoryPanel = new InventoryPanel();
+  inventoryPanel.onPlace = async (itemId) => {
+    console.log('[Inventory] Place item:', itemId);
+    toastManager.show('Place furniture feature coming soon!', 'info');
+    // TODO: Implement furniture placement from inventory
+  };
+
+  inventoryPanel.onSell = async (itemId) => {
+    try {
+      const token = ui.getToken();
+      if (!token) {
+        toastManager.show('You must be logged in to sell items', 'error');
+        return;
+      }
+
+      const response = await fetch(`/api/inventory/sell/${itemId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to sell item');
+      }
+
+      const result = await response.json();
+      toastManager.show(`Sold for ${result.coinsRefunded} coins!`, 'success');
+      
+      // Refresh inventory and balance
+      loadInventory();
+      ui.updateCoinDisplay(0); // Will be updated by balance fetch
+    } catch (error: any) {
+      console.error('[Inventory] Error selling item:', error);
+      toastManager.show(error.message || 'Failed to sell item', 'error');
+    }
+  };
+
+  inventoryPanel.onRefresh = () => {
+    loadInventory();
+  };
+
+  // Helper function to load inventory
+  async function loadInventory() {
+    try {
+      inventoryPanel.showLoading();
+
+      const token = ui.getToken();
+      if (!token) {
+        console.error('[Inventory] No token available');
+        inventoryPanel.showEmpty();
+        return;
+      }
+
+      const response = await fetch('/api/inventory?inRoom=false', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch inventory');
+      }
+
+      const data = await response.json();
+      inventoryPanel.setItems(data.items);
+    } catch (error: any) {
+      console.error('[Inventory] Error loading:', error);
+      inventoryPanel.showEmpty();
+    }
+  }
   
   // Templates Browser
   const templatesBrowser = new TemplatesBrowser();
@@ -400,6 +475,12 @@ async function init() {
   ui.onTemplatesToggle = () => {
     console.log('[UI] Toggling templates browser');
     templatesBrowser.show();
+  };
+
+  ui.onInventoryToggle = () => {
+    console.log('[UI] Toggling inventory panel');
+    inventoryPanel.show();
+    loadInventory();
   };
 
   // Avatar Customizer (initialized after login)

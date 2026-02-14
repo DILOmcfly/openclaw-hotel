@@ -408,6 +408,9 @@ export class UIManager {
     
     inventoryToggle?.addEventListener('click', () => {
       inventoryPanel?.classList.toggle('hidden');
+      if (this.onInventoryToggle && !inventoryPanel?.classList.contains('hidden')) {
+        this.onInventoryToggle();
+      }
     });
     
     inventoryClose?.addEventListener('click', () => {
@@ -845,6 +848,7 @@ export class UIManager {
   public onAvatarCustomizerToggle?: () => void;
   public onGamesToggle?: () => void;
   public onLeaderboardToggle?: () => void;
+  public onInventoryToggle?: () => void;
   public onShopToggle?: () => void;
   public onTemplatesToggle?: () => void;
   public onClaimDailyBonus?: () => void;
