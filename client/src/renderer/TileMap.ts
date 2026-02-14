@@ -1,5 +1,6 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
 import { gridToScreen, TILE_HEIGHT, TILE_WIDTH, screenToGrid } from './IsoRenderer.js';
+import { AssetLoader } from '../AssetLoader.js';
 
 export function parseHeightmap(map: string): number[][] {
   return map.trim().split('\n').map((line) =>
@@ -10,7 +11,14 @@ export function parseHeightmap(map: string): number[][] {
   );
 }
 
-const HEIGHT_COLORS: Record<number, number> = {
+const HEIGHT_TILE_TYPES: Record<number, 'plain' | 'carpet' | 'checker'> = {
+  0: 'plain',
+  1: 'carpet',
+  2: 'checker',
+  3: 'plain',
+};
+
+const FALLBACK_COLORS: Record<number, number> = {
   0: 0x4caf50,
   1: 0xbdbdbd,
   2: 0x757575,
@@ -34,14 +42,26 @@ export class TileMap {
         if (h < 0) continue;
 
         const { x, y } = gridToScreen(gx, gy, h);
-        const color = HEIGHT_COLORS[h] ?? 0x4caf50;
-
-        const tile = new Graphics();
-        tile.poly([0, -TILE_HEIGHT / 2, TILE_WIDTH / 2, 0, 0, TILE_HEIGHT / 2, -TILE_WIDTH / 2, 0]);
-        tile.fill(color);
-        tile.stroke({ width: 1, color: 0x000000, alpha: 0.3 });
-        tile.position.set(x, y);
-        this.container.addChild(tile);
+        
+        // Try to use PNG texture
+        const tileType = HEIGHT_TILE_TYPES[h] ?? 'plain';
+        const texture = AssetLoader.getFloorTexture(tileType);
+        
+        if (texture) {
+          const sprite = new Sprite(texture);
+          sprite.anchor.set(0.5, 0.5);
+          sprite.position.set(x, y);
+          this.container.addChild(sprite);
+        } else {
+          // Fallback to graphics
+          const color = FALLBACK_COLORS[h] ?? 0x4caf50;
+          const tile = new Graphics();
+          tile.poly([0, -TILE_HEIGHT / 2, TILE_WIDTH / 2, 0, 0, TILE_HEIGHT / 2, -TILE_WIDTH / 2, 0]);
+          tile.fill(color);
+          tile.stroke({ width: 1, color: 0x000000, alpha: 0.3 });
+          tile.position.set(x, y);
+          this.container.addChild(tile);
+        }
       }
     }
   }

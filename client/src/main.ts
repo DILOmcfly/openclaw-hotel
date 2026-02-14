@@ -4,6 +4,7 @@ import { AgentRenderer } from './renderer/AgentSprite.js';
 import { BubbleSystem } from './renderer/BubbleSystem.js';
 import { FurnitureRenderer } from './renderer/FurnitureRenderer.js';
 import { HotelWSClient } from './ws/client.js';
+import { AssetLoader } from './AssetLoader.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -28,6 +29,11 @@ async function init() {
     background: '#1a1a2e',
     antialias: true,
   });
+
+  // Load pixel art assets
+  console.log('Loading pixel art assets...');
+  await AssetLoader.load();
+  console.log('Assets loaded!');
 
   const appEl = document.getElementById('app');
   if (!appEl) throw new Error('Missing #app element');
