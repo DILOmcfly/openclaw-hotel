@@ -430,7 +430,7 @@
   position: absolute;
   top: 80px;
   right: var(--spacing-md);
-  width: 320px;
+  width: 380px;
   background: var(--habbo-white);
   border: var(--border-width) solid var(--habbo-dark-blue);
   box-shadow: 8px 8px 0 var(--habbo-dark-blue);
@@ -439,6 +439,44 @@
 
 .inventory-panel.hidden {
   display: none;
+}
+
+.panel-tabs {
+  display: flex;
+  border-bottom: var(--border-width) solid var(--habbo-dark-blue);
+}
+
+.panel-tab {
+  flex: 1;
+  font-family: var(--pixel-font);
+  font-size: 9px;
+  padding: 10px;
+  background: var(--habbo-gray);
+  border: none;
+  border-right: var(--border-width) solid var(--habbo-dark-blue);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.panel-tab:last-child {
+  border-right: none;
+}
+
+.panel-tab.active {
+  background: var(--habbo-white);
+  color: var(--habbo-blue);
+}
+
+.panel-tab:not(.active):hover {
+  background: var(--habbo-white);
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
 }
 
 .panel-header {
@@ -508,6 +546,60 @@
   font-size: 10px;
   text-align: center;
   margin-top: 4px;
+}
+
+.furniture-count {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--habbo-blue);
+  color: var(--habbo-white);
+  font-family: var(--pixel-font);
+  font-size: 8px;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.furniture-price {
+  font-size: 10px;
+  font-family: var(--pixel-font);
+  color: var(--habbo-accent);
+  margin-top: 4px;
+}
+
+.catalog-categories {
+  display: flex;
+  gap: 4px;
+  margin-bottom: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.category-btn {
+  font-family: var(--pixel-font);
+  font-size: 8px;
+  padding: 6px 12px;
+  background: var(--habbo-gray);
+  border: 2px solid var(--habbo-dark-blue);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.category-btn.active {
+  background: var(--habbo-blue);
+  color: var(--habbo-white);
+}
+
+.category-btn:hover {
+  background: var(--habbo-light-blue);
+  color: var(--habbo-white);
+}
+
+.catalog-item {
+  position: relative;
+}
+
+.furniture-item[draggable="true"] {
+  cursor: move;
 }
 
 .panel-footer {

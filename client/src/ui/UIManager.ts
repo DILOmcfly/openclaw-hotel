@@ -153,13 +153,34 @@ export class UIManager {
             <h3>Inventory</h3>
             <button class="panel-close" id="inventory-close">×</button>
           </div>
+          <div class="panel-tabs">
+            <button class="panel-tab active" data-panel-tab="owned">Owned</button>
+            <button class="panel-tab" data-panel-tab="catalog">Catalog</button>
+          </div>
           <div class="inventory-content">
-            <div class="furniture-grid" id="furniture-grid">
-              <div class="empty-state">No furniture yet</div>
+            <!-- Owned Furniture -->
+            <div class="tab-content active" id="owned-furniture">
+              <div class="furniture-grid" id="furniture-grid">
+                <div class="empty-state">No furniture yet</div>
+              </div>
+            </div>
+            <!-- Furniture Catalog -->
+            <div class="tab-content" id="catalog-furniture">
+              <div class="catalog-categories">
+                <button class="category-btn active" data-category="all">All</button>
+                <button class="category-btn" data-category="seating">Seating</button>
+                <button class="category-btn" data-category="tables">Tables</button>
+                <button class="category-btn" data-category="decoration">Decoration</button>
+                <button class="category-btn" data-category="storage">Storage</button>
+              </div>
+              <div class="furniture-grid" id="catalog-grid">
+                <div class="empty-state">Loading catalog...</div>
+              </div>
             </div>
           </div>
           <div class="panel-footer">
             <button class="btn-secondary" id="place-furniture" disabled>Place Selected</button>
+            <button class="btn-primary hidden" id="buy-furniture" disabled>Buy (100 coins)</button>
           </div>
         </div>
 
@@ -261,6 +282,46 @@ export class UIManager {
     
     inventoryClose?.addEventListener('click', () => {
       inventoryPanel?.classList.add('hidden');
+    });
+
+    // Panel tabs (Owned / Catalog)
+    const panelTabs = document.querySelectorAll('.panel-tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    const placeFurnitureBtn = document.getElementById('place-furniture');
+    const buyFurnitureBtn = document.getElementById('buy-furniture');
+    
+    panelTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabName = tab.getAttribute('data-panel-tab');
+        
+        panelTabs.forEach(t => t.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+        
+        tab.classList.add('active');
+        const content = document.getElementById(`${tabName}-furniture`);
+        content?.classList.add('active');
+
+        // Toggle buttons based on active tab
+        if (tabName === 'owned') {
+          placeFurnitureBtn?.classList.remove('hidden');
+          buyFurnitureBtn?.classList.add('hidden');
+        } else {
+          placeFurnitureBtn?.classList.add('hidden');
+          buyFurnitureBtn?.classList.remove('hidden');
+        }
+      });
+    });
+
+    // Category filters
+    const categoryBtns = document.querySelectorAll('.category-btn');
+    categoryBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        categoryBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        const category = btn.getAttribute('data-category') || 'all';
+        this.filterCatalog(category);
+      });
     });
 
     // Logout
@@ -446,7 +507,7 @@ export class UIManager {
     if (roomDisplay) roomDisplay.textContent = roomName;
   }
 
-  public loadInventory(furniture: Array<{ id: string; name: string; icon: string }>): void {
+  public loadInventory(furniture: Array<{ itemDefId: string; name: string; sprite?: string; count?: number }>): void {
     const grid = document.getElementById('furniture-grid');
     if (!grid) return;
 
@@ -456,9 +517,10 @@ export class UIManager {
     }
 
     grid.innerHTML = furniture.map(item => `
-      <div class="furniture-item" data-id="${item.id}">
-        <div class="furniture-icon">${item.icon}</div>
+      <div class="furniture-item" data-item-def-id="${item.itemDefId}" draggable="true">
+        <div class="furniture-icon">${this.getFurnitureIcon(item.itemDefId)}</div>
         <div class="furniture-name">${item.name}</div>
+        ${item.count ? `<div class="furniture-count">×${item.count}</div>` : ''}
       </div>
     `).join('');
 
@@ -470,7 +532,102 @@ export class UIManager {
         const placeBtn = document.getElementById('place-furniture') as HTMLButtonElement;
         if (placeBtn) placeBtn.disabled = false;
       });
+
+      // Drag support for placement mode
+      item.addEventListener('dragstart', (e) => {
+        const itemDefId = item.getAttribute('data-item-def-id');
+        if (itemDefId && e.dataTransfer) {
+          e.dataTransfer.setData('itemDefId', itemDefId);
+          this.onFurnitureDragStart?.(itemDefId);
+        }
+      });
     });
+
+    // Place button handler
+    const placeBtn = document.getElementById('place-furniture');
+    placeBtn?.addEventListener('click', () => {
+      const selected = grid.querySelector('.furniture-item.selected');
+      if (selected) {
+        const itemDefId = selected.getAttribute('data-item-def-id');
+        if (itemDefId) {
+          this.onPlaceFurniture?.(itemDefId);
+        }
+      }
+    });
+  }
+
+  public loadCatalog(catalog: Array<{ itemDefId: string; name: string; category: string; price: number }>): void {
+    this.catalogData = catalog; // Store for filtering
+    this.renderCatalog(catalog);
+  }
+
+  private catalogData: Array<{ itemDefId: string; name: string; category: string; price: number }> = [];
+
+  private renderCatalog(items: Array<{ itemDefId: string; name: string; category: string; price: number }>): void {
+    const grid = document.getElementById('catalog-grid');
+    if (!grid) return;
+
+    if (items.length === 0) {
+      grid.innerHTML = '<div class="empty-state">No items in this category</div>';
+      return;
+    }
+
+    grid.innerHTML = items.map(item => `
+      <div class="furniture-item catalog-item" data-item-def-id="${item.itemDefId}">
+        <div class="furniture-icon">${this.getFurnitureIcon(item.itemDefId)}</div>
+        <div class="furniture-name">${item.name}</div>
+        <div class="furniture-price">${item.price} coins</div>
+      </div>
+    `).join('');
+
+    // Selection handling
+    grid.querySelectorAll('.furniture-item').forEach(item => {
+      item.addEventListener('click', () => {
+        grid.querySelectorAll('.furniture-item').forEach(i => i.classList.remove('selected'));
+        item.classList.add('selected');
+        const buyBtn = document.getElementById('buy-furniture') as HTMLButtonElement;
+        if (buyBtn) {
+          buyBtn.disabled = false;
+          const price = items.find(i => i.itemDefId === item.getAttribute('data-item-def-id'))?.price || 0;
+          buyBtn.textContent = `Buy (${price} coins)`;
+        }
+      });
+    });
+
+    // Buy button handler
+    const buyBtn = document.getElementById('buy-furniture');
+    buyBtn?.addEventListener('click', () => {
+      const selected = grid.querySelector('.furniture-item.selected');
+      if (selected) {
+        const itemDefId = selected.getAttribute('data-item-def-id');
+        if (itemDefId) {
+          this.onBuyFurniture?.(itemDefId);
+        }
+      }
+    });
+  }
+
+  private filterCatalog(category: string): void {
+    if (category === 'all') {
+      this.renderCatalog(this.catalogData);
+    } else {
+      const filtered = this.catalogData.filter(item => item.category === category);
+      this.renderCatalog(filtered);
+    }
+  }
+
+  private getFurnitureIcon(itemDefId: string): string {
+    const iconMap: Record<string, string> = {
+      chair_wood: '🪑',
+      table_round: '🪑',
+      lamp_floor: '💡',
+      plant_pot: '🪴',
+      bookshelf: '📚',
+      sofa_2seat: '🛋️',
+      desk_office: '🖥️',
+      bed_single: '🛏️',
+    };
+    return iconMap[itemDefId] || '📦';
   }
 
   // Event callbacks (to be set by main.ts)
@@ -479,6 +636,9 @@ export class UIManager {
   public onJoinRoom?: (roomId: string) => void;
   public onCreateRoom?: (name: string, size: string) => void;
   public onChatMessage?: (message: string) => void;
+  public onPlaceFurniture?: (itemDefId: string) => void;
+  public onBuyFurniture?: (itemDefId: string) => void;
+  public onFurnitureDragStart?: (itemDefId: string) => void;
 
   public getToken(): string { return this.token; }
   public getUsername(): string { return this.username; }

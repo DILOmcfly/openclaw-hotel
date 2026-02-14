@@ -2,7 +2,7 @@ import { Application, Container } from 'pixi.js';
 import { parseHeightmap, TileMap } from './renderer/TileMap.js';
 import { AgentRenderer } from './renderer/AgentSprite.js';
 import { BubbleSystem } from './renderer/BubbleSystem.js';
-import { FurnitureRenderer } from './renderer/FurnitureRenderer.js';
+import { FurnitureManager } from './renderer/FurnitureManager.js';
 import { HotelWSClient } from './ws/client.js';
 import { AssetLoader } from './AssetLoader.js';
 import { UIManager } from './ui/UIManager.js';
@@ -58,7 +58,7 @@ async function init() {
   // Renderers
   const agentRenderer = new AgentRenderer(world);
   const bubbleSystem = new BubbleSystem(world, app.screen.width / 2, app.screen.height / 3);
-  const furnitureRenderer = new FurnitureRenderer(world);
+  const furnitureManager = new FurnitureManager(world);
 
   // WebSocket connection
   const ws = new HotelWSClient();
@@ -87,6 +87,7 @@ async function init() {
     
     if (isConnected) {
       ws.joinRoom(roomId);
+      furnitureManager.connectWS(ws, roomId);
     }
     
     // Add self to room
@@ -96,8 +97,9 @@ async function init() {
     ui.showScreen('game');
     ui.setCurrentRoom(roomId);
     
-    // Load demo inventory
+    // Load demo inventory and catalog
     loadInventory();
+    loadCatalog();
   };
 
   ui.onCreateRoom = (name: string, size: string) => {
@@ -134,10 +136,50 @@ async function init() {
       isConnected = false;
     }
     
-    // Clear agents
+    // Clear agents and furniture
     agentRenderer.getAll().forEach(agent => {
       agentRenderer.remove(agent.agentId);
     });
+    furnitureManager.clear();
+  };
+
+  ui.onPlaceFurniture = (itemDefId: string) => {
+    console.log('[Furniture] Starting placement mode:', itemDefId);
+    furnitureManager.startPlacementMode(itemDefId);
+    
+    // Hide inventory panel during placement
+    const inventoryPanel = document.getElementById('inventory-panel');
+    inventoryPanel?.classList.add('hidden');
+  };
+
+  ui.onBuyFurniture = (itemDefId: string) => {
+    console.log('[Furniture] Buying:', itemDefId);
+    // TODO: Implement actual purchase API
+    ui.addChatMessage('System', `Purchased ${itemDefId}! Check your inventory.`);
+    
+    // Reload inventory to show new item
+    setTimeout(() => loadInventory(), 500);
+  };
+
+  ui.onFurnitureDragStart = (itemDefId: string) => {
+    console.log('[Furniture] Drag started:', itemDefId);
+    furnitureManager.startPlacementMode(itemDefId);
+  };
+
+  // Furniture manager callbacks
+  furnitureManager.onPlacementSuccess = () => {
+    console.log('[Furniture] Placement successful');
+    ui.addChatMessage('System', 'Furniture placed!');
+  };
+
+  furnitureManager.onPlacementFailed = (reason: string) => {
+    console.log('[Furniture] Placement failed:', reason);
+    ui.addChatMessage('System', reason);
+  };
+
+  furnitureManager.onItemSelected = (itemId: string) => {
+    console.log('[Furniture] Item selected:', itemId);
+    // TODO: Show context menu for move/rotate/remove
   };
 
   // WebSocket Event Handlers
@@ -199,10 +241,16 @@ async function init() {
     ui.addChatMessage(agentId, content);
   });
 
-  // Click to move (only when in game)
+  // Canvas interaction handlers
   app.canvas.addEventListener('click', (e: MouseEvent) => {
-    // Only allow movement when in game screen
+    // Only allow interaction when in game screen
     if (ui['currentScreen'] !== 'game') return;
+    
+    // If in placement mode, confirm placement
+    if (furnitureManager.isInPlacementMode()) {
+      furnitureManager.confirmPlacement();
+      return;
+    }
     
     const localX = e.clientX - world.position.x;
     const localY = e.clientY - world.position.y;
@@ -215,6 +263,35 @@ async function init() {
       if (isConnected) {
         ws.move(currentRoom, tile.gridX, tile.gridY);
       }
+    }
+  });
+
+  app.canvas.addEventListener('mousemove', (e: MouseEvent) => {
+    if (furnitureManager.isInPlacementMode()) {
+      furnitureManager.updatePlacementPreview(e.clientX, e.clientY);
+    }
+  });
+
+  app.canvas.addEventListener('contextmenu', (e: MouseEvent) => {
+    e.preventDefault();
+    if (furnitureManager.isInPlacementMode()) {
+      furnitureManager.cancelPlacementMode();
+    }
+  });
+
+  // Keyboard shortcuts
+  window.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && furnitureManager.isInPlacementMode()) {
+      furnitureManager.cancelPlacementMode();
+      ui.addChatMessage('System', 'Placement cancelled');
+    }
+    
+    if (e.key === 'r' && furnitureManager.isInPlacementMode()) {
+      furnitureManager.rotatePlacementPreview();
+    }
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      furnitureManager.removeSelectedFurniture();
     }
   });
 
@@ -238,17 +315,33 @@ async function init() {
   }
 
   function loadInventory() {
-    // Demo furniture data
+    // Demo furniture data (user's owned furniture)
     const demoFurniture = [
-      { id: 'chair1', name: 'Blue Chair', icon: '🪑' },
-      { id: 'table1', name: 'Table', icon: '🪑' },
-      { id: 'plant1', name: 'Plant', icon: '🪴' },
-      { id: 'lamp1', name: 'Lamp', icon: '💡' },
-      { id: 'sofa1', name: 'Sofa', icon: '🛋️' },
-      { id: 'bed1', name: 'Bed', icon: '🛏️' },
+      { itemDefId: 'chair_wood', name: 'Wooden Chair', count: 3 },
+      { itemDefId: 'table_round', name: 'Round Table', count: 1 },
+      { itemDefId: 'plant_pot', name: 'Potted Plant', count: 2 },
+      { itemDefId: 'lamp_floor', name: 'Floor Lamp', count: 1 },
+      { itemDefId: 'sofa_2seat', name: '2-Seat Sofa', count: 1 },
+      { itemDefId: 'bed_single', name: 'Single Bed', count: 1 },
     ];
     
     ui.loadInventory(demoFurniture);
+  }
+
+  function loadCatalog() {
+    // Demo catalog data (available for purchase)
+    const demoCatalog = [
+      { itemDefId: 'chair_wood', name: 'Wooden Chair', category: 'seating', price: 50 },
+      { itemDefId: 'sofa_2seat', name: '2-Seat Sofa', category: 'seating', price: 150 },
+      { itemDefId: 'table_round', name: 'Round Table', category: 'tables', price: 100 },
+      { itemDefId: 'desk_office', name: 'Office Desk', category: 'tables', price: 120 },
+      { itemDefId: 'lamp_floor', name: 'Floor Lamp', category: 'decoration', price: 60 },
+      { itemDefId: 'plant_pot', name: 'Potted Plant', category: 'decoration', price: 30 },
+      { itemDefId: 'bookshelf', name: 'Bookshelf', category: 'storage', price: 200 },
+      { itemDefId: 'bed_single', name: 'Single Bed', category: 'seating', price: 250 },
+    ];
+    
+    ui.loadCatalog(demoCatalog);
   }
 
   console.log('OpenClaw Hotel client ready');
