@@ -1020,6 +1020,47 @@ async function init() {
     gamePanel.showResult(result);
   });
 
+  ws.on('game.joined', (msg) => {
+    const gameId = msg.gameId as string;
+    const agentId = msg.agentId as string;
+    const agentName = msg.agentName as string;
+    
+    console.log('[Game] Player joined:', agentId);
+    
+    if (agentId !== MY_ID) {
+      toastManager.info(`${agentName} joined the game!`, 2000);
+    }
+  });
+
+  ws.on('game.started', (msg) => {
+    const gameId = msg.gameId as string;
+    
+    console.log('[Game] Game started:', gameId);
+    toastManager.success('Game started!', 2000);
+  });
+
+  ws.on('game.updated', (msg) => {
+    const gameId = msg.gameId as string;
+    const agentId = msg.agentId as string;
+    
+    console.log('[Game] Game updated:', gameId);
+    
+    if (agentId !== MY_ID) {
+      toastManager.info('Opponent made a move!', 2000);
+    }
+  });
+
+  ws.on('game.ended', (msg) => {
+    const gameId = msg.gameId as string;
+    const reason = msg.reason as string;
+    
+    console.log('[Game] Game ended:', gameId, reason);
+    toastManager.warning(`Game ${reason}`, 2000);
+    
+    // Reset panel
+    gamePanel.hide();
+  });
+
   // Whisper WebSocket handlers
   ws.on('whisper.received', (msg) => {
     const messageId = msg.messageId as string;

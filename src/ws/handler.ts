@@ -704,6 +704,158 @@ export function setupWebSocket(server: Server): void {
           break;
         }
 
+        case 'game.create': {
+          try {
+            const { createGame } = await import('../services/games.js');
+            
+            const game = createGame(clientMessage.roomId, clientMessage.gameType, agentId);
+
+            // Get creator name
+            const [creator] = await sql`
+              SELECT display_name FROM agents WHERE id = ${agentId}
+            `;
+
+            // Broadcast to room that a new game is available
+            broadcastToRoom(clientMessage.roomId, {
+              type: 'game.created',
+              gameId: game.id,
+              gameType: game.type,
+              hostId: agentId,
+              hostName: creator?.display_name || 'Agent',
+              status: game.status,
+            });
+          } catch (error: any) {
+            sendError(ws, 'GAME_CREATE_FAILED', error.message || 'Failed to create game');
+          }
+          break;
+        }
+
+        case 'game.join': {
+          try {
+            const { joinGame, getGameState } = await import('../services/games.js');
+            
+            const game = joinGame(clientMessage.gameId, agentId);
+
+            // Get joiner name
+            const [joiner] = await sql`
+              SELECT display_name FROM agents WHERE id = ${agentId}
+            `;
+
+            // Notify all participants
+            for (const participantId of game.participants) {
+              const participantWs = connections.get(participantId);
+              if (participantWs && participantWs.readyState === WebSocket.OPEN) {
+                sendMessage(participantWs, {
+                  type: 'game.joined',
+                  gameId: game.id,
+                  agentId,
+                  agentName: joiner?.display_name || 'Agent',
+                  status: game.status,
+                  participants: game.participants,
+                });
+              }
+            }
+
+            // Broadcast to room if game is now active
+            if (game.status === 'active') {
+              broadcastToRoom(game.roomId, {
+                type: 'game.started',
+                gameId: game.id,
+                participants: game.participants,
+              }, agentId);
+            }
+          } catch (error: any) {
+            sendError(ws, 'GAME_JOIN_FAILED', error.message || 'Failed to join game');
+          }
+          break;
+        }
+
+        case 'game.move': {
+          try {
+            const { makeMove } = await import('../services/games.js');
+            
+            const game = makeMove(clientMessage.gameId, agentId, clientMessage.move);
+
+            // Notify all participants of the move
+            for (const participantId of game.participants) {
+              const participantWs = connections.get(participantId);
+              if (participantWs && participantWs.readyState === WebSocket.OPEN) {
+                sendMessage(participantWs, {
+                  type: 'game.updated',
+                  gameId: game.id,
+                  status: game.status,
+                  agentId,
+                  move: clientMessage.move,
+                });
+              }
+            }
+
+            // If game completed, send result
+            if (game.status === 'completed' && game.result) {
+              for (const participantId of game.participants) {
+                const participantWs = connections.get(participantId);
+                if (participantWs && participantWs.readyState === WebSocket.OPEN) {
+                  sendMessage(participantWs, {
+                    type: 'game.completed',
+                    gameId: game.id,
+                    winnerId: game.result.winnerId,
+                    result: game.result.details,
+                  });
+                }
+              }
+
+              // Broadcast result to room
+              broadcastToRoom(game.roomId, {
+                type: 'game.completed',
+                gameId: game.id,
+                winnerId: game.result.winnerId,
+                result: game.result.details,
+              });
+            }
+          } catch (error: any) {
+            sendError(ws, 'GAME_MOVE_FAILED', error.message || 'Failed to make move');
+          }
+          break;
+        }
+
+        case 'game.end': {
+          try {
+            const { endGame, getGameState } = await import('../services/games.js');
+            
+            const gameState = getGameState(clientMessage.gameId);
+            
+            // Only host can end game
+            if (gameState.hostId !== agentId) {
+              sendError(ws, 'GAME_END_FORBIDDEN', 'Only the host can end this game');
+              break;
+            }
+
+            const game = endGame(clientMessage.gameId);
+
+            // Notify all participants
+            for (const participantId of game.participants) {
+              const participantWs = connections.get(participantId);
+              if (participantWs && participantWs.readyState === WebSocket.OPEN) {
+                sendMessage(participantWs, {
+                  type: 'game.ended',
+                  gameId: game.id,
+                  reason: 'cancelled',
+                });
+              }
+            }
+
+            // Broadcast to room
+            broadcastToRoom(game.roomId, {
+              type: 'game.ended',
+              gameId: game.id,
+              reason: 'cancelled',
+            });
+          } catch (error: any) {
+            sendError(ws, 'GAME_END_FAILED', error.message || 'Failed to end game');
+          }
+          break;
+        }
+
         case 'friend.request': {
           try {
             const { sendFriendRequest } = await import('../services/friends.js');
@@ -834,95 +986,6 @@ export function setupWebSocket(server: Server): void {
               type: 'whisper.typing',
               senderId: agentId,
             });
-          }
-          break;
-        }
-
-        case 'game.create': {
-          try {
-            const { createGame } = await import('../services/games.js');
-            
-            const game = createGame(clientMessage.roomId, clientMessage.gameType, agentId);
-
-            // Broadcast to room
-            broadcastToRoom(clientMessage.roomId, {
-              type: 'game.created',
-              gameId: game.id,
-              roomId: game.roomId,
-              gameType: game.type,
-              hostId: game.hostId,
-            });
-          } catch (error: any) {
-            sendError(ws, 'GAME_CREATE_FAILED', error.message || 'Failed to create game');
-          }
-          break;
-        }
-
-        case 'game.join': {
-          try {
-            const { joinGame, getGameState } = await import('../services/games.js');
-            
-            const game = joinGame(clientMessage.gameId, agentId);
-
-            // Broadcast updated state to room
-            broadcastToRoom(game.roomId, {
-              type: 'game.state',
-              gameId: game.id,
-              status: game.status,
-              participants: game.participants,
-              result: game.result,
-            });
-          } catch (error: any) {
-            sendError(ws, 'GAME_JOIN_FAILED', error.message || 'Failed to join game');
-          }
-          break;
-        }
-
-        case 'game.move': {
-          try {
-            const { makeMove } = await import('../services/games.js');
-            
-            const game = makeMove(clientMessage.gameId, agentId, clientMessage.move);
-
-            // Broadcast updated state
-            broadcastToRoom(game.roomId, {
-              type: 'game.state',
-              gameId: game.id,
-              status: game.status,
-              participants: game.participants,
-              result: game.result,
-            });
-
-            // If game completed, send completion message
-            if (game.status === 'completed') {
-              broadcastToRoom(game.roomId, {
-                type: 'game.completed',
-                gameId: game.id,
-                winnerId: game.result?.winnerId || null,
-                result: game.result?.details || {},
-              });
-            }
-          } catch (error: any) {
-            sendError(ws, 'GAME_MOVE_FAILED', error.message || 'Failed to make move');
-          }
-          break;
-        }
-
-        case 'game.end': {
-          try {
-            const { endGame } = await import('../services/games.js');
-            
-            const game = endGame(clientMessage.gameId);
-
-            // Broadcast completion
-            broadcastToRoom(game.roomId, {
-              type: 'game.completed',
-              gameId: game.id,
-              winnerId: game.result?.winnerId || null,
-              result: game.result?.details || {},
-            });
-          } catch (error: any) {
-            sendError(ws, 'GAME_END_FAILED', error.message || 'Failed to end game');
           }
           break;
         }

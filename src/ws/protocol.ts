@@ -126,37 +126,6 @@ export const tradeCancelMsgSchema = z.object({
 
 export type TradeCancelMsg = z.infer<typeof tradeCancelMsgSchema>
 
-// Friend schemas
-export const friendRequestMsgSchema = z.object({
-  type: z.literal('friend.request'),
-  targetAgentId: z.string(),
-})
-
-export type FriendRequestMsg = z.infer<typeof friendRequestMsgSchema>
-
-export const friendAcceptMsgSchema = z.object({
-  type: z.literal('friend.accept'),
-  friendshipId: z.string(),
-})
-
-export type FriendAcceptMsg = z.infer<typeof friendAcceptMsgSchema>
-
-// Whisper schemas
-export const whisperSendMsgSchema = z.object({
-  type: z.literal('whisper.send'),
-  recipientId: z.string(),
-  content: z.string().min(1).max(500),
-})
-
-export type WhisperSendMsg = z.infer<typeof whisperSendMsgSchema>
-
-export const whisperTypingMsgSchema = z.object({
-  type: z.literal('whisper.typing'),
-  recipientId: z.string(),
-})
-
-export type WhisperTypingMsg = z.infer<typeof whisperTypingMsgSchema>
-
 // Game schemas
 export const gameCreateMsgSchema = z.object({
   type: z.literal('game.create'),
@@ -187,6 +156,37 @@ export const gameEndMsgSchema = z.object({
 })
 
 export type GameEndMsg = z.infer<typeof gameEndMsgSchema>
+
+// Friend schemas
+export const friendRequestMsgSchema = z.object({
+  type: z.literal('friend.request'),
+  targetAgentId: z.string(),
+})
+
+export type FriendRequestMsg = z.infer<typeof friendRequestMsgSchema>
+
+export const friendAcceptMsgSchema = z.object({
+  type: z.literal('friend.accept'),
+  friendshipId: z.string(),
+})
+
+export type FriendAcceptMsg = z.infer<typeof friendAcceptMsgSchema>
+
+// Whisper schemas
+export const whisperSendMsgSchema = z.object({
+  type: z.literal('whisper.send'),
+  recipientId: z.string(),
+  content: z.string().min(1).max(500),
+})
+
+export type WhisperSendMsg = z.infer<typeof whisperSendMsgSchema>
+
+export const whisperTypingMsgSchema = z.object({
+  type: z.literal('whisper.typing'),
+  recipientId: z.string(),
+})
+
+export type WhisperTypingMsg = z.infer<typeof whisperTypingMsgSchema>
 
 export const clientMessageSchema = z.discriminatedUnion('type', [
   roomJoinMsgSchema,
@@ -403,17 +403,33 @@ export type NotificationNewMsg = {
 export type GameCreatedMsg = {
   type: 'game.created'
   gameId: string
-  roomId: string
   gameType: string
   hostId: string
+  hostName: string
+  status: string
 }
 
-export type GameStateMsg = {
-  type: 'game.state'
+export type GameJoinedMsg = {
+  type: 'game.joined'
   gameId: string
+  agentId: string
+  agentName: string
   status: string
   participants: string[]
-  result: any
+}
+
+export type GameStartedMsg = {
+  type: 'game.started'
+  gameId: string
+  participants: string[]
+}
+
+export type GameUpdatedMsg = {
+  type: 'game.updated'
+  gameId: string
+  status: string
+  agentId: string
+  move: string | number
 }
 
 export type GameCompletedMsg = {
@@ -421,6 +437,12 @@ export type GameCompletedMsg = {
   gameId: string
   winnerId: string | null
   result: any
+}
+
+export type GameEndedMsg = {
+  type: 'game.ended'
+  gameId: string
+  reason: string
 }
 
 export type ServerMessage =
@@ -448,8 +470,11 @@ export type ServerMessage =
   | WhisperTypingIndicatorMsg
   | NotificationNewMsg
   | GameCreatedMsg
-  | GameStateMsg
+  | GameJoinedMsg
+  | GameStartedMsg
+  | GameUpdatedMsg
   | GameCompletedMsg
+  | GameEndedMsg
 
 export function parseClientMessage(data: string): ClientMessage {
   const parsed = JSON.parse(data)
