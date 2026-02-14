@@ -84,6 +84,47 @@ export const pingMsgSchema = z.object({
 
 export type PingMsg = z.infer<typeof pingMsgSchema>
 
+// Trading schemas
+export const tradeRequestMsgSchema = z.object({
+  type: z.literal('trade.request'),
+  roomId: z.string(),
+  targetAgentId: z.string(),
+})
+
+export type TradeRequestMsg = z.infer<typeof tradeRequestMsgSchema>
+
+export const tradeUpdateMsgSchema = z.object({
+  type: z.literal('trade.update'),
+  tradeId: z.string(),
+  items: z.array(z.object({
+    itemDefId: z.string(),
+    quantity: z.number().int().positive(),
+  })),
+})
+
+export type TradeUpdateMsg = z.infer<typeof tradeUpdateMsgSchema>
+
+export const tradeAcceptMsgSchema = z.object({
+  type: z.literal('trade.accept'),
+  tradeId: z.string(),
+})
+
+export type TradeAcceptMsg = z.infer<typeof tradeAcceptMsgSchema>
+
+export const tradeRejectMsgSchema = z.object({
+  type: z.literal('trade.reject'),
+  tradeId: z.string(),
+})
+
+export type TradeRejectMsg = z.infer<typeof tradeRejectMsgSchema>
+
+export const tradeCancelMsgSchema = z.object({
+  type: z.literal('trade.cancel'),
+  tradeId: z.string(),
+})
+
+export type TradeCancelMsg = z.infer<typeof tradeCancelMsgSchema>
+
 export const clientMessageSchema = z.discriminatedUnion('type', [
   roomJoinMsgSchema,
   roomLeaveMsgSchema,
@@ -95,6 +136,11 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   furnitureRotateMsgSchema,
   emoteMsgSchema,
   pingMsgSchema,
+  tradeRequestMsgSchema,
+  tradeUpdateMsgSchema,
+  tradeAcceptMsgSchema,
+  tradeRejectMsgSchema,
+  tradeCancelMsgSchema,
 ])
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>
@@ -201,6 +247,35 @@ export type PongMsg = {
   serverTime: string
 }
 
+// Trading server messages
+export type TradeRequestedMsg = {
+  type: 'trade.requested'
+  tradeId: string
+  initiatorId: string
+  initiatorName: string
+}
+
+export type TradeUpdatedMsg = {
+  type: 'trade.updated'
+  tradeId: string
+  agentId: string
+  items: Array<{
+    itemDefId: string
+    quantity: number
+  }>
+}
+
+export type TradeCompletedMsg = {
+  type: 'trade.completed'
+  tradeId: string
+}
+
+export type TradeCancelledMsg = {
+  type: 'trade.cancelled'
+  tradeId: string
+  reason: string
+}
+
 export type ServerMessage =
   | ConnectedMsg
   | RoomJoinedMsg
@@ -215,6 +290,10 @@ export type ServerMessage =
   | EmoteBroadcastMsg
   | ErrorMsg
   | PongMsg
+  | TradeRequestedMsg
+  | TradeUpdatedMsg
+  | TradeCompletedMsg
+  | TradeCancelledMsg
 
 export function parseClientMessage(data: string): ClientMessage {
   const parsed = JSON.parse(data)

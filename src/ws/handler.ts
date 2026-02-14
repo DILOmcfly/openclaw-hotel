@@ -449,6 +449,182 @@ export function setupWebSocket(server: Server): void {
           });
           break;
         }
+
+        case 'trade.request': {
+          try {
+            const { createTrade, validateSameRoom } = await import('../services/trading.js');
+            
+            // Validate both agents are in the same room
+            const roomId = await validateSameRoom(agentId, clientMessage.targetAgentId, sql);
+            if (!roomId) {
+              sendError(ws, 'TRADE_FAILED', 'Both agents must be in the same room');
+              break;
+            }
+
+            // Create trade
+            const trade = await createTrade(agentId, clientMessage.targetAgentId, sql);
+
+            // Get initiator name
+            const [initiator] = await sql`
+              SELECT display_name FROM agents WHERE id = ${agentId}
+            `;
+
+            // Notify target agent
+            const targetWs = connections.get(clientMessage.targetAgentId);
+            if (targetWs && targetWs.readyState === WebSocket.OPEN) {
+              sendMessage(targetWs, {
+                type: 'trade.requested',
+                tradeId: trade.id,
+                initiatorId: agentId,
+                initiatorName: initiator?.display_name || 'Agent',
+              });
+            }
+
+            // Confirm to initiator
+            sendMessage(ws, {
+              type: 'trade.requested',
+              tradeId: trade.id,
+              initiatorId: agentId,
+              initiatorName: initiator?.display_name || 'Agent',
+            });
+          } catch (error: any) {
+            sendError(ws, 'TRADE_FAILED', error.message || 'Failed to create trade request');
+          }
+          break;
+        }
+
+        case 'trade.update': {
+          try {
+            const { updateTradeItems, getTrade } = await import('../services/trading.js');
+            
+            await updateTradeItems(clientMessage.tradeId, agentId, clientMessage.items, sql);
+            
+            // Get trade to find the other participant
+            const trade = await getTrade(clientMessage.tradeId, sql);
+            if (!trade) {
+              sendError(ws, 'TRADE_NOT_FOUND', 'Trade not found');
+              break;
+            }
+
+            const otherAgentId = trade.initiatorId === agentId ? trade.targetId : trade.initiatorId;
+
+            // Broadcast update to both parties
+            const updateMsg: ServerMessage = {
+              type: 'trade.updated',
+              tradeId: clientMessage.tradeId,
+              agentId,
+              items: clientMessage.items,
+            };
+
+            sendMessage(ws, updateMsg);
+
+            const otherWs = connections.get(otherAgentId);
+            if (otherWs && otherWs.readyState === WebSocket.OPEN) {
+              sendMessage(otherWs, updateMsg);
+            }
+          } catch (error: any) {
+            sendError(ws, 'TRADE_UPDATE_FAILED', error.message || 'Failed to update trade');
+          }
+          break;
+        }
+
+        case 'trade.accept': {
+          try {
+            const { acceptTrade, getTrade } = await import('../services/trading.js');
+            
+            const trade = await getTrade(clientMessage.tradeId, sql);
+            if (!trade) {
+              sendError(ws, 'TRADE_NOT_FOUND', 'Trade not found');
+              break;
+            }
+
+            await acceptTrade(clientMessage.tradeId, agentId, sql);
+
+            const otherAgentId = trade.initiatorId === agentId ? trade.targetId : trade.initiatorId;
+
+            // Notify both parties
+            const completedMsg: ServerMessage = {
+              type: 'trade.completed',
+              tradeId: clientMessage.tradeId,
+            };
+
+            sendMessage(ws, completedMsg);
+
+            const otherWs = connections.get(otherAgentId);
+            if (otherWs && otherWs.readyState === WebSocket.OPEN) {
+              sendMessage(otherWs, completedMsg);
+            }
+          } catch (error: any) {
+            sendError(ws, 'TRADE_ACCEPT_FAILED', error.message || 'Failed to accept trade');
+          }
+          break;
+        }
+
+        case 'trade.reject': {
+          try {
+            const { rejectTrade, getTrade } = await import('../services/trading.js');
+            
+            const trade = await getTrade(clientMessage.tradeId, sql);
+            if (!trade) {
+              sendError(ws, 'TRADE_NOT_FOUND', 'Trade not found');
+              break;
+            }
+
+            await rejectTrade(clientMessage.tradeId, agentId, sql);
+
+            const otherAgentId = trade.initiatorId === agentId ? trade.targetId : trade.initiatorId;
+
+            // Notify both parties
+            const cancelledMsg: ServerMessage = {
+              type: 'trade.cancelled',
+              tradeId: clientMessage.tradeId,
+              reason: 'rejected',
+            };
+
+            sendMessage(ws, cancelledMsg);
+
+            const otherWs = connections.get(otherAgentId);
+            if (otherWs && otherWs.readyState === WebSocket.OPEN) {
+              sendMessage(otherWs, cancelledMsg);
+            }
+          } catch (error: any) {
+            sendError(ws, 'TRADE_REJECT_FAILED', error.message || 'Failed to reject trade');
+          }
+          break;
+        }
+
+        case 'trade.cancel': {
+          try {
+            const { cancelTrade, getTrade } = await import('../services/trading.js');
+            
+            const trade = await getTrade(clientMessage.tradeId, sql);
+            if (!trade) {
+              sendError(ws, 'TRADE_NOT_FOUND', 'Trade not found');
+              break;
+            }
+
+            await cancelTrade(clientMessage.tradeId, agentId, sql);
+
+            const otherAgentId = trade.initiatorId === agentId ? trade.targetId : trade.initiatorId;
+
+            // Notify both parties
+            const cancelledMsg: ServerMessage = {
+              type: 'trade.cancelled',
+              tradeId: clientMessage.tradeId,
+              reason: 'cancelled',
+            };
+
+            sendMessage(ws, cancelledMsg);
+
+            const otherWs = connections.get(otherAgentId);
+            if (otherWs && otherWs.readyState === WebSocket.OPEN) {
+              sendMessage(otherWs, cancelledMsg);
+            }
+          } catch (error: any) {
+            sendError(ws, 'TRADE_CANCEL_FAILED', error.message || 'Failed to cancel trade');
+          }
+          break;
+        }
       }
     });
 
