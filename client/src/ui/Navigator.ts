@@ -11,6 +11,7 @@ export interface Room {
   tags: string[];
   occupants: number;
   maxOccupants: number;
+  visibility?: 'public' | 'private' | 'password';
   isFavorite?: boolean;
   lastVisited?: string | null;
 }
@@ -26,7 +27,7 @@ export class Navigator {
   private categories: string[] = [];
   private tags: string[] = [];
   
-  public onJoinRoom?: (roomId: string) => void;
+  public onJoinRoom?: (roomId: string, password?: string) => void;
   public onToggleFavorite?: (roomId: string, isFavorite: boolean) => void;
 
   constructor() {
@@ -220,41 +221,67 @@ export class Navigator {
       return;
     }
 
-    this.roomsContainer.innerHTML = rooms.map(room => `
-      <div class="room-card" data-room-id="${room.id}">
-        <div class="room-card-header">
-          <div class="room-title">
-            <h4>${this.escapeHtml(room.name)}</h4>
-            <button class="favorite-btn ${room.isFavorite ? 'active' : ''}" data-room-id="${room.id}">
-              ${room.isFavorite ? '⭐' : '☆'}
+    this.roomsContainer.innerHTML = rooms.map(room => {
+      const privacyIcon = room.visibility === 'private' ? '🔒' 
+        : room.visibility === 'password' ? '🔐' 
+        : '';
+      
+      return `
+        <div class="room-card" data-room-id="${room.id}">
+          <div class="room-card-header">
+            <div class="room-title">
+              <h4>${privacyIcon}${privacyIcon ? ' ' : ''}${this.escapeHtml(room.name)}</h4>
+              <button class="favorite-btn ${room.isFavorite ? 'active' : ''}" data-room-id="${room.id}">
+                ${room.isFavorite ? '⭐' : '☆'}
+              </button>
+            </div>
+            <span class="room-category">${this.capitalize(room.category)}</span>
+          </div>
+          
+          ${room.description ? `<p class="room-description">${this.escapeHtml(room.description)}</p>` : ''}
+          
+          <div class="room-tags">
+            ${room.tags.map(tag => `<span class="tag">#${tag}</span>`).join('')}
+          </div>
+          
+          <div class="room-card-footer">
+            <span class="room-occupancy">
+              ${room.occupants}/${room.maxOccupants}
+              <span class="occupancy-icon">${room.occupants > 0 ? '👥' : '🏠'}</span>
+            </span>
+            <button class="btn-primary btn-sm join-room-btn" data-room-id="${room.id}" data-visibility="${room.visibility || 'public'}">
+              Join Room
             </button>
           </div>
-          <span class="room-category">${this.capitalize(room.category)}</span>
         </div>
-        
-        ${room.description ? `<p class="room-description">${this.escapeHtml(room.description)}</p>` : ''}
-        
-        <div class="room-tags">
-          ${room.tags.map(tag => `<span class="tag">#${tag}</span>`).join('')}
-        </div>
-        
-        <div class="room-card-footer">
-          <span class="room-occupancy">
-            ${room.occupants}/${room.maxOccupants}
-            <span class="occupancy-icon">${room.occupants > 0 ? '👥' : '🏠'}</span>
-          </span>
-          <button class="btn-primary btn-sm join-room-btn" data-room-id="${room.id}">
-            Join Room
-          </button>
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
 
     // Attach event listeners
     this.roomsContainer.querySelectorAll('.join-room-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const roomId = (e.target as HTMLElement).getAttribute('data-room-id');
-        if (roomId) this.onJoinRoom?.(roomId);
+      btn.addEventListener('click', async (e) => {
+        const target = e.target as HTMLElement;
+        const roomId = target.getAttribute('data-room-id');
+        const visibility = target.getAttribute('data-visibility');
+        
+        if (!roomId) return;
+
+        // Private rooms show error
+        if (visibility === 'private') {
+          alert('This room is private and cannot be joined.');
+          return;
+        }
+
+        // Password-protected rooms show password prompt
+        if (visibility === 'password') {
+          const password = await this.promptPassword(roomId);
+          if (password === null) return; // User cancelled
+          
+          // Pass password to join callback
+          this.onJoinRoom?.(roomId, password);
+        } else {
+          this.onJoinRoom?.(roomId);
+        }
       });
     });
 
@@ -292,6 +319,54 @@ export class Navigator {
     } catch (error) {
       console.error('Toggle favorite failed:', error);
     }
+  }
+
+  private async promptPassword(roomId: string): Promise<string | null> {
+    return new Promise((resolve) => {
+      // Create modal
+      const modal = document.createElement('div');
+      modal.className = 'password-modal';
+      modal.innerHTML = `
+        <div class="password-modal-content">
+          <h3>🔐 Password Required</h3>
+          <p>This room is password-protected.</p>
+          <input type="password" id="room-password-input" placeholder="Enter password" class="password-input">
+          <div class="password-modal-buttons">
+            <button class="btn-secondary" id="password-cancel-btn">Cancel</button>
+            <button class="btn-primary" id="password-submit-btn">Join</button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+
+      const input = modal.querySelector('#room-password-input') as HTMLInputElement;
+      const cancelBtn = modal.querySelector('#password-cancel-btn') as HTMLButtonElement;
+      const submitBtn = modal.querySelector('#password-submit-btn') as HTMLButtonElement;
+
+      // Focus input
+      setTimeout(() => input.focus(), 100);
+
+      // Submit on Enter
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const password = input.value.trim();
+          modal.remove();
+          resolve(password || null);
+        }
+      });
+
+      cancelBtn.addEventListener('click', () => {
+        modal.remove();
+        resolve(null);
+      });
+
+      submitBtn.addEventListener('click', () => {
+        const password = input.value.trim();
+        modal.remove();
+        resolve(password || null);
+      });
+    });
   }
 
   public show(): void {

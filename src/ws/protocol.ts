@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const roomJoinMsgSchema = z.object({
   type: z.literal('room.join'),
   roomId: z.string(),
+  password: z.string().optional(),
 })
 
 export type RoomJoinMsg = z.infer<typeof roomJoinMsgSchema>

@@ -18,6 +18,7 @@ import { WhisperWindow } from './ui/WhisperWindow.js';
 import { FriendsPanel } from './ui/FriendsPanel.js';
 import { ProfilePanel } from './ui/ProfilePanel.js';
 import { NotificationCenter } from './ui/NotificationCenter.js';
+import { Navigator } from './ui/Navigator.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -100,10 +101,31 @@ async function init() {
   // Trade Window
   const tradeWindow = new TradeWindow();
   
-  // Whisper, Friends, and Profile panels
+  // Whisper, Friends, Profile, and Navigator panels
   const whisperWindow = new WhisperWindow(MY_ID);
   const friendsPanel = new FriendsPanel();
   const profilePanel = new ProfilePanel();
+  const navigator = new Navigator();
+  
+  // Navigator event handlers
+  navigator.onJoinRoom = (roomId) => {
+    console.log('[Navigator] Joining room:', roomId);
+    ui.onJoinRoom?.(roomId);
+    
+    // Track visit
+    const token = ui.getToken();
+    if (token) {
+      fetch(`/api/navigator/visit/${roomId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      }).catch(err => console.error('[Navigator] Failed to track visit:', err));
+    }
+    
+    // Hide navigator panel after joining
+    navigator.hide();
+  };
   
   // Notification Center (pass HUD element as parent)
   let notificationCenter: NotificationCenter | null = null;
@@ -219,8 +241,10 @@ async function init() {
       console.log('[WS] Connection failed, running in offline mode');
     }
 
-    // Load demo rooms
-    loadRooms();
+    // Show navigator after login
+    ui.showScreen('navigator');
+    navigator.show();
+    navigator.search(); // Load initial room list
   };
 
   ui.onJoinRoom = async (roomId: string) => {

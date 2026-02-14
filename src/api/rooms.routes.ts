@@ -178,4 +178,130 @@ router.get('/api/rooms/:roomId/layout', async (req, res) => {
   }
 });
 
+/**
+ * PUT /api/rooms/:roomId/privacy
+ * Update room privacy settings (owner only)
+ */
+router.put('/api/rooms/:roomId/privacy', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { agentId } = validateToken(token);
+    const { roomId } = req.params;
+    const { visibility, password, maxOccupants } = req.body;
+
+    // Validate visibility
+    if (visibility && !['public', 'private', 'password'].includes(visibility)) {
+      return res.status(400).json({ error: 'Invalid visibility type' });
+    }
+
+    // Check room ownership
+    const room = await sql`
+      SELECT id, created_by
+      FROM rooms
+      WHERE id = ${roomId}::uuid
+    `;
+
+    if (room.length === 0) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+
+    if (room[0].created_by !== agentId) {
+      return res.status(403).json({ error: 'Only the room creator can modify privacy settings' });
+    }
+
+    // Update privacy settings using the service
+    const { setRoomVisibility } = await import('../services/roomPrivacy.js');
+    
+    if (visibility) {
+      await setRoomVisibility(roomId, visibility, sql, password);
+    }
+
+    // Update max occupants if provided
+    if (maxOccupants !== undefined) {
+      if (typeof maxOccupants !== 'number' || maxOccupants < 1 || maxOccupants > 100) {
+        return res.status(400).json({ error: 'Max occupants must be between 1 and 100' });
+      }
+
+      await sql`
+        UPDATE rooms
+        SET max_occupants = ${maxOccupants}
+        WHERE id = ${roomId}::uuid
+      `;
+    }
+
+    // Audit log
+    await sql`
+      INSERT INTO audit_log (event_type, agent_id, room_id, details)
+      VALUES (
+        'room.privacy_updated',
+        ${agentId}::uuid,
+        ${roomId}::uuid,
+        ${JSON.stringify({ visibility, maxOccupants })}::jsonb
+      )
+    `;
+
+    logger.info('Room privacy updated', { roomId, agentId, visibility, maxOccupants });
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Failed to update room privacy', { error });
+    res.status(500).json({ error: 'Failed to update room privacy' });
+  }
+});
+
+/**
+ * GET /api/rooms/:roomId/info
+ * Get room info including privacy status and occupancy
+ */
+router.get('/api/rooms/:roomId/info', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+
+    const room = await sql`
+      SELECT 
+        id, 
+        name, 
+        description,
+        visibility, 
+        max_occupants,
+        created_by
+      FROM rooms
+      WHERE id = ${roomId}::uuid
+    `;
+
+    if (room.length === 0) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+
+    // Get current occupancy
+    const occupants = await sql`
+      SELECT COUNT(*)::int as count
+      FROM presence
+      WHERE room_id = ${roomId}::uuid
+    `;
+
+    const currentOccupants = occupants[0].count;
+    const isFull = currentOccupants >= room[0].max_occupants;
+
+    res.json({
+      id: room[0].id,
+      name: room[0].name,
+      description: room[0].description,
+      visibility: room[0].visibility,
+      maxOccupants: room[0].max_occupants,
+      currentOccupants,
+      isFull,
+      requiresPassword: room[0].visibility === 'password',
+      createdBy: room[0].created_by,
+    });
+  } catch (error) {
+    logger.error('Failed to fetch room info', { error });
+    res.status(500).json({ error: 'Failed to fetch room info' });
+  }
+});
+
 export default router;

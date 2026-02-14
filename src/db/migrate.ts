@@ -25,4 +25,16 @@ export async function migrate(): Promise<void> {
   
   const migration009 = await readFile(new URL('./migrations/009_notifications.sql', import.meta.url), 'utf8');
   await sql.unsafe(migration009);
+  
+  const migration010 = await readFile(new URL('./migrations/010_economy.sql', import.meta.url), 'utf8');
+  await sql.unsafe(migration010);
+  
+  const migration011 = await readFile(new URL('./migrations/011_admin_roles.sql', import.meta.url), 'utf8');
+  await sql.unsafe(migration011);
+  
+  const migration012 = await readFile(new URL('./migrations/012_navigator_enhancements.sql', import.meta.url), 'utf8');
+  await sql.unsafe(migration012);
+  
+  const migration013 = await readFile(new URL('./migrations/013_room_privacy.sql', import.meta.url), 'utf8');
+  await sql.unsafe(migration013);
 }

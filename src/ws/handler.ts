@@ -5,6 +5,7 @@ import { validateToken } from '../services/auth.js';
 import { parseClientMessage, type ServerMessage } from './protocol.js';
 import { sql } from '../db/index.js';
 import { placeFurniture, removeFurniture, getItemsInRoom } from '../services/furniture.js';
+import { validateRoomAccess, isRoomFull } from '../services/roomPrivacy.js';
 
 export const connections = new Map<string, WebSocket>();
 export const roomMembers = new Map<string, Set<string>>();
@@ -195,6 +196,26 @@ export function setupWebSocket(server: Server): void {
         }
 
         case 'room.join': {
+          // Check room privacy and access
+          const accessCheck = await validateRoomAccess(
+            clientMessage.roomId,
+            agentId,
+            sql,
+            clientMessage.password
+          );
+
+          if (!accessCheck.allowed) {
+            sendError(ws, 'room.access_denied', accessCheck.reason || 'Access denied');
+            break;
+          }
+
+          // Check if room is full
+          const roomFull = await isRoomFull(clientMessage.roomId, sql);
+          if (roomFull) {
+            sendError(ws, 'room.full', 'Room is at maximum capacity');
+            break;
+          }
+
           const members = roomMembers.get(clientMessage.roomId) ?? new Set<string>();
           members.add(agentId);
           roomMembers.set(clientMessage.roomId, members);
