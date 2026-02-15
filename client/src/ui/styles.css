@@ -4526,3 +4526,249 @@
 .tictactoe-controls .game-result {
   margin-top: 20px;
 }
+
+/* ========================================
+   JUKEBOX PANEL
+   ======================================== */
+
+.jukebox-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 500px;
+  max-height: 80vh;
+  background: var(--habbo-white);
+  border: var(--border-width) solid var(--habbo-dark-blue);
+  box-shadow: 0 0 0 2px var(--habbo-light-blue), 4px 4px 0 var(--habbo-dark-gray);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+}
+
+.jukebox-panel.hidden {
+  display: none;
+}
+
+.jukebox-empty {
+  padding: var(--spacing-lg);
+  text-align: center;
+  color: var(--habbo-dark-gray);
+  font-size: 14px;
+}
+
+.jukebox-controls {
+  padding: var(--spacing-md);
+  background: linear-gradient(to bottom, var(--habbo-light-blue), var(--habbo-blue));
+  color: var(--habbo-white);
+  border-bottom: var(--border-width) solid var(--habbo-dark-blue);
+}
+
+.now-playing {
+  margin-bottom: var(--spacing-md);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.now-playing strong {
+  font-family: var(--pixel-font);
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.playback-buttons {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.btn-control {
+  width: 50px;
+  height: 50px;
+  background: var(--habbo-white);
+  border: 2px solid var(--habbo-dark-blue);
+  border-radius: 4px;
+  font-size: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-control:hover {
+  background: var(--habbo-accent);
+  transform: scale(1.05);
+}
+
+.btn-control:active {
+  transform: scale(0.95);
+}
+
+.volume-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.volume-control label {
+  font-size: 12px;
+  font-family: var(--pixel-font);
+}
+
+.volume-control input[type="range"] {
+  width: 100%;
+  height: 8px;
+  background: var(--habbo-dark-blue);
+  border-radius: 4px;
+  outline: none;
+  appearance: none;
+}
+
+.volume-control input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: var(--habbo-accent);
+  border: 2px solid var(--habbo-dark-blue);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.volume-control input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: var(--habbo-accent);
+  border: 2px solid var(--habbo-dark-blue);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.jukebox-playlist {
+  padding: var(--spacing-md);
+  overflow-y: auto;
+  max-height: 400px;
+}
+
+.jukebox-playlist h3 {
+  font-family: var(--pixel-font);
+  font-size: 12px;
+  margin-bottom: var(--spacing-md);
+  color: var(--habbo-dark-blue);
+}
+
+.track-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.track-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm);
+  background: var(--habbo-gray);
+  border: 2px solid var(--habbo-dark-gray);
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.track-item:hover {
+  background: var(--habbo-light-blue);
+  color: var(--habbo-white);
+  border-color: var(--habbo-blue);
+}
+
+.track-item.current-track {
+  background: linear-gradient(to right, var(--habbo-accent), #FFE55C);
+  border-color: var(--habbo-dark-blue);
+  font-weight: bold;
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+}
+
+.track-info {
+  flex: 1;
+}
+
+.track-title {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.track-artist {
+  font-size: 12px;
+  color: var(--habbo-dark-gray);
+}
+
+.track-item.current-track .track-artist {
+  color: var(--habbo-dark-blue);
+}
+
+.remove-track-btn {
+  width: 30px;
+  height: 30px;
+  background: #E74C3C;
+  color: var(--habbo-white);
+  border: 2px solid #C0392B;
+  border-radius: 50%;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.remove-track-btn:hover {
+  background: #C0392B;
+  transform: scale(1.1);
+}
+
+.jukebox-owner-controls {
+  padding: var(--spacing-md);
+  border-top: var(--border-width) solid var(--habbo-dark-gray);
+  background: var(--habbo-gray);
+}
+
+.jukebox-owner-controls button {
+  width: 100%;
+}
+
+.jukebox-add-modal {
+  width: 400px;
+}
+
+.jukebox-add-modal input {
+  width: 100%;
+  padding: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  border: 2px solid var(--habbo-dark-gray);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: var(--mono-font);
+}
+
+.jukebox-add-modal input:focus {
+  outline: none;
+  border-color: var(--habbo-blue);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .jukebox-panel {
+    width: 90vw;
+    max-height: 90vh;
+  }
+
+  .jukebox-add-modal {
+    width: 90vw;
+  }
+
+  .playback-buttons {
+    flex-wrap: wrap;
+  }
+
+  .btn-control {
+    width: 45px;
+    height: 45px;
+    font-size: 18px;
+  }
+}

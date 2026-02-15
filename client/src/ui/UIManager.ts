@@ -172,6 +172,9 @@ export class UIManager {
             <button class="hud-btn" id="marketplace-toggle" title="Marketplace">
               <span class="icon">🛒</span>
             </button>
+            <button class="hud-btn hidden" id="jukebox-toggle" title="Jukebox">
+              <span class="icon">🎵</span>
+            </button>
             <button class="hud-btn hidden" id="room-editor-toggle" title="Edit Room">
               <span class="icon">🏗️</span>
             </button>
@@ -451,6 +454,12 @@ export class UIManager {
     
     roomEditorClose?.addEventListener('click', () => {
       roomEditorPanel?.classList.add('hidden');
+    });
+
+    // Jukebox toggle
+    const jukeboxToggle = document.getElementById('jukebox-toggle');
+    jukeboxToggle?.addEventListener('click', () => {
+      this.onJukeboxToggle?.();
     });
 
     // Volume controls
@@ -852,6 +861,7 @@ export class UIManager {
   public onJoystickEnabledChange?: (enabled: boolean) => void;
   public onJoystickPositionChange?: (position: 'left' | 'right') => void;
   public onRoomEditorToggle?: () => void;
+  public onJukeboxToggle?: () => void;
   public onFriendsToggle?: () => void;
   public onProfileToggle?: () => void;
   public onAvatarCustomizerToggle?: () => void;
@@ -898,6 +908,16 @@ export class UIManager {
   public hideRoomEditorPanel(): void {
     const panel = document.getElementById('room-editor-panel');
     panel?.classList.add('hidden');
+  }
+
+  public showJukeboxButton(): void {
+    const btn = document.getElementById('jukebox-toggle');
+    btn?.classList.remove('hidden');
+  }
+
+  public hideJukeboxButton(): void {
+    const btn = document.getElementById('jukebox-toggle');
+    btn?.classList.add('hidden');
   }
 
   /**
