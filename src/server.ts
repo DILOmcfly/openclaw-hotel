@@ -40,6 +40,8 @@ import stackingRouter from './api/stacking.routes.js';
 import photosRouter from './api/photos.routes.js';
 import activityLogRouter from './api/activityLog.routes.js';
 import atmosphereRouter from './api/atmosphere.routes.js';
+import warpZonesRouter from './api/warpZones.routes.js';
+import titlesRouter from './api/titles.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -89,6 +91,8 @@ app.use(stackingRouter);
 app.use(photosRouter);
 app.use(activityLogRouter);
 app.use(atmosphereRouter);
+app.use(warpZonesRouter);
+app.use(titlesRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
