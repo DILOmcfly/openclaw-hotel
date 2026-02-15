@@ -799,6 +799,14 @@ async function init() {
     loadInventory();
   };
 
+  ui.onMarketplaceToggle = () => {
+    console.log('[UI] Toggling marketplace panel');
+    marketplacePanel.show();
+    loadMarketplaceListings();
+    loadMyMarketplaceListings();
+    loadInventoryForMarketplace();
+  };
+
   // Avatar Customizer (initialized after login)
   let avatarCustomizer: AvatarCustomizer | null = null;
 

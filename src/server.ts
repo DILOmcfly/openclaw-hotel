@@ -56,7 +56,7 @@ app.use(gamesRouter);
 app.use(botsRouter);
 app.use(leaderboardRouter);
 app.use(appearanceRouter);
-app.use('/api/room-templates', roomTemplatesRouter);
+app.use('/api/templates', roomTemplatesRouter);
 app.use('/api/rooms', ratingRouter);
 app.use(spectatorRouter);
 app.use(directoryRouter);

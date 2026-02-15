@@ -918,6 +918,80 @@ export function setupWebSocket(server: Server): void {
           break;
         }
 
+        case 'game.tictactoe.create': {
+          try {
+            const { createGame } = await import('../services/games.js');
+            
+            const game = createGame(clientMessage.roomId, 'tictactoe', agentId);
+
+            // Get creator name
+            const [creator] = await sql`
+              SELECT display_name FROM agents WHERE id = ${agentId}
+            `;
+
+            // Broadcast to room that a new game is available
+            broadcastToRoom(clientMessage.roomId, {
+              type: 'game.created',
+              gameId: game.id,
+              gameType: 'tictactoe',
+              hostId: agentId,
+              hostName: creator?.display_name || 'Agent',
+              status: game.status,
+            });
+          } catch (error: any) {
+            sendError(ws, 'GAME_CREATE_FAILED', error.message || 'Failed to create Tic-Tac-Toe game');
+          }
+          break;
+        }
+
+        case 'game.tictactoe.move': {
+          try {
+            const { makeMove, getGameState } = await import('../services/games.js');
+            
+            const game = makeMove(clientMessage.gameId, agentId, clientMessage.cell);
+
+            // Notify all participants of the move
+            for (const participantId of game.participants) {
+              const participantWs = connections.get(participantId);
+              if (participantWs && participantWs.readyState === WebSocket.OPEN) {
+                sendMessage(participantWs, {
+                  type: 'game.tictactoe.updated',
+                  gameId: game.id,
+                  board: game.board || [],
+                  currentTurn: game.currentTurn,
+                  status: game.status,
+                });
+              }
+            }
+
+            // If game completed, send result
+            if (game.status === 'completed' && game.result) {
+              for (const participantId of game.participants) {
+                const participantWs = connections.get(participantId);
+                if (participantWs && participantWs.readyState === WebSocket.OPEN) {
+                  sendMessage(participantWs, {
+                    type: 'game.completed',
+                    gameId: game.id,
+                    winnerId: game.result.winnerId,
+                    result: game.result.details,
+                  });
+                }
+              }
+
+              // Broadcast result to room
+              broadcastToRoom(game.roomId, {
+                type: 'game.completed',
+                gameId: game.id,
+                winnerId: game.result.winnerId,
+                result: game.result.details,
+              });
+            }
+          } catch (error: any) {
+            sendError(ws, 'GAME_MOVE_FAILED', error.message || 'Failed to make Tic-Tac-Toe move');
+          }
+          break;
+        }
+
         case 'friend.request': {
           try {
             const { sendFriendRequest } = await import('../services/friends.js');

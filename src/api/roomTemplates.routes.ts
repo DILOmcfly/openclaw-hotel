@@ -1,26 +1,24 @@
 /**
  * Room Templates API Routes
- * Endpoints for browsing and creating rooms from pre-built templates
+ * Endpoints for browsing and creating rooms from templates
  */
+
 import express, { Request, Response } from 'express';
-import { validateToken } from '../services/auth.js';
-import { requireRole } from '../middleware/admin.js';
-import * as roomTemplateService from '../services/roomTemplates.js';
 import { sql } from '../db/index.js';
+import { validateToken } from '../services/auth.js';
+import * as templateService from '../services/roomTemplates.js';
 
 const router = express.Router();
 
 /**
- * GET /api/room-templates
- * Get all available room templates
- * Query params: category, includePremium
+ * GET /api/templates
+ * List all templates, optionally filtered by category
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
     const category = req.query.category as string | undefined;
-    const includePremium = req.query.includePremium === 'true';
-
-    const templates = await roomTemplateService.getAllTemplates(category, includePremium);
+    const templates = await templateService.getTemplates(category, sql);
+    
     res.json({ templates });
   } catch (error: any) {
     console.error('Get templates error:', error);
@@ -29,53 +27,17 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/room-templates/popular
- * Get most popular templates (by use_count)
- * Query params: limit (default: 10)
- */
-router.get('/popular', async (req: Request, res: Response) => {
-  try {
-    const limit = parseInt(req.query.limit as string || '10', 10);
-    const templates = await roomTemplateService.getPopularTemplates(limit);
-
-    res.json({ templates });
-  } catch (error: any) {
-    console.error('Get popular templates error:', error);
-    res.status(500).json({ error: 'Failed to fetch popular templates' });
-  }
-});
-
-/**
- * GET /api/room-templates/search
- * Search templates by name or description
- * Query params: q (query string)
- */
-router.get('/search', async (req: Request, res: Response) => {
-  try {
-    const query = req.query.q as string;
-    if (!query) {
-      return res.status(400).json({ error: 'Search query required' });
-    }
-
-    const templates = await roomTemplateService.searchTemplates(query);
-    res.json({ templates });
-  } catch (error: any) {
-    console.error('Search templates error:', error);
-    res.status(500).json({ error: 'Failed to search templates' });
-  }
-});
-
-/**
- * GET /api/room-templates/:id
- * Get a single template by ID
+ * GET /api/templates/:id
+ * Get template details by ID
  */
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const template = await roomTemplateService.getTemplateById(req.params.id as string);
+    const template = await templateService.getTemplateById(req.params.id, sql);
+    
     if (!template) {
       return res.status(404).json({ error: 'Template not found' });
     }
-
+    
     res.json({ template });
   } catch (error: any) {
     console.error('Get template error:', error);
@@ -84,95 +46,72 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/room-templates/create
- * Create a new room from a template
- * Body: { templateId: string, roomName?: string }
- * Headers: Authorization (JWT)
+ * POST /api/templates/use/:id
+ * Create a room from a template (requires authentication)
  */
-router.post('/create', validateToken, async (req: Request, res: Response) => {
+router.post('/use/:id', validateToken, async (req: Request, res: Response) => {
   try {
-    const { templateId, roomName } = req.body;
-    if (!templateId) {
-      return res.status(400).json({ error: 'Template ID required' });
+    const templateId = req.params.id;
+    const { roomName } = req.body;
+    
+    if (!roomName) {
+      return res.status(400).json({ error: 'Room name is required' });
     }
-
-    const agentId = (req as any).agentId; // From validateToken middleware
-
-    const roomId = await roomTemplateService.createRoomFromTemplate({
+    
+    const agentId = (req as any).agentId; // Set by validateToken middleware
+    
+    const roomId = await templateService.createFromTemplate(
       templateId,
-      ownerId: agentId,
+      agentId,
       roomName,
-    });
-
-    res.status(201).json({ 
-      success: true, 
+      sql
+    );
+    
+    res.status(201).json({
+      success: true,
       roomId,
-      message: 'Room created from template successfully' 
+      message: 'Room created from template successfully'
     });
   } catch (error: any) {
-    console.error('Create room from template error:', error);
+    console.error('Create from template error:', error);
     res.status(500).json({ error: error.message || 'Failed to create room from template' });
   }
 });
 
 /**
- * POST /api/room-templates/save
- * Save current room as a custom template
- * Body: { roomId: string, templateName: string, description?: string, isPrivate?: boolean }
- * Headers: Authorization (JWT)
+ * POST /api/templates
+ * Create a custom template (requires authentication)
  */
-router.post('/save', validateToken, async (req: Request, res: Response) => {
+router.post('/', validateToken, async (req: Request, res: Response) => {
   try {
-    const { roomId, templateName, description, isPrivate } = req.body;
-    if (!roomId || !templateName) {
-      return res.status(400).json({ error: 'Room ID and template name required' });
+    const { name, description, category, heightmap, furnitureLayout } = req.body;
+    
+    if (!name || !heightmap || !category) {
+      return res.status(400).json({ 
+        error: 'Name, category, and heightmap are required' 
+      });
     }
-
+    
     const agentId = (req as any).agentId;
-
-    // Ownership verification
-    const rooms = await sql`SELECT owner_id FROM rooms WHERE id = ${roomId}`;
-    if (rooms.length === 0) {
-      return res.status(404).json({ error: 'Room not found' });
-    }
-    if (rooms[0].owner_id !== agentId) {
-      return res.status(403).json({ error: 'Only room owner can save as template' });
-    }
-
-    const templateId = await roomTemplateService.saveRoomAsTemplate(
-      roomId,
-      templateName,
-      description,
-      isPrivate || false
+    
+    const templateId = await templateService.createTemplate(
+      name,
+      description || '',
+      category,
+      heightmap,
+      furnitureLayout || [],
+      agentId,
+      sql
     );
-
-    res.status(201).json({ 
-      success: true, 
+    
+    res.status(201).json({
+      success: true,
       templateId,
-      message: 'Room saved as template successfully' 
+      message: 'Template created successfully'
     });
   } catch (error: any) {
-    console.error('Save room as template error:', error);
-    res.status(500).json({ error: error.message || 'Failed to save room as template' });
-  }
-});
-
-/**
- * DELETE /api/room-templates/:id
- * Delete a custom template (admin only)
- * Headers: Authorization (JWT)
- */
-router.delete('/:id', requireRole('admin'), async (req: Request, res: Response) => {
-  try {
-    const deleted = await roomTemplateService.deleteTemplate(req.params.id as string);
-    if (!deleted) {
-      return res.status(404).json({ error: 'Template not found or not deletable' });
-    }
-
-    res.json({ success: true, message: 'Template deleted successfully' });
-  } catch (error: any) {
-    console.error('Delete template error:', error);
-    res.status(500).json({ error: 'Failed to delete template' });
+    console.error('Create template error:', error);
+    res.status(500).json({ error: error.message || 'Failed to create template' });
   }
 });
 

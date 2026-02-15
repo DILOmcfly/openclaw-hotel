@@ -3,8 +3,9 @@
  * Mini-games interface for OpenClaw Hotel
  */
 
-export type GameType = 'dice' | 'coinflip' | 'rps';
+export type GameType = 'dice' | 'coinflip' | 'rps' | 'tictactoe';
 export type GameStatus = 'waiting' | 'active' | 'completed';
+export type TicTacToeCell = 'X' | 'O' | null;
 
 export class GamePanel {
   private container!: HTMLElement;
@@ -50,6 +51,10 @@ export class GamePanel {
             <button class="game-type-btn" data-game="rps">
               <span class="game-icon">✊</span>
               <span class="game-name">Rock Paper Scissors</span>
+            </button>
+            <button class="game-type-btn" data-game="tictactoe">
+              <span class="game-icon">⭕</span>
+              <span class="game-name">Tic-Tac-Toe</span>
             </button>
           </div>
         </div>
@@ -111,6 +116,25 @@ export class GamePanel {
             </div>
           </div>
 
+          <!-- Tic-Tac-Toe Game -->
+          <div class="game-controls tictactoe-controls hidden" id="tictactoe-controls">
+            <p class="turn-indicator" id="tictactoe-turn">Waiting for opponent...</p>
+            <div class="tictactoe-grid" id="tictactoe-grid">
+              <button class="tictactoe-cell" data-cell="0"></button>
+              <button class="tictactoe-cell" data-cell="1"></button>
+              <button class="tictactoe-cell" data-cell="2"></button>
+              <button class="tictactoe-cell" data-cell="3"></button>
+              <button class="tictactoe-cell" data-cell="4"></button>
+              <button class="tictactoe-cell" data-cell="5"></button>
+              <button class="tictactoe-cell" data-cell="6"></button>
+              <button class="tictactoe-cell" data-cell="7"></button>
+              <button class="tictactoe-cell" data-cell="8"></button>
+            </div>
+            <div class="game-result hidden" id="tictactoe-result">
+              <p class="result-text" id="tictactoe-result-text"></p>
+            </div>
+          </div>
+
           <button class="btn-secondary" id="game-back-btn">Back to Menu</button>
         </div>
       </div>
@@ -166,6 +190,17 @@ export class GamePanel {
       });
     });
 
+    // Tic-Tac-Toe cells
+    const tictactoeCells = document.querySelectorAll('.tictactoe-cell');
+    tictactoeCells.forEach((cell) => {
+      cell.addEventListener('click', (e) => {
+        const cellIndex = parseInt((e.currentTarget as HTMLElement).dataset.cell as string, 10);
+        if (this.currentGameId) {
+          this.playTicTacToe(cellIndex);
+        }
+      });
+    });
+
     // Back button
     const backBtn = document.getElementById('game-back-btn');
     backBtn?.addEventListener('click', () => {
@@ -204,6 +239,12 @@ export class GamePanel {
     }
   }
 
+  private playTicTacToe(cellIndex: number): void {
+    if (this.currentGameId) {
+      this.onMakeMove?.(this.currentGameId, cellIndex);
+    }
+  }
+
   private resetToSelection(): void {
     this.currentGameId = null;
     this.currentGameType = null;
@@ -215,11 +256,20 @@ export class GamePanel {
     document.getElementById('dice-controls')?.classList.add('hidden');
     document.getElementById('coin-controls')?.classList.add('hidden');
     document.getElementById('rps-controls')?.classList.add('hidden');
+    document.getElementById('tictactoe-controls')?.classList.add('hidden');
 
     // Hide all results
     document.getElementById('dice-result')?.classList.add('hidden');
     document.getElementById('coin-result')?.classList.add('hidden');
     document.getElementById('rps-result')?.classList.add('hidden');
+    document.getElementById('tictactoe-result')?.classList.add('hidden');
+
+    // Reset Tic-Tac-Toe board
+    const cells = document.querySelectorAll('.tictactoe-cell');
+    cells.forEach((cell) => {
+      (cell as HTMLElement).textContent = '';
+      (cell as HTMLElement).disabled = false;
+    });
   }
 
   /**
@@ -249,6 +299,29 @@ export class GamePanel {
       titleEl!.textContent = '✊ Rock Paper Scissors';
       statusEl!.textContent = 'Make your choice!';
       document.getElementById('rps-controls')?.classList.remove('hidden');
+    } else if (gameType === 'tictactoe') {
+      titleEl!.textContent = '⭕ Tic-Tac-Toe';
+      statusEl!.textContent = 'Waiting for opponent...';
+      document.getElementById('tictactoe-controls')?.classList.remove('hidden');
+    }
+  }
+
+  /**
+   * Update Tic-Tac-Toe board display
+   */
+  public updateTicTacToeBoard(board: TicTacToeCell[], currentTurn: string | undefined, myId: string): void {
+    const cells = document.querySelectorAll('.tictactoe-cell');
+    cells.forEach((cell, index) => {
+      const cellEl = cell as HTMLElement;
+      cellEl.textContent = board[index] || '';
+      cellEl.disabled = !!board[index];
+    });
+
+    const turnEl = document.getElementById('tictactoe-turn');
+    if (turnEl && currentTurn) {
+      const isMyTurn = currentTurn === myId;
+      const symbol = isMyTurn ? 'X' : 'O';
+      turnEl.textContent = isMyTurn ? `Your turn (${symbol})` : `Opponent's turn`;
     }
   }
 
@@ -301,6 +374,21 @@ export class GamePanel {
       // Hide choice buttons
       const rpsBtns = document.querySelectorAll('#rps-controls .game-action-btn');
       rpsBtns.forEach((btn) => (btn as HTMLElement).classList.add('hidden'));
+    } else if (this.currentGameType === 'tictactoe' && result.tictactoe) {
+      const resultEl = document.getElementById('tictactoe-result');
+      const textEl = document.getElementById('tictactoe-result-text');
+
+      resultEl?.classList.remove('hidden');
+      
+      if (result.tictactoe.draw) {
+        textEl!.textContent = "It's a draw!";
+      } else {
+        textEl!.textContent = 'Game Over!';
+      }
+
+      // Disable all cells
+      const cells = document.querySelectorAll('.tictactoe-cell');
+      cells.forEach((cell) => ((cell as HTMLElement).disabled = true));
     }
   }
 

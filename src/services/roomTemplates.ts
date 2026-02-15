@@ -1,214 +1,180 @@
-import { v4 as uuidv4 } from 'uuid';
-import { sql } from '../db/index.js';
+/**
+ * Room Templates Service
+ * Manages room template creation, retrieval, and instantiation
+ */
 
 export interface RoomTemplate {
   id: string;
   name: string;
   description: string | null;
   category: string;
-  layout: number[][];
-  furniture_preset: Array<{
-    furnitureId: string;
-    x: number;
-    y: number;
-    rotation: number;
-  }>;
-  thumbnail_url: string | null;
-  is_premium: boolean;
+  creator_id: string | null;
+  heightmap: string;
+  furniture_layout: FurnitureItem[];
+  is_official: boolean;
   use_count: number;
-  created_at: string;
-  updated_at: string;
+  created_at: Date;
 }
 
-export interface CreateRoomFromTemplateParams {
-  templateId: string;
-  ownerId: string;
-  roomName?: string;
+export interface FurnitureItem {
+  furnitureId: string;
+  x: number;
+  y: number;
+  rotation: number;
 }
 
 /**
- * Get all available room templates
+ * Get all templates, optionally filtered by category
  */
-export async function getAllTemplates(category?: string, includePremium: boolean = false): Promise<RoomTemplate[]> {
-  let query = `
-    SELECT 
-      id, name, description, category, layout, furniture_preset,
-      thumbnail_url, is_premium, use_count, created_at, updated_at
-    FROM room_templates
-    WHERE 1=1
-  `;
-  const params: any[] = [];
-  let paramIndex = 1;
+export async function getTemplates(category: string | undefined, sql: any): Promise<RoomTemplate[]> {
+  let query: any[];
 
   if (category) {
-    query += ` AND category = $${paramIndex}`;
-    params.push(category);
-    paramIndex++;
+    query = await sql`
+      SELECT * FROM room_templates
+      WHERE category = ${category}
+      ORDER BY is_official DESC, use_count DESC, created_at DESC
+    `;
+  } else {
+    query = await sql`
+      SELECT * FROM room_templates
+      ORDER BY is_official DESC, use_count DESC, created_at DESC
+    `;
   }
 
-  if (!includePremium) {
-    query += ` AND is_premium = FALSE`;
-  }
-
-  query += ` ORDER BY use_count DESC, created_at DESC`;
-
-  const rows = await sql.unsafe(query, params);
-
-  return rows.map((row: any) => ({
+  return query.map(row => ({
     ...row,
-    layout: JSON.parse(row.layout),
-    furniture_preset: JSON.parse(row.furniture_preset),
-    is_premium: Boolean(row.is_premium),
+    furniture_layout: typeof row.furniture_layout === 'string' 
+      ? JSON.parse(row.furniture_layout) 
+      : row.furniture_layout,
+    is_official: Boolean(row.is_official),
   }));
 }
 
 /**
  * Get a single template by ID
  */
-export async function getTemplateById(templateId: string): Promise<RoomTemplate | null> {
+export async function getTemplateById(id: string, sql: any): Promise<RoomTemplate | null> {
   const rows = await sql`
-    SELECT * FROM room_templates WHERE id = ${templateId}
+    SELECT * FROM room_templates WHERE id = ${id}
   `;
 
-  if (rows.length === 0) return null;
+  if (rows.length === 0) {
+    return null;
+  }
 
   const row = rows[0];
   return {
     ...row,
-    layout: JSON.parse(row.layout),
-    furniture_preset: JSON.parse(row.furniture_preset),
-    is_premium: Boolean(row.is_premium),
-  } as RoomTemplate;
+    furniture_layout: typeof row.furniture_layout === 'string'
+      ? JSON.parse(row.furniture_layout)
+      : row.furniture_layout,
+    is_official: Boolean(row.is_official),
+  };
 }
 
 /**
- * Create a new room from a template
+ * Create a room from a template
  */
-export async function createRoomFromTemplate(params: CreateRoomFromTemplateParams): Promise<string> {
-  const template = await getTemplateById(params.templateId);
+export async function createFromTemplate(
+  templateId: string,
+  agentId: string,
+  roomName: string,
+  sql: any
+): Promise<string> {
+  const template = await getTemplateById(templateId, sql);
+  
   if (!template) {
     throw new Error('Template not found');
   }
 
-  const roomId = uuidv4();
-  const roomName = params.roomName || template.name;
-
-  const height = template.layout.length;
-  const width = template.layout[0]?.length || 0;
+  // Parse heightmap
+  const heightmapData = JSON.parse(template.heightmap);
+  const height = heightmapData.length;
+  const width = heightmapData[0]?.length || 0;
 
   if (!width || !height) {
-    throw new Error('Invalid template layout');
+    throw new Error('Invalid template heightmap');
   }
 
-  // Create room record
-  await sql`
-    INSERT INTO rooms (id, name, owner_id, heightmap, width, height, category)
-    VALUES (${roomId}, ${roomName}, ${params.ownerId}, ${JSON.stringify(template.layout)}, ${width}, ${height}, ${template.category})
+  // Generate room slug from name
+  const slug = roomName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + Date.now();
+  
+  // Create room (using UUID compatible with existing schema)
+  const roomResult = await sql`
+    INSERT INTO rooms (name, slug, description, heightmap, created_by, is_public)
+    VALUES (
+      ${roomName},
+      ${slug},
+      ${template.description || ''},
+      ${template.heightmap},
+      ${agentId},
+      true
+    )
+    RETURNING id
   `;
 
-  // Create furniture items from preset
-  for (const item of template.furniture_preset) {
+  const roomId = roomResult[0].id;
+
+  // Place furniture from template
+  for (const item of template.furniture_layout) {
     await sql`
-      INSERT INTO furniture (id, room_id, furniture_id, x, y, rotation, owner_id)
-      VALUES (${uuidv4()}, ${roomId}, ${item.furnitureId}, ${item.x}, ${item.y}, ${item.rotation}, ${params.ownerId})
+      INSERT INTO furniture (room_id, furniture_id, x, y, rotation, owner_id)
+      VALUES (
+        ${roomId},
+        ${item.furnitureId},
+        ${item.x},
+        ${item.y},
+        ${item.rotation},
+        ${agentId}
+      )
     `;
   }
 
-  // Increment use_count
-  await sql`
-    UPDATE room_templates SET use_count = use_count + 1 WHERE id = ${params.templateId}
-  `;
+  // Increment use count
+  await incrementUseCount(templateId, sql);
 
   return roomId;
 }
 
 /**
- * Save current room as a custom template
+ * Create a custom template
  */
-export async function saveRoomAsTemplate(
-  roomId: string,
-  templateName: string,
-  description?: string,
-  isPrivate: boolean = false
+export async function createTemplate(
+  name: string,
+  description: string,
+  category: string,
+  heightmap: string,
+  furnitureLayout: FurnitureItem[],
+  creatorId: string,
+  sql: any
 ): Promise<string> {
-  // Get room data
-  const rooms = await sql`
-    SELECT heightmap, width, height, category FROM rooms WHERE id = ${roomId}
-  `;
-
-  if (rooms.length === 0) {
-    throw new Error('Room not found');
-  }
-
-  const room = rooms[0];
-
-  // Get furniture in room
-  const furniture = await sql`
-    SELECT furniture_id, x, y, rotation FROM furniture WHERE room_id = ${roomId}
-  `;
-
-  const furniturePreset = furniture.map((item: any) => ({
-    furnitureId: item.furniture_id,
-    x: item.x,
-    y: item.y,
-    rotation: item.rotation,
-  }));
-
-  const templateId = uuidv4();
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now();
 
   await sql`
-    INSERT INTO room_templates (id, name, description, category, layout, furniture_preset, is_premium)
-    VALUES (${templateId}, ${templateName}, ${description || null}, ${'custom'}, ${room.heightmap}, ${JSON.stringify(furniturePreset)}, ${isPrivate})
+    INSERT INTO room_templates (id, name, description, category, heightmap, furniture_layout, creator_id, is_official)
+    VALUES (
+      ${id},
+      ${name},
+      ${description},
+      ${category},
+      ${heightmap},
+      ${JSON.stringify(furnitureLayout)},
+      ${creatorId},
+      false
+    )
   `;
 
-  return templateId;
+  return id;
 }
 
 /**
- * Delete a custom template
+ * Increment template use count
  */
-export async function deleteTemplate(templateId: string): Promise<boolean> {
-  const result = await sql`
-    DELETE FROM room_templates WHERE id = ${templateId} AND category = 'custom'
+export async function incrementUseCount(templateId: string, sql: any): Promise<void> {
+  await sql`
+    UPDATE room_templates
+    SET use_count = use_count + 1
+    WHERE id = ${templateId}
   `;
-
-  return result.count > 0;
-}
-
-/**
- * Get popular templates (most used)
- */
-export async function getPopularTemplates(limit: number = 10): Promise<RoomTemplate[]> {
-  const rows = await sql`
-    SELECT * FROM room_templates 
-    WHERE is_premium = FALSE 
-    ORDER BY use_count DESC, created_at DESC 
-    LIMIT ${limit}
-  `;
-
-  return rows.map((row: any) => ({
-    ...row,
-    layout: JSON.parse(row.layout),
-    furniture_preset: JSON.parse(row.furniture_preset),
-    is_premium: Boolean(row.is_premium),
-  }));
-}
-
-/**
- * Search templates by name
- */
-export async function searchTemplates(query: string): Promise<RoomTemplate[]> {
-  const rows = await sql`
-    SELECT * FROM room_templates 
-    WHERE LOWER(name) LIKE ${`%${query.toLowerCase()}%`} OR LOWER(description) LIKE ${`%${query.toLowerCase()}%`}
-    ORDER BY use_count DESC
-    LIMIT 20
-  `;
-
-  return rows.map((row: any) => ({
-    ...row,
-    layout: JSON.parse(row.layout),
-    furniture_preset: JSON.parse(row.furniture_preset),
-    is_premium: Boolean(row.is_premium),
-  }));
 }
