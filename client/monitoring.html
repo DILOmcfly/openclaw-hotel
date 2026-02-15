@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenClaw Hotel - Real-time Monitoring</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #1a1a2e;
+        color: #fff;
+        font-family: "Courier New", Courier, monospace;
+      }
+
+      h1 {
+        margin: 0 0 20px;
+        font-size: 2rem;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .stat-card {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .stat-label {
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.7);
+        margin-bottom: 8px;
+      }
+
+      .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #00d9ff;
+      }
+
+      .charts {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 24px;
+      }
+
+      .chart-container {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .chart-container h2 {
+        margin: 0 0 16px;
+        font-size: 1.2rem;
+      }
+
+      .chart-wrapper {
+        position: relative;
+        height: 300px;
+      }
+
+      .status {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #00ff00;
+        margin-left: 8px;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+
+      .update-time {
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.5);
+        margin-top: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🔴 Real-time Monitoring <span class="status"></span></h1>
+    
+    <div class="stats" id="stats">
+      <div class="stat-card">
+        <div class="stat-label">Connected Agents</div>
+        <div class="stat-value" id="connectedAgents">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active Rooms</div>
+        <div class="stat-value" id="activeRooms">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Messages/Second</div>
+        <div class="stat-value" id="messagesPerSecond">0.00</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Trades/Hour</div>
+        <div class="stat-value" id="tradesPerHour">0</div>
+      </div>
+    </div>
+
+    <div class="charts">
+      <div class="chart-container">
+        <h2>Active Agents (24h)</h2>
+        <div class="chart-wrapper">
+          <canvas id="agentsChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-container">
+        <h2>Active Rooms (24h)</h2>
+        <div class="chart-wrapper">
+          <canvas id="roomsChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-container">
+        <h2>Messages/Second (24h)</h2>
+        <div class="chart-wrapper">
+          <canvas id="messagesChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-container">
+        <h2>Trades/Hour (24h)</h2>
+        <div class="chart-wrapper">
+          <canvas id="tradesChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="update-time" id="updateTime">Last updated: Never</div>
+
+    <script>
+      // Chart configuration
+      const chartConfig = {
+        type: 'line',
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+          },
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                unit: 'hour',
+                displayFormats: { hour: 'HH:mm' },
+              },
+              grid: { color: 'rgba(255, 255, 255, 0.1)' },
+              ticks: { color: 'rgba(255, 255, 255, 0.7)' },
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(255, 255, 255, 0.1)' },
+              ticks: { color: 'rgba(255, 255, 255, 0.7)' },
+            },
+          },
+        },
+      };
+
+      // Initialize charts
+      const agentsChart = new Chart(
+        document.getElementById('agentsChart'),
+        {
+          ...chartConfig,
+          data: {
+            datasets: [{
+              label: 'Agents',
+              data: [],
+              borderColor: '#00d9ff',
+              backgroundColor: 'rgba(0, 217, 255, 0.1)',
+              fill: true,
+              tension: 0.4,
+            }],
+          },
+        }
+      );
+
+      const roomsChart = new Chart(
+        document.getElementById('roomsChart'),
+        {
+          ...chartConfig,
+          data: {
+            datasets: [{
+              label: 'Rooms',
+              data: [],
+              borderColor: '#ff00ff',
+              backgroundColor: 'rgba(255, 0, 255, 0.1)',
+              fill: true,
+              tension: 0.4,
+            }],
+          },
+        }
+      );
+
+      const messagesChart = new Chart(
+        document.getElementById('messagesChart'),
+        {
+          ...chartConfig,
+          data: {
+            datasets: [{
+              label: 'Messages/s',
+              data: [],
+              borderColor: '#00ff00',
+              backgroundColor: 'rgba(0, 255, 0, 0.1)',
+              fill: true,
+              tension: 0.4,
+            }],
+          },
+        }
+      );
+
+      const tradesChart = new Chart(
+        document.getElementById('tradesChart'),
+        {
+          ...chartConfig,
+          data: {
+            datasets: [{
+              label: 'Trades/hr',
+              data: [],
+              borderColor: '#ffff00',
+              backgroundColor: 'rgba(255, 255, 0, 0.1)',
+              fill: true,
+              tension: 0.4,
+            }],
+          },
+        }
+      );
+
+      // Update current stats
+      async function updateStats() {
+        try {
+          const res = await fetch('/metrics');
+          const data = await res.json();
+          
+          document.getElementById('connectedAgents').textContent = data.connectedAgents;
+          document.getElementById('activeRooms').textContent = data.activeRooms;
+          document.getElementById('messagesPerSecond').textContent = data.messagesPerSecond.toFixed(2);
+          document.getElementById('tradesPerHour').textContent = data.tradesPerHour;
+          
+          document.getElementById('updateTime').textContent = 
+            `Last updated: ${new Date().toLocaleTimeString()}`;
+        } catch (err) {
+          console.error('Failed to update stats:', err);
+        }
+      }
+
+      // Update historical charts
+      async function updateCharts() {
+        try {
+          const res = await fetch('/metrics/history');
+          const history = await res.json();
+          
+          // Transform data for Chart.js
+          const agentsData = history.map(s => ({ x: s.timestamp, y: s.connectedAgents }));
+          const roomsData = history.map(s => ({ x: s.timestamp, y: s.activeRooms }));
+          const messagesData = history.map(s => ({ x: s.timestamp, y: s.messagesPerSecond }));
+          const tradesData = history.map(s => ({ x: s.timestamp, y: s.tradesPerHour }));
+          
+          agentsChart.data.datasets[0].data = agentsData;
+          roomsChart.data.datasets[0].data = roomsData;
+          messagesChart.data.datasets[0].data = messagesData;
+          tradesChart.data.datasets[0].data = tradesData;
+          
+          agentsChart.update('none');
+          roomsChart.update('none');
+          messagesChart.update('none');
+          tradesChart.update('none');
+        } catch (err) {
+          console.error('Failed to update charts:', err);
+        }
+      }
+
+      // Initial load
+      updateStats();
+      updateCharts();
+
+      // Update stats every 5 seconds
+      setInterval(updateStats, 5000);
+
+      // Update charts every 60 seconds
+      setInterval(updateCharts, 60000);
+    </script>
+  </body>
+</html>

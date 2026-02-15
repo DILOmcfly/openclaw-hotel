@@ -119,7 +119,7 @@ import ttsRouter from './api/tts.routes.js';
 import roomScriptsRouter from './api/roomScripts.routes.js';
 import analyticsRouter from './api/analytics.routes.js';
 import { config } from './config.js';
-import { getMetrics } from './services/metrics.js';
+import { getMetrics, getHistoricalMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
 import { setupWebSocket } from './ws/handler.js';
 import { setupSpectatorWebSocket } from './ws/spectator.js';
@@ -262,10 +262,20 @@ app.get('/metrics', (_req, res) => {
   res.json(getMetrics());
 });
 
+app.get('/metrics/history', (_req, res) => {
+  res.json(getHistoricalMetrics());
+});
+
 app.get('/admin', (_req, res) => {
   res
     .type('html')
     .send(readFileSync(join(import.meta.dirname, '..', 'client', 'admin.html'), 'utf8'));
+});
+
+app.get('/monitoring', (_req, res) => {
+  res
+    .type('html')
+    .send(readFileSync(join(import.meta.dirname, '..', 'client', 'monitoring.html'), 'utf8'));
 });
 
 app.get('/spectate', (_req, res) => {

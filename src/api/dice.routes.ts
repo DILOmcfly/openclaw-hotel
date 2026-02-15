@@ -64,13 +64,27 @@ router.get('/api/dice/leaderboard', async (req, res) => {
   }
 });
 
-router.get('/api/dice/odds/:diceCount/:targetType/:targetValue?', async (req, res) => {
+// Route with targetValue
+router.get('/api/dice/odds/:diceCount/:targetType/:targetValue', async (req, res) => {
   try {
     const diceCount = parseInt(req.params.diceCount);
     const targetType = req.params.targetType;
-    const targetValue = req.params.targetValue ? parseInt(req.params.targetValue) : null;
+    const targetValue = parseInt(req.params.targetValue);
     const odds = diceService.calculateOdds(diceCount, targetType, targetValue);
     res.json({ diceCount, targetType, targetValue, odds, percentage: (odds * 100).toFixed(2) + '%' });
+  } catch (error) {
+    console.error('[Dice API] Error calculating odds:', error);
+    res.status(500).json({ error: 'Failed to calculate odds' });
+  }
+});
+
+// Route without targetValue
+router.get('/api/dice/odds/:diceCount/:targetType', async (req, res) => {
+  try {
+    const diceCount = parseInt(req.params.diceCount);
+    const targetType = req.params.targetType;
+    const odds = diceService.calculateOdds(diceCount, targetType, null);
+    res.json({ diceCount, targetType, targetValue: null, odds, percentage: (odds * 100).toFixed(2) + '%' });
   } catch (error) {
     console.error('[Dice API] Error calculating odds:', error);
     res.status(500).json({ error: 'Failed to calculate odds' });
