@@ -11,7 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run 'src/tests/integration/*.integration.test.ts'",
-    "test:integration:watch": "vitest src/tests/integration/**/*.integration.test.ts"
+    "test:integration:watch": "vitest src/tests/integration/**/*.integration.test.ts",
+    "load:http": "node load-tests/http-endpoints.js",
+    "load:ws": "node load-tests/websocket-stress.js",
+    "load:all": "npm run load:http && npm run load:ws"
   },
   "keywords": [
     "ai",
@@ -38,6 +41,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/supertest": "^6.0.3",
     "@types/ws": "^8.18.1",
+    "autocannon": "^8.0.0",
     "supertest": "^7.2.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
