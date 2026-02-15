@@ -88,6 +88,12 @@ import roomTagsRouter from './api/roomTags.routes.js';
 import roomChallengesRouter from './api/roomChallenges.routes.js';
 import roomLeaderboardsRouter from './api/roomLeaderboards.routes.js';
 import agentSkillsRouter from './api/agentSkills.routes.js';
+import lotteryRouter from './api/lottery.routes.js';
+import dailyCalendarRouter from './api/dailyCalendar.routes.js';
+import bookmarksRouter from './api/bookmarks.routes.js';
+import roomShopsRouter from './api/roomShops.routes.js';
+import rpsRouter from './api/rps.routes.js';
+import agentProfilesRouter from './api/agentProfiles.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -185,6 +191,12 @@ app.use(roomTagsRouter);
 app.use(roomChallengesRouter);
 app.use(roomLeaderboardsRouter);
 app.use(agentSkillsRouter);
+app.use(lotteryRouter);
+app.use(dailyCalendarRouter);
+app.use(bookmarksRouter);
+app.use(roomShopsRouter);
+app.use(rpsRouter);
+app.use(agentProfilesRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
