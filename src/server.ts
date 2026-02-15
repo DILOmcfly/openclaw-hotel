@@ -141,6 +141,8 @@ app.use(express.json());
 
 // Serve static files from client directory
 app.use(express.static(join(import.meta.dirname, '..', 'client')));
+// Serve static assets (sprites, etc.)
+app.use('/assets', express.static(join(import.meta.dirname, '..', 'public/assets')));
 
 // === PUBLIC ROUTES (no auth required) ===
 app.get('/health', (_req, res) => {
