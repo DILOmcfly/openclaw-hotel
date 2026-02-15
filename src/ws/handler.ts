@@ -10,6 +10,7 @@ import { validateRoomAccess, isRoomFull } from '../services/roomPrivacy.js';
 import { isAgentMuted, checkMessageFilters, muteAgent } from '../services/moderationTools.js';
 import { isBanned, isGuest } from '../services/roomPermissions.js';
 import { calculateActionImpacts, updateTraitFromAction } from '../services/personality.js';
+import { processTriggerEvent, type TriggerEvent, type ScriptAction } from '../services/scriptEngine.js';
 
 export const connections = new Map<string, WebSocket>();
 export const roomMembers = new Map<string, Set<string>>();
@@ -23,6 +24,73 @@ function trackAction(agentId: string, actionType: string): void {
     updateTraitFromAction(sql, agentId, impacts).catch((err) => {
       console.error('[PERSONALITY] Error updating traits:', err);
     });
+  }
+}
+
+/**
+ * Execute script actions from room automation (Wired System)
+ */
+async function executeScriptActions(actions: ScriptAction[], roomId: string): Promise<void> {
+  for (const action of actions) {
+    try {
+      switch (action.type) {
+        case 'teleport_agent':
+          if (action.targetAgentId) {
+            broadcastToRoom(roomId, {
+              type: 'agent.teleport',
+              roomId,
+              agentId: action.targetAgentId,
+              x: action.data.x,
+              y: action.data.y,
+            });
+          }
+          break;
+
+        case 'show_message':
+          broadcastToRoom(roomId, {
+            type: 'message.new',
+            roomId,
+            agentId: '00000000-0000-0000-0000-000000000000',
+            displayName: 'Wired System',
+            content: action.data.text,
+            signature: '',
+            timestamp: new Date().toISOString(),
+          });
+          break;
+
+        case 'toggle_furniture':
+          broadcastToRoom(roomId, {
+            type: 'furniture.toggle',
+            roomId,
+            itemId: action.data.itemId,
+            state: action.data.state,
+          });
+          break;
+
+        case 'give_coins':
+          if (action.targetAgentId) {
+            // Update agent's coins
+            await sql`
+              UPDATE agents
+              SET coins = COALESCE(coins, 0) + ${action.data.amount}
+              WHERE id = ${action.targetAgentId}::uuid
+            `;
+
+            // Notify the agent
+            const ws = connections.get(action.targetAgentId);
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              sendMessage(ws, {
+                type: 'coins.received',
+                amount: action.data.amount,
+                source: 'wired_system',
+              });
+            }
+          }
+          break;
+      }
+    } catch (error) {
+      console.error('[WIRED] Error executing script action:', error);
+    }
   }
 }
 
@@ -317,6 +385,26 @@ export function setupWebSocket(server: Server): void {
 
           // Track personality: exploring new rooms increases curiosity
           trackAction(agentId, 'room_explore');
+
+          // Trigger room scripts: agent_enters
+          processTriggerEvent(
+            {
+              type: 'agent_enters',
+              roomId: clientMessage.roomId,
+              agentId,
+              data: {},
+            },
+            sql
+          ).then((actions) => {
+            if (actions.length > 0) {
+              executeScriptActions(actions, clientMessage.roomId).catch((err) => {
+                console.error('[WIRED] Error executing agent_enters actions:', err);
+              });
+            }
+          }).catch((err) => {
+            console.error('[WIRED] Error processing agent_enters trigger:', err);
+          });
+
           break;
         }
 
@@ -457,6 +545,25 @@ export function setupWebSocket(server: Server): void {
             timestamp,
           });
 
+          // Trigger room scripts: chat_keyword
+          processTriggerEvent(
+            {
+              type: 'chat_keyword',
+              roomId: clientMessage.roomId,
+              agentId,
+              data: { message: clientMessage.content },
+            },
+            sql
+          ).then((actions) => {
+            if (actions.length > 0) {
+              executeScriptActions(actions, clientMessage.roomId).catch((err) => {
+                console.error('[WIRED] Error executing chat_keyword actions:', err);
+              });
+            }
+          }).catch((err) => {
+            console.error('[WIRED] Error processing chat_keyword trigger:', err);
+          });
+
           // Generate TTS audio for spectators (async, non-blocking)
           if (process.env.TTS_ENABLED !== 'false') {
             import('../services/tts.js').then(async ({ synthesizeSpeech, getVoiceForArchetype, sanitizeText }) => {
@@ -556,6 +663,25 @@ export function setupWebSocket(server: Server): void {
 
             // Track personality: furniture placement increases curiosity
             trackAction(agentId, 'furniture_placed');
+
+            // Trigger room scripts: furniture_clicked (using placed item as interaction)
+            processTriggerEvent(
+              {
+                type: 'furniture_clicked',
+                roomId: clientMessage.roomId,
+                agentId,
+                data: { itemId: placedItem.id },
+              },
+              sql
+            ).then((actions) => {
+              if (actions.length > 0) {
+                executeScriptActions(actions, clientMessage.roomId).catch((err) => {
+                  console.error('[WIRED] Error executing furniture_clicked actions:', err);
+                });
+              }
+            }).catch((err) => {
+              console.error('[WIRED] Error processing furniture_clicked trigger:', err);
+            });
           } catch (error: any) {
             sendError(ws, 'PLACEMENT_FAILED', error.message || 'Failed to place furniture');
           }

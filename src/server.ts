@@ -116,6 +116,7 @@ import mentorshipRouter from './api/mentorship.routes.js';
 import wishlistsRouter from './api/wishlists.routes.js';
 import guestbookRouter from './api/guestbook.routes.js';
 import ttsRouter from './api/tts.routes.js';
+import roomScriptsRouter from './api/roomScripts.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -241,6 +242,7 @@ app.use(mentorshipRouter);
 app.use(wishlistsRouter);
 app.use(guestbookRouter);
 app.use(ttsRouter);
+app.use(roomScriptsRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
