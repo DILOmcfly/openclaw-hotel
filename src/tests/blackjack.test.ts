@@ -1,8 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { createGame, hit, stand, getGameState, getPlayerValue, getDealerValue } from '../services/blackjack.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createGame, hit, stand, getGameState, getPlayerValue, getDealerValue, clearBlackjackGames } from '../services/blackjack.js';
 
 describe('Blackjack Service', () => {
   const roomId = 'test-room-1';
+  
+  beforeEach(() => { clearBlackjackGames(); });
   const playerId = 'player-1';
 
   describe('createGame', () => {

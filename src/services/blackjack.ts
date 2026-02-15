@@ -247,3 +247,4 @@ export function getDealerValue(gameId: string): number {
   }
   return calculateHandValue(game.dealerHand);
 }
+export function clearBlackjackGames() { games.clear(); }
