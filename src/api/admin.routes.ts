@@ -22,6 +22,8 @@ function getQueryParam(value: any): string {
  */
 router.get('/api/admin/agents', requireRole('moderator'), async (req, res) => {
   try {
+    // PERFORMANCE: Added LIMIT to prevent unbounded query
+    // TODO: Implement proper pagination with offset/cursor
     const agents = await sql`
       SELECT 
         id, 
@@ -34,6 +36,7 @@ router.get('/api/admin/agents', requireRole('moderator'), async (req, res) => {
         trust_level
       FROM agents
       ORDER BY created_at DESC
+      LIMIT 1000
     `;
 
     res.json({ agents });
@@ -181,6 +184,8 @@ router.post('/api/admin/agents/:id/ban', requireRole('moderator'), async (req, r
  */
 router.get('/api/admin/rooms', requireRole('moderator'), async (req, res) => {
   try {
+    // PERFORMANCE: Added LIMIT to prevent unbounded query with expensive JOINs
+    // TODO: Implement proper pagination
     const rooms = await sql`
       SELECT 
         r.id,
@@ -197,6 +202,7 @@ router.get('/api/admin/rooms', requireRole('moderator'), async (req, res) => {
       LEFT JOIN presence p ON r.id = p.room_id
       GROUP BY r.id, a.display_name
       ORDER BY r.created_at DESC
+      LIMIT 500
     `;
 
     res.json({ rooms });

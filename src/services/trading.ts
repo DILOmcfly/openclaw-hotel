@@ -142,16 +142,22 @@ export async function updateTradeItems(
       throw new Error('Agent is not part of this trade');
     }
     
-    // Verify agent owns the items
-    for (const item of items) {
-      const [inventory] = await tx`
-        SELECT quantity
+    // Verify agent owns the items (batch query)
+    if (items.length > 0) {
+      const itemDefIds = items.map(i => i.itemDefId);
+      const inventoryRows = await tx`
+        SELECT item_def_id, quantity
         FROM user_inventory
-        WHERE agent_id = ${agentId} AND item_def_id = ${item.itemDefId}
+        WHERE agent_id = ${agentId} AND item_def_id = ANY(${itemDefIds})
       `;
       
-      if (!inventory || inventory.quantity < item.quantity) {
-        throw new Error(`Insufficient quantity of ${item.itemDefId}`);
+      const inventoryMap = new Map(inventoryRows.map((r: any) => [r.item_def_id, r.quantity]));
+      
+      for (const item of items) {
+        const availableQty = inventoryMap.get(item.itemDefId) || 0;
+        if (availableQty < item.quantity) {
+          throw new Error(`Insufficient quantity of ${item.itemDefId}`);
+        }
       }
     }
     
@@ -161,11 +167,16 @@ export async function updateTradeItems(
       WHERE trade_id = ${tradeId} AND agent_id = ${agentId}
     `;
     
-    // Insert new items
-    for (const item of items) {
+    // Insert new items (batch insert)
+    if (items.length > 0) {
       await tx`
         INSERT INTO trade_items (trade_id, agent_id, item_def_id, quantity)
-        VALUES (${tradeId}, ${agentId}, ${item.itemDefId}, ${item.quantity})
+        SELECT * FROM ${tx(items.map(item => ({
+          trade_id: tradeId,
+          agent_id: agentId,
+          item_def_id: item.itemDefId,
+          quantity: item.quantity
+        })))}
       `;
     }
   });
@@ -202,36 +213,55 @@ export async function acceptTrade(tradeId: string, acceptingAgentId: string, sql
       WHERE trade_id = ${tradeId}
     `;
     
-    // Verify both agents still have the items
-    for (const item of tradeItems) {
-      const [inventory] = await tx`
-        SELECT quantity
+    // Verify both agents still have the items (batch query)
+    if (tradeItems.length > 0) {
+      const inventoryChecks = tradeItems.map((item: any) => 
+        ({ agent_id: item.agentId, item_def_id: item.itemDefId })
+      );
+      
+      const inventoryRows = await tx`
+        SELECT agent_id, item_def_id, quantity
         FROM user_inventory
-        WHERE agent_id = ${item.agentId} AND item_def_id = ${item.itemDefId}
+        WHERE (agent_id, item_def_id) IN ${tx(inventoryChecks)}
       `;
       
-      if (!inventory || inventory.quantity < item.quantity) {
-        throw new Error(`Agent ${item.agentId} no longer has sufficient ${item.itemDefId}`);
+      const inventoryMap = new Map(
+        inventoryRows.map((r: any) => [`${r.agent_id}:${r.item_def_id}`, r.quantity])
+      );
+      
+      for (const item of tradeItems) {
+        const key = `${item.agentId}:${item.itemDefId}`;
+        const availableQty = inventoryMap.get(key) || 0;
+        if (availableQty < item.quantity) {
+          throw new Error(`Agent ${item.agentId} no longer has sufficient ${item.itemDefId}`);
+        }
       }
     }
     
-    // Transfer items atomically
-    for (const item of tradeItems) {
-      const recipientId = item.agentId === trade.initiatorId ? trade.targetId : trade.initiatorId;
+    // Transfer items atomically (batch operations using CTE)
+    if (tradeItems.length > 0) {
+      const transfers = tradeItems.map((item: any) => ({
+        sender_id: item.agentId,
+        recipient_id: item.agentId === trade.initiatorId ? trade.targetId : trade.initiatorId,
+        item_def_id: item.itemDefId,
+        quantity: item.quantity
+      }));
       
-      // Deduct from sender
+      // Deduct from senders
       await tx`
-        UPDATE user_inventory
-        SET quantity = quantity - ${item.quantity}
-        WHERE agent_id = ${item.agentId} AND item_def_id = ${item.itemDefId}
+        UPDATE user_inventory ui
+        SET quantity = ui.quantity - t.quantity
+        FROM ${tx(transfers)} AS t(sender_id, recipient_id, item_def_id, quantity)
+        WHERE ui.agent_id = t.sender_id AND ui.item_def_id = t.item_def_id
       `;
       
-      // Add to recipient
+      // Add to recipients
       await tx`
         INSERT INTO user_inventory (agent_id, item_def_id, quantity)
-        VALUES (${recipientId}, ${item.itemDefId}, ${item.quantity})
+        SELECT recipient_id, item_def_id, quantity
+        FROM ${tx(transfers)} AS t(sender_id, recipient_id, item_def_id, quantity)
         ON CONFLICT (agent_id, item_def_id)
-        DO UPDATE SET quantity = user_inventory.quantity + ${item.quantity}
+        DO UPDATE SET quantity = user_inventory.quantity + EXCLUDED.quantity
       `;
     }
     

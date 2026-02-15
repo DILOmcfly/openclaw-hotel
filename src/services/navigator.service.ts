@@ -176,8 +176,9 @@ export async function getRecentRooms(agentId: string, limit = 10): Promise<RoomL
  * Get all available categories
  */
 export async function getCategories(): Promise<string[]> {
+  // PERFORMANCE: Added LIMIT as safety measure for unbounded DISTINCT query
   const result = await sql`
-    SELECT DISTINCT category FROM rooms WHERE category IS NOT NULL ORDER BY category
+    SELECT DISTINCT category FROM rooms WHERE category IS NOT NULL ORDER BY category LIMIT 100
   `;
   return result.map((row: any) => row.category);
 }
@@ -186,8 +187,9 @@ export async function getCategories(): Promise<string[]> {
  * Get all available tags
  */
 export async function getTags(): Promise<string[]> {
+  // PERFORMANCE: Added LIMIT as safety measure for unbounded DISTINCT query
   const result = await sql`
-    SELECT DISTINCT tag FROM room_tags ORDER BY tag
+    SELECT DISTINCT tag FROM room_tags ORDER BY tag LIMIT 100
   `;
   return result.map((row: any) => row.tag);
 }

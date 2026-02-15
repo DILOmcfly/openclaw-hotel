@@ -26,7 +26,16 @@ router.post('/api/guilds', async (req, res) => {
 
 router.get('/api/guilds', async (req, res) => {
   try {
-    const guilds = await sql<any[]>`SELECT id, name, description, tag, badge_icon AS "badgeIcon", leader_id AS "leaderId", member_count AS "memberCount", created_at AS "createdAt" FROM guilds ORDER BY member_count DESC, created_at DESC`;
+    // PERFORMANCE: Added LIMIT to prevent unbounded query
+    // TODO: Implement pagination with limit/offset query params
+    const guilds = await sql<any[]>`
+      SELECT id, name, description, tag, badge_icon AS "badgeIcon", 
+             leader_id AS "leaderId", member_count AS "memberCount", 
+             created_at AS "createdAt" 
+      FROM guilds 
+      ORDER BY member_count DESC, created_at DESC
+      LIMIT 200
+    `;
     res.json({ guilds });
   } catch (error: any) {
     logger.error('Failed to fetch guilds', { error });

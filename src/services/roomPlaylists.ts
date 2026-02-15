@@ -109,8 +109,19 @@ export async function reorderByVotes(playlistId: number, sql: any): Promise<void
   const tracks = await getTracks(playlistId, sql);
   const sorted = tracks.sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
 
-  for (let i = 0; i < sorted.length; i++) {
-    await sql`UPDATE playlist_tracks SET position = ${i + 1} WHERE id = ${sorted[i].id}`;
+  // Batch update positions using VALUES clause
+  if (sorted.length > 0) {
+    const updates = sorted.map((track, index) => ({
+      id: track.id,
+      position: index + 1
+    }));
+    
+    await sql`
+      UPDATE playlist_tracks pt
+      SET position = u.position
+      FROM ${sql(updates)} AS u(id, position)
+      WHERE pt.id = u.id
+    `;
   }
 }
 

@@ -88,22 +88,27 @@ export async function getInbox(agentId: string, sql: any): Promise<InboxEntry[]>
       ORDER BY 
         CASE WHEN sender_id = ${agentId} THEN receiver_id ELSE sender_id END,
         created_at DESC
+    ),
+    unread_counts AS (
+      SELECT 
+        sender_id AS partner_id,
+        COUNT(*) AS unread_count
+      FROM whispers
+      WHERE 
+        receiver_id = ${agentId}
+        AND read = false
+        AND deleted_by_receiver = false
+      GROUP BY sender_id
     )
     SELECT 
-      partner_id AS "partnerId",
-      last_message AS "lastMessage",
-      last_message_at AS "lastMessageAt",
-      read,
-      (
-        SELECT COUNT(*)
-        FROM whispers w
-        WHERE w.receiver_id = ${agentId} 
-          AND w.sender_id = latest_messages.partner_id
-          AND w.read = false
-          AND w.deleted_by_receiver = false
-      ) AS "unreadCount"
-    FROM latest_messages
-    ORDER BY last_message_at DESC
+      lm.partner_id AS "partnerId",
+      lm.last_message AS "lastMessage",
+      lm.last_message_at AS "lastMessageAt",
+      lm.read,
+      COALESCE(uc.unread_count, 0)::int AS "unreadCount"
+    FROM latest_messages lm
+    LEFT JOIN unread_counts uc ON lm.partner_id = uc.partner_id
+    ORDER BY lm.last_message_at DESC
   `;
 }
 

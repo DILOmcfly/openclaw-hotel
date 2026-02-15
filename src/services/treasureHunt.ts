@@ -124,9 +124,16 @@ export async function endHunt(huntId: number, sql: any): Promise<{ completedAgen
     WHERE hunt_id = ${huntId} AND found_count = ${hunt.totalTreasures}
   `;
   const completedAgents = completers.map((c: any) => c.agentId);
-  for (const agentId of completedAgents) {
-    await sql`UPDATE agent_balances SET coins = coins + ${hunt.bonusCompletion} WHERE agent_id = ${agentId}`;
+  
+  // Batch update coins for all completers
+  if (completedAgents.length > 0) {
+    await sql`
+      UPDATE agent_balances
+      SET coins = coins + ${hunt.bonusCompletion}
+      WHERE agent_id = ANY(${completedAgents})
+    `;
   }
+  
   await sql`UPDATE treasure_hunts SET status = 'completed' WHERE id = ${huntId}`;
   return { completedAgents, bonusAwarded: hunt.bonusCompletion };
 }
