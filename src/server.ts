@@ -56,6 +56,8 @@ import mailRouter from './api/mail.routes.js';
 import furniturePresetsRouter from './api/furniturePresets.routes.js';
 import favoritesRouter from './api/favorites.routes.js';
 import agentSettingsRouter from './api/agentSettings.routes.js';
+import agentBiosRouter from './api/agentBios.routes.js';
+import chatHistoryRouter from './api/chatHistory.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -97,6 +99,7 @@ app.use(teleportRouter);
 app.use(petsRouter);
 app.use(agentStatusRouter);
 app.use(agentSettingsRouter);
+app.use(agentBiosRouter);
 app.use(eventsRouter);
 app.use(rollersRouter);
 app.use(pollsRouter);
@@ -121,6 +124,7 @@ app.use(reportsRouter);
 app.use(mailRouter);
 app.use(furniturePresetsRouter);
 app.use(favoritesRouter);
+app.use(chatHistoryRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
