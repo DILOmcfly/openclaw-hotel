@@ -1,11 +1,49 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
-import { app } from '../server.js';
-import { resetMetrics, incMetric } from '../services/metrics.js';
+import express from 'express';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { getMetrics, getHistoricalMetrics, resetMetrics, incMetric } from '../services/metrics.js';
+
+// Build a minimal Express app with ONLY the monitoring routes
+// This avoids importing server.ts which pulls in Redis, DB, etc.
+function createTestApp() {
+  const app = express();
+
+  app.get('/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  app.get('/metrics', (_req, res) => {
+    res.json(getMetrics());
+  });
+
+  app.get('/metrics/history', (_req, res) => {
+    res.json(getHistoricalMetrics());
+  });
+
+  app.get('/monitoring', (_req, res) => {
+    // Resolve path relative to src/ directory (same as server.ts does)
+    const srcDir = join(dirname(fileURLToPath(import.meta.url)), '..');
+    res
+      .type('html')
+      .send(readFileSync(join(srcDir, '..', 'client', 'monitoring.html'), 'utf8'));
+  });
+
+  return app;
+}
 
 describe('Monitoring Routes', () => {
+  let app: express.Express;
+
   beforeEach(() => {
     resetMetrics();
+    app = createTestApp();
   });
 
   describe('GET /metrics', () => {
@@ -48,7 +86,6 @@ describe('Monitoring Routes', () => {
     });
 
     it('historical entries have correct structure', async () => {
-      // Add some metrics
       incMetric('connectedAgents');
       incMetric('totalMessages');
       
@@ -56,7 +93,6 @@ describe('Monitoring Routes', () => {
       
       expect(res.status).toBe(200);
       
-      // Historical data might be empty if no snapshot taken yet
       if (res.body.length > 0) {
         const entry = res.body[0];
         expect(entry).toHaveProperty('timestamp');
