@@ -107,6 +107,8 @@ import donationsRouter from './api/donations.routes.js';
 import wardrobeRouter from './api/wardrobe.routes.js';
 import visitorLogRouter from './api/visitorLog.routes.js';
 import soundboardRouter from './api/soundboard.routes.js';
+import fortunesRouter from './api/fortunes.routes.js';
+import timeCapsulesRouter from './api/timeCapsules.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -223,6 +225,8 @@ app.use(donationsRouter);
 app.use(wardrobeRouter);
 app.use(visitorLogRouter);
 app.use(soundboardRouter);
+app.use(fortunesRouter);
+app.use(timeCapsulesRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });

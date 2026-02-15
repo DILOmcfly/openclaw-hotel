@@ -386,8 +386,7 @@ async function init() {
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          itemId,
-          itemType: item.itemDefId,
+          item_id: itemId,
           price,
         }),
       });
@@ -451,7 +450,7 @@ async function init() {
       const token = ui.getToken();
       if (!token) return;
 
-      const response = await fetch('/api/marketplace/mine', {
+      const response = await fetch('/api/marketplace/my-listings', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       

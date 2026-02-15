@@ -1,316 +1,306 @@
-/**
- * Marketplace Service - Agent-to-agent furniture trading
- */
+import { sql } from '../db';
 
-import type { Sql } from 'postgres';
-import { createId } from '@paralleldrive/cuid2';
-
-export type MarketplaceListing = {
+export interface MarketplaceListing {
   id: string;
-  itemId: string;
-  sellerId: string;
-  itemType: string;
+  item_id: string;
+  seller_id: string;
   price: number;
   status: 'active' | 'sold' | 'cancelled';
-  buyerId: string | null;
-  createdAt: Date;
-  soldAt: Date | null;
-};
+  created_at: Date;
+  sold_at: Date | null;
+  buyer_id: string | null;
+  // Enriched fields (from JOINs)
+  item_type?: string;
+  seller_name?: string;
+  buyer_name?: string;
+}
 
-export type ListingFilters = {
+export interface ListingFilters {
   status?: 'active' | 'sold' | 'cancelled';
-  itemType?: string;
-  minPrice?: number;
-  maxPrice?: number;
+  seller_id?: string;
+  item_type?: string;
+  min_price?: number;
+  max_price?: number;
   search?: string;
-};
+  limit?: number;
+  offset?: number;
+}
 
 /**
  * Create a new marketplace listing
+ * Validates ownership before listing
  */
 export async function createListing(
   itemId: string,
   sellerId: string,
-  itemType: string,
   price: number,
-  sql: Sql
-): Promise<MarketplaceListing> {
+  sqlClient: any = sql
+): Promise<MarketplaceListing | null> {
   // Validate price
-  if (price <= 0 || price > 100000) {
-    throw new Error('Price must be between 1 and 100,000 coins');
+  if (price <= 0 || price > 1000000) {
+    throw new Error('Invalid price (must be 1-1000000 coins)');
   }
 
-  // Verify ownership and that item is not placed in a room
-  const [item] = await sql`
-    SELECT agent_id AS "agentId", room_id AS "roomId"
-    FROM furniture
-    WHERE id = ${itemId}
+  // Verify ownership: item must exist in room_furniture with agent_id = sellerId
+  const ownership = await sqlClient`
+    SELECT id, item_type, room_id FROM room_furniture
+    WHERE id = ${itemId} AND agent_id = ${sellerId}
+    LIMIT 1
   `;
 
-  if (!item) {
-    throw new Error('Item not found');
+  if (ownership.length === 0) {
+    throw new Error('Item not found or you do not own it');
   }
 
-  if (item.agentId !== sellerId) {
-    throw new Error('You do not own this item');
-  }
-
-  if (item.roomId !== null) {
-    throw new Error('Cannot list items that are placed in a room');
-  }
-
-  // Check if item is already listed
-  const [existing] = await sql`
-    SELECT id FROM marketplace_listings
-    WHERE item_id = ${itemId} AND status = 'active'
+  // Create listing
+  const listing = await sqlClient`
+    INSERT INTO marketplace_listings (item_id, seller_id, price, status, created_at)
+    VALUES (${itemId}, ${sellerId}, ${price}, 'active', NOW())
+    RETURNING *
   `;
 
-  if (existing) {
-    throw new Error('Item is already listed on the marketplace');
-  }
-
-  const id = createId();
-
-  const [listing] = await sql<MarketplaceListing[]>`
-    INSERT INTO marketplace_listings (id, item_id, seller_id, item_type, price, status)
-    VALUES (${id}, ${itemId}, ${sellerId}, ${itemType}, ${price}, 'active')
-    RETURNING 
-      id,
-      item_id AS "itemId",
-      seller_id AS "sellerId",
-      item_type AS "itemType",
-      price,
-      status,
-      buyer_id AS "buyerId",
-      created_at AS "createdAt",
-      sold_at AS "soldAt"
-  `;
-
-  return listing;
+  return listing[0] || null;
 }
 
 /**
- * Buy a listing - atomic transfer of coins and item
- */
-export async function buyListing(
-  listingId: string,
-  buyerId: string,
-  sql: Sql
-): Promise<void> {
-  await sql.begin(async (tx: any) => {
-    // Get listing
-    const [listing] = await tx`
-      SELECT 
-        id,
-        item_id AS "itemId",
-        seller_id AS "sellerId",
-        item_type AS "itemType",
-        price,
-        status
-      FROM marketplace_listings
-      WHERE id = ${listingId}
-    `;
-
-    if (!listing) {
-      throw new Error('Listing not found');
-    }
-
-    if (listing.status !== 'active') {
-      throw new Error('Listing is not active');
-    }
-
-    if (listing.sellerId === buyerId) {
-      throw new Error('Cannot buy your own listing');
-    }
-
-    // Check buyer has enough coins
-    const [buyerBalance] = await tx`
-      SELECT coins FROM agent_balances WHERE agent_id = ${buyerId}
-    `;
-
-    if (!buyerBalance || buyerBalance.coins < listing.price) {
-      throw new Error('Insufficient funds');
-    }
-
-    // Verify item still exists and belongs to seller
-    const [item] = await tx`
-      SELECT agent_id AS "agentId"
-      FROM furniture
-      WHERE id = ${listing.itemId}
-    `;
-
-    if (!item) {
-      throw new Error('Item no longer exists');
-    }
-
-    if (item.agentId !== listing.sellerId) {
-      throw new Error('Item ownership has changed');
-    }
-
-    // Deduct coins from buyer
-    await tx`
-      UPDATE agent_balances
-      SET coins = coins - ${listing.price}
-      WHERE agent_id = ${buyerId}
-    `;
-
-    // Add coins to seller
-    await tx`
-      UPDATE agent_balances
-      SET coins = coins + ${listing.price}
-      WHERE agent_id = ${listing.sellerId}
-    `;
-
-    // Transfer item ownership
-    await tx`
-      UPDATE furniture
-      SET agent_id = ${buyerId}
-      WHERE id = ${listing.itemId}
-    `;
-
-    // Mark listing as sold
-    await tx`
-      UPDATE marketplace_listings
-      SET status = 'sold', buyer_id = ${buyerId}, sold_at = NOW()
-      WHERE id = ${listingId}
-    `;
-  });
-}
-
-/**
- * Cancel a listing (seller only)
- */
-export async function cancelListing(
-  listingId: string,
-  sellerId: string,
-  sql: Sql
-): Promise<void> {
-  const [listing] = await sql`
-    SELECT seller_id AS "sellerId", status
-    FROM marketplace_listings
-    WHERE id = ${listingId}
-  `;
-
-  if (!listing) {
-    throw new Error('Listing not found');
-  }
-
-  if (listing.sellerId !== sellerId) {
-    throw new Error('Only the seller can cancel this listing');
-  }
-
-  if (listing.status !== 'active') {
-    throw new Error('Listing is not active');
-  }
-
-  await sql`
-    UPDATE marketplace_listings
-    SET status = 'cancelled'
-    WHERE id = ${listingId}
-  `;
-}
-
-/**
- * Get marketplace listings with filters and pagination
+ * Get all marketplace listings with filters
  */
 export async function getListings(
-  filters: ListingFilters,
-  page: number = 1,
-  limit: number = 20,
-  sql: Sql
+  filters: ListingFilters = {},
+  sqlClient: any = sql
 ): Promise<MarketplaceListing[]> {
-  const offset = (page - 1) * limit;
-  const conditions = ['TRUE'];
+  const {
+    status = 'active',
+    seller_id,
+    item_type,
+    min_price,
+    max_price,
+    search,
+    limit = 50,
+    offset = 0,
+  } = filters;
 
-  if (filters.status) {
-    conditions.push(`status = '${filters.status}'`);
-  }
-
-  if (filters.itemType) {
-    conditions.push(`item_type = '${filters.itemType}'`);
-  }
-
-  if (filters.minPrice !== undefined) {
-    conditions.push(`price >= ${filters.minPrice}`);
-  }
-
-  if (filters.maxPrice !== undefined) {
-    conditions.push(`price <= ${filters.maxPrice}`);
-  }
-
-  if (filters.search) {
-    const searchTerm = filters.search.toLowerCase();
-    conditions.push(`LOWER(item_type) LIKE '%${searchTerm}%'`);
-  }
-
-  const whereClause = conditions.join(' AND ');
-
-  const listings = await sql<MarketplaceListing[]>`
+  let query = `
     SELECT 
-      id,
-      item_id AS "itemId",
-      seller_id AS "sellerId",
-      item_type AS "itemType",
-      price,
-      status,
-      buyer_id AS "buyerId",
-      created_at AS "createdAt",
-      sold_at AS "soldAt"
-    FROM marketplace_listings
-    WHERE ${sql.unsafe(whereClause)}
-    ORDER BY created_at DESC
-    LIMIT ${limit}
-    OFFSET ${offset}
+      ml.*, 
+      rf.item_type,
+      seller.name AS seller_name,
+      buyer.name AS buyer_name
+    FROM marketplace_listings ml
+    JOIN room_furniture rf ON ml.item_id = rf.id
+    JOIN agents seller ON ml.seller_id = seller.id
+    LEFT JOIN agents buyer ON ml.buyer_id = buyer.id
+    WHERE ml.status = $1
   `;
+  const params: any[] = [status];
+  let paramIndex = 2;
 
+  if (seller_id) {
+    query += ` AND ml.seller_id = $${paramIndex}`;
+    params.push(seller_id);
+    paramIndex++;
+  }
+
+  if (item_type) {
+    query += ` AND rf.item_type = $${paramIndex}`;
+    params.push(item_type);
+    paramIndex++;
+  }
+
+  if (min_price !== undefined) {
+    query += ` AND ml.price >= $${paramIndex}`;
+    params.push(min_price);
+    paramIndex++;
+  }
+
+  if (max_price !== undefined) {
+    query += ` AND ml.price <= $${paramIndex}`;
+    params.push(max_price);
+    paramIndex++;
+  }
+
+  if (search) {
+    query += ` AND (rf.item_type ILIKE $${paramIndex} OR seller.name ILIKE $${paramIndex})`;
+    params.push(`%${search}%`);
+    paramIndex++;
+  }
+
+  query += ` ORDER BY ml.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+  params.push(limit, offset);
+
+  const listings = await sqlClient.unsafe(query, params);
   return listings;
 }
 
 /**
- * Get listings for a specific agent (as seller)
+ * Get a single listing by ID
  */
-export async function getMyListings(
-  agentId: string,
-  sql: Sql
-): Promise<MarketplaceListing[]> {
-  return await sql<MarketplaceListing[]>`
+export async function getListing(
+  listingId: string,
+  sqlClient: any = sql
+): Promise<MarketplaceListing | null> {
+  const listings = await sqlClient`
     SELECT 
-      id,
-      item_id AS "itemId",
-      seller_id AS "sellerId",
-      item_type AS "itemType",
-      price,
-      status,
-      buyer_id AS "buyerId",
-      created_at AS "createdAt",
-      sold_at AS "soldAt"
-    FROM marketplace_listings
-    WHERE seller_id = ${agentId}
-    ORDER BY created_at DESC
+      ml.*, 
+      rf.item_type,
+      seller.name AS seller_name,
+      buyer.name AS buyer_name
+    FROM marketplace_listings ml
+    JOIN room_furniture rf ON ml.item_id = rf.id
+    JOIN agents seller ON ml.seller_id = seller.id
+    LEFT JOIN agents buyer ON ml.buyer_id = buyer.id
+    WHERE ml.id = ${listingId}
+    LIMIT 1
   `;
+  return listings[0] || null;
 }
 
 /**
- * Get a specific listing by ID
+ * Get all listings by a specific seller
  */
-export async function getListingById(
+export async function getMyListings(
+  sellerId: string,
+  sqlClient: any = sql
+): Promise<MarketplaceListing[]> {
+  return getListings({ seller_id: sellerId, status: 'active' }, sqlClient);
+}
+
+/**
+ * Buy a listing (transaction: transfer item, deduct coins, mark sold)
+ */
+export async function buyListing(
   listingId: string,
-  sql: Sql
-): Promise<MarketplaceListing | null> {
-  const [listing] = await sql<MarketplaceListing[]>`
-    SELECT 
-      id,
-      item_id AS "itemId",
-      seller_id AS "sellerId",
-      item_type AS "itemType",
-      price,
-      status,
-      buyer_id AS "buyerId",
-      created_at AS "createdAt",
-      sold_at AS "soldAt"
-    FROM marketplace_listings
+  buyerId: string,
+  sqlClient: any = sql
+): Promise<{ success: boolean; error?: string }> {
+  // Get listing details
+  const listing = await getListing(listingId, sqlClient);
+  if (!listing) {
+    return { success: false, error: 'Listing not found' };
+  }
+
+  if (listing.status !== 'active') {
+    return { success: false, error: 'Listing is not active' };
+  }
+
+  if (listing.seller_id === buyerId) {
+    return { success: false, error: 'Cannot buy your own listing' };
+  }
+
+  // Check buyer balance
+  const buyerBalance = await sqlClient`
+    SELECT coins FROM agent_balances WHERE agent_id = ${buyerId} LIMIT 1
+  `;
+  if (buyerBalance.length === 0 || buyerBalance[0].coins < listing.price) {
+    return { success: false, error: 'Insufficient coins' };
+  }
+
+  // BEGIN TRANSACTION
+  try {
+    await sqlClient.begin(async (tx: any) => {
+      // 1. Deduct coins from buyer
+      await tx`
+        UPDATE agent_balances
+        SET coins = coins - ${listing.price}
+        WHERE agent_id = ${buyerId}
+      `;
+
+      // 2. Add coins to seller
+      await tx`
+        UPDATE agent_balances
+        SET coins = coins + ${listing.price}
+        WHERE agent_id = ${listing.seller_id}
+      `;
+
+      // 3. Transfer item ownership
+      await tx`
+        UPDATE room_furniture
+        SET agent_id = ${buyerId}
+        WHERE id = ${listing.item_id}
+      `;
+
+      // 4. Mark listing as sold
+      await tx`
+        UPDATE marketplace_listings
+        SET status = 'sold', sold_at = NOW(), buyer_id = ${buyerId}
+        WHERE id = ${listingId}
+      `;
+
+      // 5. Update seller's trade_count
+      await tx`
+        UPDATE agent_profiles
+        SET trade_count = trade_count + 1
+        WHERE agent_id = ${listing.seller_id}
+      `;
+
+      // 6. Update buyer's trade_count
+      await tx`
+        UPDATE agent_profiles
+        SET trade_count = trade_count + 1
+        WHERE agent_id = ${buyerId}
+      `;
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Marketplace] Buy transaction failed:', error);
+    return { success: false, error: 'Transaction failed' };
+  }
+}
+
+/**
+ * Cancel a listing (only seller can cancel)
+ */
+export async function cancelListing(
+  listingId: string,
+  sellerId: string,
+  sqlClient: any = sql
+): Promise<{ success: boolean; error?: string }> {
+  // Verify ownership
+  const listing = await getListing(listingId, sqlClient);
+  if (!listing) {
+    return { success: false, error: 'Listing not found' };
+  }
+
+  if (listing.seller_id !== sellerId) {
+    return { success: false, error: 'Not your listing' };
+  }
+
+  if (listing.status !== 'active') {
+    return { success: false, error: 'Listing is not active' };
+  }
+
+  // Mark as cancelled
+  await sqlClient`
+    UPDATE marketplace_listings
+    SET status = 'cancelled'
     WHERE id = ${listingId}
   `;
 
-  return listing || null;
+  return { success: true };
+}
+
+/**
+ * Get marketplace statistics
+ */
+export async function getMarketplaceStats(
+  sqlClient: any = sql
+): Promise<{
+  total_active: number;
+  total_sold_24h: number;
+  avg_price: number;
+}> {
+  const stats = await sqlClient`
+    SELECT
+      COUNT(*) FILTER (WHERE status = 'active') AS total_active,
+      COUNT(*) FILTER (WHERE status = 'sold' AND sold_at > NOW() - INTERVAL '24 hours') AS total_sold_24h,
+      AVG(price) FILTER (WHERE status = 'active') AS avg_price
+    FROM marketplace_listings
+  `;
+
+  return {
+    total_active: parseInt(stats[0]?.total_active || '0'),
+    total_sold_24h: parseInt(stats[0]?.total_sold_24h || '0'),
+    avg_price: parseFloat(stats[0]?.avg_price || '0'),
+  };
 }

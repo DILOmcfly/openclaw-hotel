@@ -537,6 +537,28 @@ export type ServerMessage =
   | AgentAppearanceMsg
   | SpectatorConnectedMsg
   | SpectatorCountMsg
+  | MarketplaceNewListingMsg
+  | MarketplaceSoldMsg
+
+// Marketplace Messages (Server → Client)
+export interface MarketplaceNewListingMsg {
+  type: 'marketplace.new_listing'
+  listing: {
+    id: string
+    item_type: string
+    price: number
+    seller_name: string
+  }
+}
+
+export interface MarketplaceSoldMsg {
+  type: 'marketplace.sold'
+  listingId: string
+  itemType: string
+  price: number
+  buyerName: string
+  sellerName: string
+}
 
 export function parseClientMessage(data: string): ClientMessage {
   const parsed = JSON.parse(data)

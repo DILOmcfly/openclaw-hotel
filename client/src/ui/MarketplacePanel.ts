@@ -1,34 +1,45 @@
 /**
  * MarketplacePanel.ts
- * Agent-to-agent marketplace for buying/selling furniture
+ * Marketplace interface for buying/selling furniture
  */
 
 export type MarketplaceListing = {
   id: string;
-  itemId: string;
-  sellerId: string;
-  itemType: string;
+  item_id: string;
+  seller_id: string;
   price: number;
   status: 'active' | 'sold' | 'cancelled';
-  buyerId: string | null;
-  createdAt: string;
-  soldAt: string | null;
+  created_at: string;
+  sold_at: string | null;
+  buyer_id: string | null;
+  item_type?: string;
+  seller_name?: string;
+  buyer_name?: string;
+};
+
+export type MarketplaceStats = {
+  total_active: number;
+  total_sold_24h: number;
+  avg_price: number;
 };
 
 export class MarketplacePanel {
   private container!: HTMLElement;
   private listings: MarketplaceListing[] = [];
   private myListings: MarketplaceListing[] = [];
-  private currentTab: 'browse' | 'myListings' | 'create' = 'browse';
-  private searchQuery: string = '';
-  private itemTypeFilter: string = 'all';
-  private sortBy: 'newest' | 'price-low' | 'price-high' = 'newest';
-  private inventoryItems: any[] = [];
+  private stats: MarketplaceStats = { total_active: 0, total_sold_24h: 0, avg_price: 0 };
+  private currentTab: 'browse' | 'my-listings' = 'browse';
+  private currentFilter: {
+    item_type?: string;
+    min_price?: number;
+    max_price?: number;
+    search?: string;
+  } = {};
 
-  public onRefresh?: () => void;
   public onBuy?: (listingId: string) => void;
-  public onCreateListing?: (itemId: string, price: number) => void;
   public onCancelListing?: (listingId: string) => void;
+  public onRefresh?: () => void;
+  public onCreateListing?: (itemId: string, price: number) => void;
 
   constructor() {
     this.createUI();
@@ -49,86 +60,76 @@ export class MarketplacePanel {
         <button class="panel-close" id="marketplace-close">×</button>
       </div>
 
+      <div class="marketplace-stats" id="marketplace-stats">
+        <div class="stat-item">
+          <span class="stat-label">Active</span>
+          <span class="stat-value" id="stat-active">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Sold (24h)</span>
+          <span class="stat-value" id="stat-sold">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Avg Price</span>
+          <span class="stat-value" id="stat-avg">0</span>
+        </div>
+      </div>
+
       <div class="marketplace-tabs">
-        <button class="tab-btn active" data-tab="browse">Browse</button>
-        <button class="tab-btn" data-tab="myListings">My Listings</button>
-        <button class="tab-btn" data-tab="create">Create Listing</button>
+        <button class="tab-btn active" id="tab-browse">Browse</button>
+        <button class="tab-btn" id="tab-my-listings">My Listings</button>
+      </div>
+
+      <div class="marketplace-filters" id="marketplace-filters">
+        <div class="filter-group">
+          <select id="marketplace-item-type">
+            <option value="">All Items</option>
+            <option value="chair">Chairs</option>
+            <option value="table">Tables</option>
+            <option value="lamp">Lamps</option>
+            <option value="plant">Plants</option>
+            <option value="sofa">Sofas</option>
+            <option value="bookshelf">Bookshelves</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <input 
+            type="number" 
+            id="marketplace-min-price" 
+            placeholder="Min price" 
+            min="0" 
+            max="1000000"
+          />
+          <span>—</span>
+          <input 
+            type="number" 
+            id="marketplace-max-price" 
+            placeholder="Max price" 
+            min="0" 
+            max="1000000"
+          />
+        </div>
+
+        <div class="filter-group">
+          <input 
+            type="text" 
+            id="marketplace-search" 
+            placeholder="Search..." 
+            maxlength="50"
+          />
+        </div>
       </div>
 
       <div class="marketplace-content">
-        <!-- Browse Tab -->
-        <div class="tab-content active" data-tab-content="browse">
-          <div class="marketplace-filters">
-            <input 
-              type="text" 
-              id="marketplace-search" 
-              placeholder="Search items..." 
-              maxlength="50"
-            />
-            
-            <select id="marketplace-type-filter">
-              <option value="all">All Items</option>
-              <option value="chair">Chairs</option>
-              <option value="table">Tables</option>
-              <option value="lamp">Lamps</option>
-              <option value="sofa">Sofas</option>
-              <option value="bed">Beds</option>
-            </select>
-
-            <select id="marketplace-sort">
-              <option value="newest">Newest First</option>
-              <option value="price-low">Price: Low to High</option>
-              <option value="price-high">Price: High to Low</option>
-            </select>
-          </div>
-
-          <div class="marketplace-grid" id="marketplace-browse-grid">
-            <div class="loading">Loading marketplace...</div>
-          </div>
-        </div>
-
-        <!-- My Listings Tab -->
-        <div class="tab-content" data-tab-content="myListings">
-          <div class="marketplace-grid" id="marketplace-my-grid">
-            <div class="loading">Loading your listings...</div>
-          </div>
-        </div>
-
-        <!-- Create Listing Tab -->
-        <div class="tab-content" data-tab-content="create">
-          <div class="create-listing-form">
-            <h4>List an Item for Sale</h4>
-            <div class="form-group">
-              <label>Select Item from Inventory (storage only):</label>
-              <select id="listing-item-select">
-                <option value="">-- Select an item --</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>Price (coins):</label>
-              <input 
-                type="number" 
-                id="listing-price" 
-                min="1" 
-                max="100000" 
-                placeholder="Enter price (1-100,000)"
-              />
-            </div>
-
-            <button class="create-listing-btn" id="create-listing-submit">
-              Create Listing
-            </button>
-
-            <div class="form-hint">
-              💡 Only items in your storage (not placed in a room) can be listed.
-            </div>
-          </div>
+        <div class="marketplace-grid" id="marketplace-grid">
+          <div class="loading">Loading listings...</div>
         </div>
       </div>
 
       <div class="marketplace-footer">
         <button class="refresh-btn" id="marketplace-refresh">🔄 Refresh</button>
+        <span class="listing-count" id="marketplace-count">0 listings</span>
       </div>
     `;
 
@@ -148,36 +149,60 @@ export class MarketplacePanel {
     });
 
     // Tab switching
-    const tabBtns = this.container.querySelectorAll('.tab-btn');
-    tabBtns.forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        const tab = (e.target as HTMLElement).getAttribute('data-tab') as 'browse' | 'myListings' | 'create';
-        this.switchTab(tab);
-      });
-    });
+    const browseTab = document.getElementById('tab-browse');
+    browseTab?.addEventListener('click', () => this.switchTab('browse'));
+
+    const myListingsTab = document.getElementById('tab-my-listings');
+    myListingsTab?.addEventListener('click', () => this.switchTab('my-listings'));
 
     // Filters
+    const itemTypeFilter = document.getElementById('marketplace-item-type') as HTMLSelectElement;
+    itemTypeFilter?.addEventListener('change', () => {
+      this.currentFilter.item_type = itemTypeFilter.value || undefined;
+      this.applyFilters();
+    });
+
+    const minPriceInput = document.getElementById('marketplace-min-price') as HTMLInputElement;
+    minPriceInput?.addEventListener('input', () => {
+      const value = parseInt(minPriceInput.value);
+      this.currentFilter.min_price = isNaN(value) ? undefined : value;
+      this.applyFilters();
+    });
+
+    const maxPriceInput = document.getElementById('marketplace-max-price') as HTMLInputElement;
+    maxPriceInput?.addEventListener('input', () => {
+      const value = parseInt(maxPriceInput.value);
+      this.currentFilter.max_price = isNaN(value) ? undefined : value;
+      this.applyFilters();
+    });
+
     const searchInput = document.getElementById('marketplace-search') as HTMLInputElement;
-    searchInput?.addEventListener('input', (e) => {
-      this.searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
-      this.renderBrowseListings();
+    searchInput?.addEventListener('input', () => {
+      this.currentFilter.search = searchInput.value || undefined;
+      this.applyFilters();
     });
+  }
 
-    const typeFilter = document.getElementById('marketplace-type-filter') as HTMLSelectElement;
-    typeFilter?.addEventListener('change', (e) => {
-      this.itemTypeFilter = (e.target as HTMLSelectElement).value;
-      this.renderBrowseListings();
-    });
+  private switchTab(tab: 'browse' | 'my-listings'): void {
+    this.currentTab = tab;
 
-    const sortSelect = document.getElementById('marketplace-sort') as HTMLSelectElement;
-    sortSelect?.addEventListener('change', (e) => {
-      this.sortBy = (e.target as HTMLSelectElement).value as 'newest' | 'price-low' | 'price-high';
-      this.renderBrowseListings();
-    });
+    const browseTab = document.getElementById('tab-browse');
+    const myListingsTab = document.getElementById('tab-my-listings');
+    const filtersDiv = document.getElementById('marketplace-filters');
 
-    // Create listing form
-    const createBtn = document.getElementById('create-listing-submit');
-    createBtn?.addEventListener('click', () => this.handleCreateListing());
+    browseTab?.classList.toggle('active', tab === 'browse');
+    myListingsTab?.classList.toggle('active', tab === 'my-listings');
+
+    // Hide filters in "My Listings" tab
+    if (filtersDiv) {
+      filtersDiv.style.display = tab === 'browse' ? 'flex' : 'none';
+    }
+
+    this.render();
+  }
+
+  private applyFilters(): void {
+    this.render();
   }
 
   public show(): void {
@@ -188,230 +213,163 @@ export class MarketplacePanel {
     this.container.classList.add('hidden');
   }
 
-  public toggle(): void {
-    this.container.classList.toggle('hidden');
-  }
-
-  private switchTab(tab: 'browse' | 'myListings' | 'create'): void {
-    this.currentTab = tab;
-
-    // Update tab buttons
-    const tabBtns = this.container.querySelectorAll('.tab-btn');
-    tabBtns.forEach((btn) => {
-      if (btn.getAttribute('data-tab') === tab) {
-        btn.classList.add('active');
-      } else {
-        btn.classList.remove('active');
-      }
-    });
-
-    // Update tab content
-    const tabContents = this.container.querySelectorAll('.tab-content');
-    tabContents.forEach((content) => {
-      if (content.getAttribute('data-tab-content') === tab) {
-        content.classList.add('active');
-      } else {
-        content.classList.remove('active');
-      }
-    });
-
-    // Load data for the tab
-    if (tab === 'myListings') {
-      this.renderMyListings();
-    } else if (tab === 'create') {
-      this.renderCreateForm();
-    }
-  }
-
   public setListings(listings: MarketplaceListing[]): void {
     this.listings = listings;
-    this.renderBrowseListings();
+    if (this.currentTab === 'browse') {
+      this.render();
+    }
   }
 
   public setMyListings(listings: MarketplaceListing[]): void {
     this.myListings = listings;
-    this.renderMyListings();
+    if (this.currentTab === 'my-listings') {
+      this.render();
+    }
   }
 
-  public setInventoryItems(items: any[]): void {
-    this.inventoryItems = items.filter(item => item.roomId === null);
-    this.renderCreateForm();
+  public setStats(stats: MarketplaceStats): void {
+    this.stats = stats;
+    this.updateStats();
   }
 
-  private renderBrowseListings(): void {
-    const grid = document.getElementById('marketplace-browse-grid');
+  private updateStats(): void {
+    const activeEl = document.getElementById('stat-active');
+    const soldEl = document.getElementById('stat-sold');
+    const avgEl = document.getElementById('stat-avg');
+
+    if (activeEl) activeEl.textContent = this.stats.total_active.toString();
+    if (soldEl) soldEl.textContent = this.stats.total_sold_24h.toString();
+    if (avgEl) avgEl.textContent = `${Math.round(this.stats.avg_price)} 🪙`;
+  }
+
+  private render(): void {
+    const grid = document.getElementById('marketplace-grid');
     if (!grid) return;
 
-    let filtered = this.listings.filter(listing => listing.status === 'active');
+    const listingsToShow = this.currentTab === 'browse' ? this.filterListings() : this.myListings;
 
-    // Apply filters
-    if (this.itemTypeFilter !== 'all') {
-      filtered = filtered.filter(l => l.itemType === this.itemTypeFilter);
+    if (listingsToShow.length === 0) {
+      grid.innerHTML = `
+        <div class="empty-state">
+          ${this.currentTab === 'browse' 
+            ? 'No listings found' 
+            : 'You have no active listings'}
+        </div>
+      `;
+      this.updateCount(0);
+      return;
     }
 
-    if (this.searchQuery) {
+    grid.innerHTML = '';
+
+    listingsToShow.forEach(listing => {
+      const card = this.createListingCard(listing);
+      grid.appendChild(card);
+    });
+
+    this.updateCount(listingsToShow.length);
+  }
+
+  private filterListings(): MarketplaceListing[] {
+    let filtered = this.listings.filter(l => l.status === 'active');
+
+    if (this.currentFilter.item_type) {
+      filtered = filtered.filter(l => l.item_type === this.currentFilter.item_type);
+    }
+
+    if (this.currentFilter.min_price !== undefined) {
+      filtered = filtered.filter(l => l.price >= this.currentFilter.min_price!);
+    }
+
+    if (this.currentFilter.max_price !== undefined) {
+      filtered = filtered.filter(l => l.price <= this.currentFilter.max_price!);
+    }
+
+    if (this.currentFilter.search) {
+      const query = this.currentFilter.search.toLowerCase();
       filtered = filtered.filter(l => 
-        l.itemType.toLowerCase().includes(this.searchQuery)
+        l.item_type?.toLowerCase().includes(query) ||
+        l.seller_name?.toLowerCase().includes(query)
       );
     }
 
-    // Apply sorting
-    filtered = this.sortListings(filtered);
+    // Sort by price (lowest first)
+    filtered.sort((a, b) => a.price - b.price);
 
-    if (filtered.length === 0) {
-      grid.innerHTML = '<div class="empty-state">No listings found</div>';
-      return;
-    }
+    return filtered;
+  }
 
-    grid.innerHTML = filtered.map(listing => `
-      <div class="marketplace-card">
-        <div class="card-icon">${this.getItemEmoji(listing.itemType)}</div>
-        <div class="card-info">
-          <h4>${this.escapeHtml(listing.itemType)}</h4>
-          <p class="card-price">🪙 ${listing.price}</p>
-          <p class="card-seller">Seller: ${this.escapeHtml(listing.sellerId.substring(0, 8))}...</p>
-        </div>
-        <button class="buy-btn" data-listing-id="${listing.id}">
-          Buy Now
-        </button>
+  private createListingCard(listing: MarketplaceListing): HTMLElement {
+    const card = document.createElement('div');
+    card.className = 'listing-card';
+
+    const isMyListing = this.currentTab === 'my-listings';
+
+    card.innerHTML = `
+      <div class="listing-header">
+        <span class="listing-item-type">${this.escapeHtml(listing.item_type || 'Item')}</span>
+        <span class="listing-price">${listing.price} 🪙</span>
       </div>
-    `).join('');
-
-    this.attachBuyButtons();
-  }
-
-  private renderMyListings(): void {
-    const grid = document.getElementById('marketplace-my-grid');
-    if (!grid) return;
-
-    if (this.myListings.length === 0) {
-      grid.innerHTML = '<div class="empty-state">You have no listings yet</div>';
-      return;
-    }
-
-    grid.innerHTML = this.myListings.map(listing => `
-      <div class="marketplace-card ${listing.status !== 'active' ? 'inactive' : ''}">
-        <div class="card-icon">${this.getItemEmoji(listing.itemType)}</div>
-        <div class="card-info">
-          <h4>${this.escapeHtml(listing.itemType)}</h4>
-          <p class="card-price">🪙 ${listing.price}</p>
-          <p class="card-status status-${listing.status}">${listing.status.toUpperCase()}</p>
-          ${listing.buyerId ? `<p class="card-buyer">Buyer: ${this.escapeHtml(listing.buyerId.substring(0, 8))}...</p>` : ''}
+      <div class="listing-body">
+        <div class="listing-seller">
+          Seller: <strong>${this.escapeHtml(listing.seller_name || 'Unknown')}</strong>
         </div>
-        ${listing.status === 'active' ? `
-          <button class="cancel-btn" data-listing-id="${listing.id}">
-            Cancel
-          </button>
-        ` : ''}
+        <div class="listing-date">
+          Listed: ${this.formatDate(listing.created_at)}
+        </div>
       </div>
-    `).join('');
-
-    this.attachCancelButtons();
-  }
-
-  private renderCreateForm(): void {
-    const select = document.getElementById('listing-item-select') as HTMLSelectElement;
-    if (!select) return;
-
-    if (this.inventoryItems.length === 0) {
-      select.innerHTML = '<option value="">No items available in storage</option>';
-      return;
-    }
-
-    select.innerHTML = '<option value="">-- Select an item --</option>' +
-      this.inventoryItems.map(item => `
-        <option value="${item.id}" data-type="${item.itemDefId}">
-          ${this.getItemEmoji(item.itemDefId)} ${this.escapeHtml(item.itemDefId)}
-        </option>
-      `).join('');
-  }
-
-  private sortListings(listings: MarketplaceListing[]): MarketplaceListing[] {
-    const sorted = [...listings];
-
-    if (this.sortBy === 'newest') {
-      sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    } else if (this.sortBy === 'price-low') {
-      sorted.sort((a, b) => a.price - b.price);
-    } else if (this.sortBy === 'price-high') {
-      sorted.sort((a, b) => b.price - a.price);
-    }
-
-    return sorted;
-  }
-
-  private attachBuyButtons(): void {
-    const buyButtons = this.container.querySelectorAll('.buy-btn');
-    buyButtons.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const listingId = (e.target as HTMLElement).getAttribute('data-listing-id');
-        if (listingId) {
-          const listing = this.listings.find(l => l.id === listingId);
-          if (listing && confirm(`Buy ${listing.itemType} for ${listing.price} coins?`)) {
-            this.onBuy?.(listingId);
-          }
+      <div class="listing-actions">
+        ${isMyListing
+          ? `<button class="cancel-btn" data-id="${listing.id}">Cancel</button>`
+          : `<button class="buy-btn" data-id="${listing.id}">Buy</button>`
         }
-      });
+      </div>
+    `;
+
+    // Attach button listeners
+    const buyBtn = card.querySelector('.buy-btn');
+    buyBtn?.addEventListener('click', () => {
+      if (confirm(`Buy ${listing.item_type} for ${listing.price} coins?`)) {
+        this.onBuy?.(listing.id);
+      }
     });
-  }
 
-  private attachCancelButtons(): void {
-    const cancelButtons = this.container.querySelectorAll('.cancel-btn');
-    cancelButtons.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const listingId = (e.target as HTMLElement).getAttribute('data-listing-id');
-        if (listingId) {
-          if (confirm('Cancel this listing?')) {
-            this.onCancelListing?.(listingId);
-          }
-        }
-      });
+    const cancelBtn = card.querySelector('.cancel-btn');
+    cancelBtn?.addEventListener('click', () => {
+      if (confirm(`Cancel listing for ${listing.item_type}?`)) {
+        this.onCancelListing?.(listing.id);
+      }
     });
+
+    return card;
   }
 
-  private handleCreateListing(): void {
-    const select = document.getElementById('listing-item-select') as HTMLSelectElement;
-    const priceInput = document.getElementById('listing-price') as HTMLInputElement;
-
-    const itemId = select.value;
-    const price = parseInt(priceInput.value, 10);
-
-    if (!itemId) {
-      alert('Please select an item');
-      return;
+  private updateCount(count: number): void {
+    const countEl = document.getElementById('marketplace-count');
+    if (countEl) {
+      countEl.textContent = `${count} listing${count !== 1 ? 's' : ''}`;
     }
-
-    if (isNaN(price) || price < 1 || price > 100000) {
-      alert('Please enter a valid price (1-100,000 coins)');
-      return;
-    }
-
-    this.onCreateListing?.(itemId, price);
   }
 
-  private getItemEmoji(itemType: string): string {
-    const emojis: Record<string, string> = {
-      chair: '🪑',
-      table: '🍽️',
-      lamp: '💡',
-      plant: '🌿',
-      rug: '🧶',
-      bookshelf: '📚',
-      desk: '🖥️',
-      sofa: '🛋️',
-      bed: '🛏️',
-      cabinet: '🗄️',
-    };
+  private formatDate(dateStr: string): string {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
 
-    return emojis[itemType] || '📦';
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+
+    return date.toLocaleDateString();
   }
 
-  private escapeHtml(unsafe: string): string {
-    return unsafe
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+  private escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 }
