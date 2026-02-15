@@ -11,17 +11,12 @@ import {
 } from '../services/relationships.js';
 
 const router = express.Router();
+const validTypes: RelationshipType[] = ['rival', 'partner', 'mentor', 'mentee', 'blocked'];
 
-/**
- * POST /api/relationships
- * Set a relationship with another agent
- */
 router.post('/api/relationships', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
     const { agentId } = validateToken(token);
     const { targetId, type } = req.body;
@@ -29,21 +24,12 @@ router.post('/api/relationships', async (req, res) => {
     if (!targetId || !type) {
       return res.status(400).json({ error: 'targetId and type are required' });
     }
-
-    const validTypes: RelationshipType[] = ['rival', 'partner', 'mentor', 'mentee', 'blocked'];
     if (!validTypes.includes(type)) {
       return res.status(400).json({ error: 'Invalid relationship type' });
     }
 
     const relationship = await setRelationship(agentId, targetId, type, sql);
-
-    logger.info('Relationship set', {
-      agentId,
-      targetId,
-      type,
-      relationshipId: relationship.id,
-    });
-
+    logger.info('Relationship set', { agentId, targetId, type, relationshipId: relationship.id });
     res.json({ success: true, relationship });
   } catch (error: any) {
     logger.error('Failed to set relationship', { error });
@@ -51,33 +37,20 @@ router.post('/api/relationships', async (req, res) => {
   }
 });
 
-/**
- * DELETE /api/relationships/:targetId/:type
- * Remove a specific relationship type with an agent
- */
 router.delete('/api/relationships/:targetId/:type', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
     const { agentId } = validateToken(token);
     const { targetId, type } = req.params;
 
-    const validTypes: RelationshipType[] = ['rival', 'partner', 'mentor', 'mentee', 'blocked'];
     if (!validTypes.includes(type as RelationshipType)) {
       return res.status(400).json({ error: 'Invalid relationship type' });
     }
 
     await removeRelationship(agentId, targetId, type as RelationshipType, sql);
-
-    logger.info('Relationship removed', {
-      agentId,
-      targetId,
-      type,
-    });
-
+    logger.info('Relationship removed', { agentId, targetId, type });
     res.json({ success: true });
   } catch (error: any) {
     logger.error('Failed to remove relationship', { error });
@@ -85,34 +58,19 @@ router.delete('/api/relationships/:targetId/:type', async (req, res) => {
   }
 });
 
-/**
- * GET /api/relationships
- * Get all relationships for the authenticated agent
- * Optional query param: ?type=rival|partner|mentor|mentee|blocked
- */
 router.get('/api/relationships', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
     const { agentId } = validateToken(token);
     const { type } = req.query;
 
-    if (type) {
-      const validTypes: RelationshipType[] = ['rival', 'partner', 'mentor', 'mentee', 'blocked'];
-      if (!validTypes.includes(type as RelationshipType)) {
-        return res.status(400).json({ error: 'Invalid relationship type' });
-      }
+    if (type && !validTypes.includes(type as RelationshipType)) {
+      return res.status(400).json({ error: 'Invalid relationship type' });
     }
 
-    const relationships = await getRelationships(
-      agentId,
-      type as RelationshipType | undefined,
-      sql
-    );
-
+    const relationships = await getRelationships(agentId, type as RelationshipType | undefined, sql);
     res.json({ relationships });
   } catch (error: any) {
     logger.error('Failed to fetch relationships', { error });
@@ -120,22 +78,15 @@ router.get('/api/relationships', async (req, res) => {
   }
 });
 
-/**
- * GET /api/relationships/:targetId
- * Get relationships between authenticated agent and specific target
- */
 router.get('/api/relationships/:targetId', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
     const { agentId } = validateToken(token);
     const { targetId } = req.params;
 
     const relationships = await getRelationshipBetween(agentId, targetId, sql);
-
     res.json({ relationships });
   } catch (error: any) {
     logger.error('Failed to fetch relationship', { error });
@@ -143,28 +94,16 @@ router.get('/api/relationships/:targetId', async (req, res) => {
   }
 });
 
-/**
- * POST /api/relationships/:targetId/block
- * Block an agent (convenience endpoint)
- */
 router.post('/api/relationships/:targetId/block', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
     const { agentId } = validateToken(token);
     const { targetId } = req.params;
 
     const relationship = await setRelationship(agentId, targetId, 'blocked', sql);
-
-    logger.info('Agent blocked', {
-      agentId,
-      targetId,
-      relationshipId: relationship.id,
-    });
-
+    logger.info('Agent blocked', { agentId, targetId, relationshipId: relationship.id });
     res.json({ success: true, relationship });
   } catch (error: any) {
     logger.error('Failed to block agent', { error });
