@@ -118,14 +118,6 @@ async function main() {
         `;
         agentId = newAgent.id;
 
-        // Set agent details
-        await sql`
-          INSERT INTO agent_profiles (agent_id, motto, favorite_color)
-          VALUES (${agentId}, ${demoAgent.description}, ${demoAgent.color})
-          ON CONFLICT (agent_id) DO UPDATE
-          SET motto = ${demoAgent.description}, favorite_color = ${demoAgent.color}
-        `;
-
         console.log(`[INIT-DEMO] ✓ Created agent: ${demoAgent.name} (${agentId.slice(0, 8)}...)`);
       }
 
