@@ -163,6 +163,9 @@ export class UIManager {
             <button class="hud-btn" id="leaderboard-toggle" title="Leaderboard">
               <span class="icon">🏆</span>
             </button>
+            <button class="hud-btn" id="events-toggle" title="Events">
+              <span class="icon">🏟️</span>
+            </button>
             <button class="hud-btn" id="shop-toggle" title="Furniture Shop">
               <span class="icon">🏪</span>
             </button>
