@@ -22,6 +22,7 @@ import { NotificationCenter } from './ui/NotificationCenter.js';
 import { Navigator } from './ui/Navigator.js';
 import { GamePanel } from './ui/GamePanel.js';
 import { LeaderboardPanel } from './ui/LeaderboardPanel.js';
+import { AnalyticsPanel } from './ui/AnalyticsPanel.js';
 import { EventsPanel } from './ui/EventsPanel.js';
 import { ShopPanel } from './ui/ShopPanel.js';
 import { TemplatesBrowser } from './ui/TemplatesBrowser.js';
@@ -123,6 +124,9 @@ async function init() {
   
   // Leaderboard Panel
   const leaderboardPanel = new LeaderboardPanel();
+  
+  // Analytics Panel
+  const analyticsPanel = new AnalyticsPanel();
   
   // Events Panel
   const eventsPanel = new EventsPanel();
@@ -862,6 +866,14 @@ async function init() {
     await loadLeaderboard(leaderboardPanel.getCurrentCategory());
   };
 
+  ui.onAnalyticsToggle = async () => {
+    console.log('[UI] Toggling analytics panel');
+    analyticsPanel.show();
+    
+    // Load initial metric (messages_sent)
+    await loadAnalytics(analyticsPanel.getCurrentMetric());
+  };
+
   ui.onEventsToggle = () => {
     console.log('[UI] Toggling events panel');
     eventsPanel.show();
@@ -971,6 +983,34 @@ async function init() {
       console.error('[Leaderboard] Error loading leaderboard:', error);
       toastManager.error('Failed to load leaderboard', 3000);
       leaderboardPanel.showEmpty();
+    }
+  }
+
+  // Analytics Panel event handlers
+  analyticsPanel.onMetricChange = async (metric) => {
+    console.log('[Analytics] Metric changed:', metric);
+    await loadAnalytics(metric);
+  };
+
+  // Helper function to load analytics data
+  async function loadAnalytics(metric: string) {
+    try {
+      analyticsPanel.showLoading();
+
+      const response = await fetch(`/api/analytics/agents?metric=${metric}&limit=10`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch analytics: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      analyticsPanel.setTopAgents(data.agents || []);
+      
+      console.log(`[Analytics] Loaded ${data.agents.length} agents for ${metric}`);
+    } catch (error) {
+      console.error('[Analytics] Error loading analytics:', error);
+      toastManager.error('Failed to load analytics', 3000);
+      analyticsPanel.hideLoading();
     }
   }
 

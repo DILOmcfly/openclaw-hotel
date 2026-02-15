@@ -117,6 +117,7 @@ import wishlistsRouter from './api/wishlists.routes.js';
 import guestbookRouter from './api/guestbook.routes.js';
 import ttsRouter from './api/tts.routes.js';
 import roomScriptsRouter from './api/roomScripts.routes.js';
+import analyticsRouter from './api/analytics.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -243,6 +244,7 @@ app.use(wishlistsRouter);
 app.use(guestbookRouter);
 app.use(ttsRouter);
 app.use(roomScriptsRouter);
+app.use(analyticsRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
@@ -287,6 +289,33 @@ setInterval(() => {
     logger.error('Bot tick error', { error: err });
   });
 }, 5000);
+
+// Broadcast analytics summary every 60 seconds
+import { getAnalyticsSummary } from './services/analyticsService.js';
+import { broadcastToSpectators } from './ws/spectator.js';
+
+setInterval(async () => {
+  try {
+    const summary = await getAnalyticsSummary(sql);
+    
+    // Broadcast to all connected spectators (broadcast to all rooms)
+    const { spectatorsByRoom } = await import('./ws/spectator.js');
+    for (const [roomId, spectators] of spectatorsByRoom.entries()) {
+      if (spectators.size > 0) {
+        for (const ws of spectators) {
+          if (ws.readyState === 1) { // WebSocket.OPEN
+            ws.send(JSON.stringify({
+              type: 'analytics.update',
+              summary,
+            }));
+          }
+        }
+      }
+    }
+  } catch (error) {
+    logger.error('Analytics broadcast error', { error });
+  }
+}, 60000); // Every 60 seconds
 
 server.listen(config.port, config.host, () => {
   logger.info('Server started', {

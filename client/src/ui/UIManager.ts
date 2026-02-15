@@ -163,6 +163,9 @@ export class UIManager {
             <button class="hud-btn" id="leaderboard-toggle" title="Leaderboard">
               <span class="icon">🏆</span>
             </button>
+            <button class="hud-btn" id="analytics-toggle" title="Analytics Dashboard">
+              <span class="icon">📊</span>
+            </button>
             <button class="hud-btn" id="events-toggle" title="Events">
               <span class="icon">🏟️</span>
             </button>
@@ -396,6 +399,12 @@ export class UIManager {
     const leaderboardToggle = document.getElementById('leaderboard-toggle');
     leaderboardToggle?.addEventListener('click', () => {
       this.onLeaderboardToggle?.();
+    });
+
+    // Analytics toggle
+    const analyticsToggle = document.getElementById('analytics-toggle');
+    analyticsToggle?.addEventListener('click', () => {
+      this.onAnalyticsToggle?.();
     });
 
     // Events toggle
@@ -876,6 +885,7 @@ export class UIManager {
   public onAvatarCustomizerToggle?: () => void;
   public onGamesToggle?: () => void;
   public onLeaderboardToggle?: () => void;
+  public onAnalyticsToggle?: () => void;
   public onEventsToggle?: () => void;
   public onInventoryToggle?: () => void;
   public onShopToggle?: () => void;
