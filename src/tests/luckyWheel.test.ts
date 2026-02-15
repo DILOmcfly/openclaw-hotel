@@ -114,9 +114,10 @@ describe('Lucky Wheel Service', () => {
 
     it('should award coins and record spin when eligible', async () => {
       const mockSql = vi.fn()
-        .mockResolvedValueOnce([]) // First call: check last spin (none)
-        .mockResolvedValueOnce([{ agentId: 'agent-1', coins: 600, lastDailyClaim: null }]) // getBalance
-        .mockResolvedValueOnce([{ agentId: 'agent-1', coins: 610, lastDailyClaim: null }]) // addCoins
+        .mockResolvedValueOnce([]) // First call: getLastSpin (check cooldown)
+        .mockResolvedValueOnce([]) // Second call: getLastSpin (double check in canSpin)
+        .mockResolvedValueOnce([{ agentId: 'agent-1', coins: 600, lastDailyClaim: null }]) // getBalance (in addCoins)
+        .mockResolvedValueOnce([{ agentId: 'agent-1', coins: 610, lastDailyClaim: null }]) // UPDATE coins (in addCoins)
         .mockResolvedValueOnce([{
           id: 'spin-new',
           agentId: 'agent-1',
@@ -124,7 +125,7 @@ describe('Lucky Wheel Service', () => {
           prizeValue: 10,
           prizeLabel: '10 Coins',
           createdAt: new Date(),
-        }]); // Insert spin record
+        }]); // INSERT spin record (RETURNING)
       
       const result = await luckyWheelService.spin('agent-1', mockSql);
       
