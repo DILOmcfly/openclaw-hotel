@@ -334,36 +334,42 @@
         // Furniture: [sprite, x, y, scale]
         // Designed as a cozy hotel lobby - logical zones
         furniture: [
-          // === LOUNGE AREA 1 (left side) ===
-          // Sofa + rug + coffee table — facing right wall
-          ['sofa', 2, 3, 0.55],       // bigger sofa
-          ['rug', 3, 3, 0.4],         // rug in front of sofa
-          ['table', 3, 4, 0.4],       // coffee table in front
+          // === LOUNGE AREA 1 (top-left, against left wall) ===
+          ['sofa', 2, 3, 0.38],       // sofa against left wall
+          ['rug', 3, 3, 0.28],        // rug in front of sofa
+          ['coffee_table', 3, 4, 0.5],// coffee table
+          ['lounge_chair', 4, 3, 0.45],// chair facing sofa
 
-          // === LOUNGE AREA 2 (left side, lower) ===
-          ['sofa', 2, 7, 0.55],       // second bigger sofa
-          ['rug', 3, 7, 0.4],         // rug in front
-          ['table', 3, 8, 0.4],       // coffee table in front
+          // === LOUNGE AREA 2 (bottom-left) ===
+          ['sofa', 2, 7, 0.38],       // second sofa
+          ['rug', 3, 7, 0.28],        // rug in front
+          ['coffee_table', 3, 8, 0.5],// coffee table
 
-          // === TV AREA (facing sofas, couple tiles away) ===
-          ['tv', 5, 5, 0.5],          // TV bigger, between both sofas, facing left
+          // === TV AREA (center, facing sofas) ===
+          ['tv', 5, 5, 0.65],         // TV on cabinet
+          ['side_table', 5, 4, 0.55], // side table next to TV
 
           // === BOOKSHELF (against back wall) ===
-          ['bookshelf', 3, 1, 0.4],   // against back wall
+          ['bookshelf', 3, 1, 0.45],  // bookshelf against back wall
+          ['bookshelf', 4, 1, 0.45],  // second bookshelf
 
-          // === WORK AREA (right side, against back wall) ===
-          ['computer', 8, 1, 0.45],   // bigger computer
-          ['chair', 8, 2, 0.35],      // chair at desk
+          // === WORK AREA (right, against back wall) ===
+          ['desk', 8, 1, 0.45],       // desk against wall
+          ['computer', 8, 1, 0.8],    // computer on desk
+          ['chair', 8, 2, 0.65],      // chair at desk
 
           // === KITCHEN CORNER (far right) ===
-          ['fridge', 10, 1, 0.4],     // fridge against back wall corner
+          ['fridge', 10, 1, 0.4],     // fridge in corner
 
           // === DECORATIVE ===
-          ['plant', 1, 1, 0.35],      // corner plant
-          ['plant', 1, 10, 0.35],     // corner plant
-          ['plant', 10, 10, 0.35],    // corner plant
-          ['lamp', 1, 5, 0.25],       // lamp on left wall between sofas
-          ['lamp', 10, 5, 0.25],      // lamp on right side
+          ['plant', 1, 1, 0.7],       // corner plant
+          ['plant', 1, 10, 0.7],      // corner plant
+          ['plant', 10, 10, 0.7],     // corner plant
+          ['lamp', 1, 5, 0.55],       // floor lamp between sofas
+          ['lamp', 10, 5, 0.55],      // floor lamp right side
+          ['coatrack', 10, 9, 0.55],  // coat rack near entrance
+          ['radio', 6, 1, 0.8],       // radio on shelf
+          ['speaker', 7, 1, 0.6],     // speaker against wall
         ],
         // Wall decorations: [sprite, position, side] (side: 'back'=top, 'left'=left)
         wallWindows: [

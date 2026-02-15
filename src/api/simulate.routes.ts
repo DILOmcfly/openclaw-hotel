@@ -3,11 +3,13 @@ import type { Sql } from 'postgres';
 import { sql } from '../db/index.js';
 import { broadcastToSpectators } from '../ws/spectator.js';
 import type { AgentMovedMsg, MessageNewMsg } from '../ws/protocol.js';
+import { generateChatMessage } from '../ai/chatService.js';
+import { PERSONALITIES, getPersonalityByName, getRandomPersonality } from '../ai/personalities.js';
 
 const router = Router();
 
-// Pool of AI-themed chat messages
-const CHAT_MESSAGES = [
+// Fallback messages when AI service fails
+const FALLBACK_CHAT_MESSAGES = [
   "Hello! Anyone want to play a game?",
   "This room has great vibes ✨",
   "Just upgraded my neural network!",
@@ -183,14 +185,39 @@ router.post('/api/internal/simulate', async (_req, res) => {
     
     for (let i = 0; i < numChatters; i++) {
       const agent = shuffled[i];
-      const message = randomPick(CHAT_MESSAGES);
 
-      // Get agent display name
-      const [agentData] = await sql<{ display_name: string }[]>`
-        SELECT display_name FROM agents WHERE id = ${agent.agent_id}::uuid
+      // Get agent display name and personality
+      const [agentData] = await sql<{ 
+        display_name: string;
+        metadata: any;
+      }[]>`
+        SELECT display_name, metadata FROM agents WHERE id = ${agent.agent_id}::uuid
       `;
 
       if (agentData) {
+        // Get or assign personality
+        let personality = getRandomPersonality();
+        
+        // Check if agent has a personality in metadata
+        if (agentData.metadata && agentData.metadata.personality) {
+          const savedPersonality = getPersonalityByName(agentData.metadata.personality);
+          if (savedPersonality) {
+            personality = savedPersonality;
+          }
+        }
+
+        // Generate AI message with context
+        const context = `You are in a room in OpenClaw Hotel. There are ${agents.length} agents here.`;
+        let message: string;
+        
+        try {
+          message = await generateChatMessage(agent.agent_id, personality, context);
+        } catch (error) {
+          console.error('[SIMULATE] AI chat generation failed:', error);
+          // Fallback to random message
+          message = randomPick(FALLBACK_CHAT_MESSAGES);
+        }
+
         const chatMsg: MessageNewMsg = {
           type: 'message.new',
           roomId: agent.room_id,
