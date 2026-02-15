@@ -1064,6 +1064,115 @@ export function setupWebSocket(server: Server): void {
           break;
         }
 
+        case 'game.connectfour.create': {
+          try {
+            const { createGame } = await import('../services/connectFour.js');
+            
+            if (!clientMessage.opponentId) {
+              sendError(ws, 'MISSING_OPPONENT', 'opponentId is required');
+              break;
+            }
+
+            const game = createGame(clientMessage.roomId, agentId, clientMessage.opponentId);
+
+            // Get player names
+            const [creator] = await sql`
+              SELECT display_name FROM agents WHERE id = ${agentId}
+            `;
+            const [opponent] = await sql`
+              SELECT display_name FROM agents WHERE id = ${clientMessage.opponentId}
+            `;
+
+            // Notify both players
+            for (const playerId of [game.player1, game.player2]) {
+              const playerWs = connections.get(playerId);
+              if (playerWs && playerWs.readyState === WebSocket.OPEN) {
+                sendMessage(playerWs, {
+                  type: 'game.connectfour.created',
+                  gameId: game.id,
+                  player1: game.player1,
+                  player2: game.player2,
+                  player1Name: creator?.display_name || 'Agent',
+                  player2Name: opponent?.display_name || 'Agent',
+                  currentTurn: game.currentTurn,
+                  board: game.board,
+                  status: game.status,
+                });
+              }
+            }
+
+            // Broadcast to room
+            broadcastToRoom(clientMessage.roomId, {
+              type: 'game.created',
+              gameId: game.id,
+              gameType: 'connectfour',
+              hostId: agentId,
+              hostName: creator?.display_name || 'Agent',
+              status: game.status,
+            });
+          } catch (error: any) {
+            sendError(ws, 'GAME_CREATE_FAILED', error.message || 'Failed to create Connect Four game');
+          }
+          break;
+        }
+
+        case 'game.connectfour.drop': {
+          try {
+            const { dropDisc, getGameState } = await import('../services/connectFour.js');
+            
+            const game = dropDisc(clientMessage.gameId, agentId, clientMessage.column);
+
+            // Notify both players
+            for (const playerId of [game.player1, game.player2]) {
+              const playerWs = connections.get(playerId);
+              if (playerWs && playerWs.readyState === WebSocket.OPEN) {
+                sendMessage(playerWs, {
+                  type: 'game.connectfour.updated',
+                  gameId: game.id,
+                  board: game.board,
+                  currentTurn: game.currentTurn,
+                  status: game.status,
+                  column: clientMessage.column,
+                  playerId: agentId,
+                });
+              }
+            }
+
+            // If game completed, send result
+            if (game.status === 'completed') {
+              for (const playerId of [game.player1, game.player2]) {
+                const playerWs = connections.get(playerId);
+                if (playerWs && playerWs.readyState === WebSocket.OPEN) {
+                  sendMessage(playerWs, {
+                    type: 'game.completed',
+                    gameId: game.id,
+                    winnerId: game.winnerId,
+                    isDraw: game.isDraw,
+                    result: {
+                      connectfour: {
+                        board: game.board,
+                        winnerId: game.winnerId,
+                        isDraw: game.isDraw,
+                      },
+                    },
+                  });
+                }
+              }
+
+              // Broadcast result to room
+              broadcastToRoom(game.roomId, {
+                type: 'game.completed',
+                gameId: game.id,
+                winnerId: game.winnerId,
+                isDraw: game.isDraw,
+              });
+            }
+          } catch (error: any) {
+            sendError(ws, 'GAME_MOVE_FAILED', error.message || 'Failed to drop disc');
+          }
+          break;
+        }
+
         case 'game.blackjack.create': {
           try {
             const { createGame, getGameState, getPlayerValue, getDealerValue } = await import('../services/blackjack.js');
