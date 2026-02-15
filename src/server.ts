@@ -38,6 +38,8 @@ import jukeboxRouter from './api/jukebox.routes.js';
 import giftsRouter from './api/gifts.routes.js';
 import stackingRouter from './api/stacking.routes.js';
 import photosRouter from './api/photos.routes.js';
+import activityLogRouter from './api/activityLog.routes.js';
+import atmosphereRouter from './api/atmosphere.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -85,6 +87,8 @@ app.use(jukeboxRouter);
 app.use(giftsRouter);
 app.use(stackingRouter);
 app.use(photosRouter);
+app.use(activityLogRouter);
+app.use(atmosphereRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
