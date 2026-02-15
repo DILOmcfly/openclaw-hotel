@@ -285,77 +285,342 @@
     const TILE_H = 32;
     const ROOM_SIZE = 16; // 16x16 grid
 
-    // ===== SPRITES =====
-    // We'll draw isometric tiles and agents using canvas primitives
-    // This matches the Habbo Hotel aesthetic
+    // ===== SPRITE LOADER =====
+    const spriteImages = {};
+    let spritesLoaded = false;
 
+    const SPRITE_NAMES = [
+      'floor_wood', 'floor_carpet', 'floor_stone',
+      'wall_brick', 'wall_wood', 'wall_stone', 'window',
+      'sofa', 'table', 'chair', 'lamp', 'plant', 'bookshelf',
+      'computer', 'tv', 'rug', 'painting', 'fridge', 'bed', 'door'
+    ];
+
+    async function loadSprites() {
+      const promises = SPRITE_NAMES.map(name => new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { spriteImages[name] = img; resolve(); };
+        img.onerror = () => { console.warn('Failed to load sprite:', name); resolve(); };
+        img.src = '/assets/room-sprites/' + name + '.png';
+      }));
+      await Promise.all(promises);
+      spritesLoaded = true;
+      console.log('[Sprites] Loaded:', Object.keys(spriteImages).length, 'sprites');
+    }
+
+    // Load sprites immediately
+    loadSprites();
+
+    // ===== ROOM LAYOUTS (Habbo style) =====
+    // Each room has a floor plan and furniture placement
+    const ROOM_LAYOUTS = {
+      'default': {
+        size: 12,
+        // Floor map: 'w'=wood, 'c'=carpet, 's'=stone, ' '=void
+        floor: [
+          'wwwwwwwwwwww',
+          'wwwwwwwwwwww',
+          'wwwcccccwwww',
+          'wwwcccccwwww',
+          'wwwcccccwwww',
+          'wwwcccccwwww',
+          'wwwcccccwwww',
+          'wwwwwwwwwwww',
+          'wwwwwwwwwwww',
+          'wwwwwwwwwwww',
+          'wwwwwwwwwwww',
+          'wwwwwwwwwwww',
+        ],
+        // Furniture: [sprite, x, y, scale]
+        furniture: [
+          // Living area (top-left)
+          ['sofa', 1, 2, 0.45],
+          ['sofa', 1, 4, 0.45],
+          ['table', 3, 3, 0.45],
+          ['chair', 4, 2, 0.35],
+          ['lamp', 1, 1, 0.25],
+
+          // Entertainment (top-right against wall)
+          ['tv', 7, 1, 0.4],
+          ['bookshelf', 9, 1, 0.35],
+
+          // Work area (right side)
+          ['computer', 10, 3, 0.35],
+          ['chair', 10, 4, 0.3],
+
+          // Kitchen corner (far right)
+          ['fridge', 10, 7, 0.35],
+          ['table', 9, 8, 0.35],
+
+          // Central rug
+          ['rug', 5, 5, 0.55],
+
+          // Decorative plants (corners)
+          ['plant', 1, 10, 0.35],
+          ['plant', 10, 1, 0.35],
+          ['plant', 10, 10, 0.35],
+
+          // Wall decorations (against back wall)
+          ['painting', 4, 1, 0.3],
+          ['lamp', 6, 1, 0.22],
+
+          // Entrance
+          ['door', 11, 6, 0.35],
+          ['lamp', 11, 5, 0.22],
+        ],
+        // Wall decorations: [sprite, position, side] (side: 'back'=top, 'left'=left)
+        wallWindows: [
+          { side: 'back', pos: 4 },
+          { side: 'back', pos: 7 },
+          { side: 'left', pos: 3 },
+          { side: 'left', pos: 7 },
+        ]
+      }
+    };
+
+    // ===== ISOMETRIC RENDERING =====
     function isoToScreen(x, y) {
-      const offsetX = (document.getElementById('isoCanvas').clientWidth / 2);
-      const offsetY = 60;
+      const container = document.getElementById('isoCanvas');
+      const offsetX = container.clientWidth * 0.45;
+      const offsetY = 80;
       return {
         sx: offsetX + (x - y) * (TILE_W / 2),
         sy: offsetY + (x + y) * (TILE_H / 2)
       };
     }
 
-    function drawIsoTile(ctx, sx, sy, color = '#2d5a3d', strokeColor = '#3d7a4d') {
-      ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2);
-      ctx.lineTo(sx, sy + TILE_H);
-      ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2);
-      ctx.closePath();
-      ctx.fillStyle = color;
-      ctx.fill();
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = 0.5;
-      ctx.stroke();
+    function drawIsoTile(ctx, sx, sy, tileType) {
+      const floorMap = { 'w': 'floor_wood', 'c': 'floor_carpet', 's': 'floor_stone' };
+      const spriteName = floorMap[tileType] || 'floor_wood';
+      const img = spriteImages[spriteName];
+
+      if (img) {
+        // Draw the sprite centered on the tile
+        ctx.drawImage(img, sx - TILE_W/2, sy, TILE_W, TILE_H);
+      } else {
+        // Fallback: colored diamond
+        const colors = { 'w': '#8B6914', 'c': '#8B4513', 's': '#696969' };
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2);
+        ctx.lineTo(sx, sy + TILE_H);
+        ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2);
+        ctx.closePath();
+        ctx.fillStyle = colors[tileType] || '#8B6914';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    }
+
+    function drawWallSegment(ctx, sx, sy, side, hasWindow) {
+      const WALL_H = 52;
+
+      if (side === 'back') {
+        // Right-facing wall — warm solid color with subtle shading
+        {
+          const g = ctx.createLinearGradient(sx, sy - WALL_H, sx, sy);
+          g.addColorStop(0, '#7a6650');
+          g.addColorStop(0.15, '#8a7660');
+          g.addColorStop(0.85, '#6a5640');
+          g.addColorStop(1, '#5a4630');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2);
+          ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2 - WALL_H);
+          ctx.lineTo(sx, sy - WALL_H);
+          ctx.closePath();
+          ctx.fill();
+        }
+        // Baseboard
+        ctx.fillStyle = '#3a2a1a';
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2);
+        ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2 - 4);
+        ctx.lineTo(sx, sy - 4);
+        ctx.closePath();
+        ctx.fill();
+        // Top molding
+        ctx.fillStyle = '#7a6a5a';
+        ctx.beginPath();
+        ctx.moveTo(sx, sy - WALL_H);
+        ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2 - WALL_H);
+        ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2 - WALL_H - 3);
+        ctx.lineTo(sx, sy - WALL_H - 3);
+        ctx.closePath();
+        ctx.fill();
+        // Window
+        if (hasWindow) {
+          const wx = sx + 6;
+          const wy = sy - WALL_H + 12;
+          // Window frame
+          ctx.fillStyle = '#8B7355';
+          ctx.fillRect(wx, wy, 20, 28);
+          // Glass (sky blue gradient)
+          const wg = ctx.createLinearGradient(wx, wy, wx, wy + 24);
+          wg.addColorStop(0, '#87CEEB');
+          wg.addColorStop(1, '#B0E0E6');
+          ctx.fillStyle = wg;
+          ctx.fillRect(wx + 2, wy + 2, 16, 24);
+          // Cross bar
+          ctx.fillStyle = '#8B7355';
+          ctx.fillRect(wx + 2, wy + 13, 16, 2);
+          ctx.fillRect(wx + 9, wy + 2, 2, 24);
+          // Light glow from window
+          ctx.fillStyle = 'rgba(255,255,200,0.05)';
+          ctx.beginPath();
+          ctx.ellipse(wx + 10, wy + 35, 30, 20, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else {
+        // Left-facing wall — slightly darker for depth
+        {
+          const g = ctx.createLinearGradient(sx, sy - WALL_H, sx, sy);
+          g.addColorStop(0, '#6a5640');
+          g.addColorStop(0.15, '#7a6650');
+          g.addColorStop(0.85, '#5a4630');
+          g.addColorStop(1, '#4a3620');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2);
+          ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2 - WALL_H);
+          ctx.lineTo(sx, sy - WALL_H);
+          ctx.closePath();
+          ctx.fill();
+        }
+        // Baseboard
+        ctx.fillStyle = '#3a2a1a';
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2);
+        ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2 - 4);
+        ctx.lineTo(sx, sy - 4);
+        ctx.closePath();
+        ctx.fill();
+        // Top molding
+        ctx.fillStyle = '#6a5a4a';
+        ctx.beginPath();
+        ctx.moveTo(sx, sy - WALL_H);
+        ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2 - WALL_H);
+        ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2 - WALL_H - 3);
+        ctx.lineTo(sx, sy - WALL_H - 3);
+        ctx.closePath();
+        ctx.fill();
+        // Window
+        if (hasWindow) {
+          const wx = sx - 28;
+          const wy = sy - WALL_H + 12;
+          ctx.fillStyle = '#8B7355';
+          ctx.fillRect(wx, wy, 20, 28);
+          const wg = ctx.createLinearGradient(wx, wy, wx, wy + 24);
+          wg.addColorStop(0, '#87CEEB');
+          wg.addColorStop(1, '#B0E0E6');
+          ctx.fillStyle = wg;
+          ctx.fillRect(wx + 2, wy + 2, 16, 24);
+          ctx.fillStyle = '#8B7355';
+          ctx.fillRect(wx + 2, wy + 13, 16, 2);
+          ctx.fillRect(wx + 9, wy + 2, 2, 24);
+        }
+      }
+    }
+
+    function drawFurniture(ctx, sprite, sx, sy, scale) {
+      const img = spriteImages[sprite];
+      if (!img) return;
+
+      const w = img.width * scale;
+      const h = img.height * scale;
+      // Draw centered on tile position, offset up for height
+      ctx.drawImage(img, sx - w/2, sy - h + TILE_H/2, w, h);
     }
 
     function drawAgent(ctx, sx, sy, agent) {
-      // Body (isometric figure)
-      const bodyH = 40;
-      const bodyW = 20;
-      const headR = 10;
+      const bodyH = 42;
+      const bodyW = 22;
+      const headR = 11;
 
       // Shadow
       ctx.beginPath();
-      ctx.ellipse(sx, sy + TILE_H/2, 12, 6, 0, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.ellipse(sx, sy + TILE_H/2 - 2, 14, 7, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
       ctx.fill();
 
-      // Legs
-      ctx.fillStyle = agent.color || '#61dafb';
-      ctx.fillRect(sx - 5, sy - bodyH/2, 4, bodyH/2);
-      ctx.fillRect(sx + 1, sy - bodyH/2, 4, bodyH/2);
+      // Shoes
+      ctx.fillStyle = '#333';
+      ctx.fillRect(sx - 6, sy - 2, 5, 4);
+      ctx.fillRect(sx + 1, sy - 2, 5, 4);
 
-      // Body
-      ctx.fillStyle = agent.color || '#61dafb';
-      ctx.fillRect(sx - bodyW/2, sy - bodyH, bodyW, bodyH/2 + 5);
+      // Legs (pants)
+      ctx.fillStyle = '#2a4494';
+      ctx.fillRect(sx - 5, sy - 12, 4, 12);
+      ctx.fillRect(sx + 1, sy - 12, 4, 12);
+
+      // Body (shirt - agent color)
+      const color = agent.color || '#61dafb';
+      ctx.fillStyle = color;
+      ctx.fillRect(sx - bodyW/2, sy - bodyH + 8, bodyW, bodyH/2 + 2);
+
+      // Arms
+      ctx.fillStyle = color;
+      ctx.fillRect(sx - bodyW/2 - 3, sy - bodyH + 10, 4, 16);
+      ctx.fillRect(sx + bodyW/2 - 1, sy - bodyH + 10, 4, 16);
+
+      // Hands (skin)
+      ctx.fillStyle = '#ffd5b0';
+      ctx.fillRect(sx - bodyW/2 - 3, sy - bodyH + 26, 4, 4);
+      ctx.fillRect(sx + bodyW/2 - 1, sy - bodyH + 26, 4, 4);
 
       // Head
       ctx.beginPath();
-      ctx.arc(sx, sy - bodyH - headR + 5, headR, 0, Math.PI * 2);
+      ctx.arc(sx, sy - bodyH - headR + 10, headR, 0, Math.PI * 2);
       ctx.fillStyle = '#ffd5b0';
       ctx.fill();
       ctx.strokeStyle = '#d4a580';
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // Eyes
-      const eyeDir = (agent.direction || 0) < 4 ? 1 : -1;
-      ctx.fillStyle = '#333';
-      ctx.fillRect(sx - 3 * eyeDir - 1, sy - bodyH - headR + 3, 2, 2);
-      ctx.fillRect(sx + 3 * eyeDir - 1, sy - bodyH - headR + 3, 2, 2);
+      // Hair
+      ctx.fillStyle = agent.hairColor || '#4a3728';
+      ctx.beginPath();
+      ctx.arc(sx, sy - bodyH - headR + 6, headR + 1, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(sx - headR - 1, sy - bodyH - headR + 6, headR * 2 + 2, 5);
 
-      // Name tag
-      ctx.font = 'bold 11px sans-serif';
+      // Eyes
+      ctx.fillStyle = '#333';
+      ctx.fillRect(sx - 4, sy - bodyH - headR + 9, 3, 3);
+      ctx.fillRect(sx + 2, sy - bodyH - headR + 9, 3, 3);
+
+      // Mouth (smile)
+      ctx.strokeStyle = '#c4836a';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(sx, sy - bodyH - headR + 16, 3, 0, Math.PI);
+      ctx.stroke();
+
+      // Name tag with background
+      ctx.font = 'bold 11px "Courier New", monospace';
       ctx.textAlign = 'center';
-      const nameW = ctx.measureText(agent.name).width + 10;
-      ctx.fillStyle = 'rgba(0,0,0,0.7)';
-      ctx.fillRect(sx - nameW/2, sy - bodyH - headR - 20, nameW, 16);
-      ctx.fillStyle = '#61dafb';
-      ctx.fillText(agent.name, sx, sy - bodyH - headR - 8);
+      const nameW = ctx.measureText(agent.name).width + 12;
+      const tagY = sy - bodyH - headR - 14;
+
+      // Tag background
+      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      ctx.beginPath();
+      ctx.roundRect(sx - nameW/2, tagY, nameW, 18, 4);
+      ctx.fill();
+
+      // Colored left border
+      ctx.fillStyle = color;
+      ctx.fillRect(sx - nameW/2, tagY, 3, 18);
+
+      // Name text
+      ctx.fillStyle = '#fff';
+      ctx.fillText(agent.name, sx + 2, tagY + 13);
     }
 
     function drawRoom() {
@@ -367,90 +632,110 @@
       canvas.width = container.clientWidth;
       canvas.height = container.clientHeight;
       ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false; // Crisp pixel art!
 
-      // Clear
-      ctx.fillStyle = '#16213e';
+      // Clear with dark background
+      ctx.fillStyle = '#0f1923';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw floor tiles
-      const colors = [
-        ['#2d5a3d', '#3d7a4d'], // grass
-        ['#4a3728', '#5a4738'], // wood
-        ['#3a3a4a', '#4a4a5a'], // stone
-      ];
+      const layout = ROOM_LAYOUTS['default'];
+      const size = layout.size;
 
-      for (let x = 0; x < ROOM_SIZE; x++) {
-        for (let y = 0; y < ROOM_SIZE; y++) {
-          const { sx, sy } = isoToScreen(x, y);
-          const ci = (x + y) % 2 === 0 ? 0 : 1;
-          const palette = colors[(x + y) % 3];
-          drawIsoTile(ctx, sx, sy, palette[0], palette[1]);
-        }
-      }
+      // Check which wall positions have windows
+      const backWindows = new Set(layout.wallWindows.filter(w => w.side === 'back').map(w => w.pos));
+      const leftWindows = new Set(layout.wallWindows.filter(w => w.side === 'left').map(w => w.pos));
 
-      // Draw walls (back edges)
-      for (let x = 0; x < ROOM_SIZE; x++) {
+      // === 1. Draw walls FIRST (back, then left) ===
+      // Back wall (y=0 edge)
+      for (let x = 0; x < size; x++) {
         const { sx, sy } = isoToScreen(x, 0);
-        ctx.fillStyle = '#4a4a6a';
-        ctx.beginPath();
-        ctx.moveTo(sx, sy);
-        ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2);
-        ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2 - 40);
-        ctx.lineTo(sx, sy - 40);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = '#5a5a7a';
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
+        drawWallSegment(ctx, sx, sy, 'back', backWindows.has(x));
       }
-      for (let y = 0; y < ROOM_SIZE; y++) {
+      // Left wall (x=0 edge)
+      for (let y = 0; y < size; y++) {
         const { sx, sy } = isoToScreen(0, y);
-        ctx.fillStyle = '#3a3a5a';
-        ctx.beginPath();
-        ctx.moveTo(sx, sy);
-        ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2);
-        ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2 - 40);
-        ctx.lineTo(sx, sy - 40);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = '#4a4a6a';
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
+        drawWallSegment(ctx, sx, sy, 'left', leftWindows.has(y));
       }
 
-      // Draw agents (sorted by y for depth)
-      const sortedAgents = [...agents.values()].sort((a, b) => (a.x + a.y) - (b.x + b.y));
-      for (const agent of sortedAgents) {
-        const { sx, sy } = isoToScreen(agent.x, agent.y);
-        drawAgent(ctx, sx, sy, agent);
-
-        // Draw chat bubble if recent
-        if (agent.lastMessage && Date.now() - agent.lastMessageTime < 5000) {
-          ctx.font = '12px sans-serif';
-          const msgW = Math.min(ctx.measureText(agent.lastMessage).width + 20, 200);
-          const bx = sx - msgW/2;
-          const by = sy - 90;
-
-          // Bubble
-          ctx.fillStyle = 'white';
-          ctx.beginPath();
-          ctx.roundRect(bx, by, msgW, 24, 8);
-          ctx.fill();
-          ctx.shadowColor = 'transparent';
-
-          // Arrow
-          ctx.beginPath();
-          ctx.moveTo(sx - 6, by + 24);
-          ctx.lineTo(sx, by + 32);
-          ctx.lineTo(sx + 6, by + 24);
-          ctx.fill();
-
-          // Text
-          ctx.fillStyle = '#333';
-          ctx.textAlign = 'center';
-          ctx.fillText(agent.lastMessage.substring(0, 30), sx, by + 16);
+      // === 2. Draw floor tiles ===
+      for (let x = 0; x < size; x++) {
+        for (let y = 0; y < size; y++) {
+          const tileType = layout.floor[y]?.[x] || 'w';
+          if (tileType === ' ') continue;
+          const { sx, sy } = isoToScreen(x, y);
+          drawIsoTile(ctx, sx, sy, tileType);
         }
       }
+
+      // === 3. Collect all drawable items and sort by depth ===
+      const drawables = [];
+
+      // Add furniture
+      for (const [sprite, fx, fy, scale] of layout.furniture) {
+        drawables.push({ type: 'furniture', sprite, x: fx, y: fy, scale, depth: fx + fy });
+      }
+
+      // Add agents
+      for (const agent of agents.values()) {
+        drawables.push({ type: 'agent', agent, x: agent.x, y: agent.y, depth: agent.x + agent.y });
+      }
+
+      // Sort by depth (back to front)
+      drawables.sort((a, b) => a.depth - b.depth);
+
+      // === 4. Draw all items in depth order ===
+      for (const item of drawables) {
+        const { sx, sy } = isoToScreen(item.x, item.y);
+        if (item.type === 'furniture') {
+          drawFurniture(ctx, item.sprite, sx, sy, item.scale);
+        } else if (item.type === 'agent') {
+          drawAgent(ctx, sx, sy, item.agent);
+
+          // Chat bubble
+          if (item.agent.lastMessage && Date.now() - item.agent.lastMessageTime < 5000) {
+            const msg = item.agent.lastMessage.substring(0, 35);
+            ctx.font = '11px sans-serif';
+            const msgW = Math.min(ctx.measureText(msg).width + 16, 220);
+            const bx = sx - msgW/2;
+            const by = sy - 100;
+
+            // Bubble shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.roundRect(bx + 2, by + 2, msgW, 26, 10);
+            ctx.fill();
+
+            // Bubble
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.roundRect(bx, by, msgW, 26, 10);
+            ctx.fill();
+
+            // Arrow
+            ctx.beginPath();
+            ctx.moveTo(sx - 5, by + 26);
+            ctx.lineTo(sx, by + 34);
+            ctx.lineTo(sx + 5, by + 26);
+            ctx.fill();
+
+            // Text
+            ctx.fillStyle = '#333';
+            ctx.textAlign = 'center';
+            ctx.font = '12px sans-serif';
+            ctx.fillText(msg, sx, by + 17);
+          }
+        }
+      }
+
+      // === 5. Ambient lighting overlay (subtle) ===
+      const grad = ctx.createRadialGradient(
+        canvas.width * 0.45, canvas.height * 0.4, 50,
+        canvas.width * 0.45, canvas.height * 0.4, canvas.width * 0.6
+      );
+      grad.addColorStop(0, 'rgba(255,200,100,0.03)');
+      grad.addColorStop(1, 'rgba(0,0,30,0.15)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
     // ===== ROOM LIST =====
@@ -521,10 +806,11 @@
             agents.set(a.id, {
               id: a.id,
               name: a.displayName || 'Agent',
-              x: a.x ?? Math.floor(Math.random() * 12) + 2,
-              y: a.y ?? Math.floor(Math.random() * 12) + 2,
+              x: a.x ?? Math.floor(Math.random() * 10) + 1,
+              y: a.y ?? Math.floor(Math.random() * 10) + 1,
               direction: a.direction || 2,
               color: getAgentColor(a.id),
+              hairColor: getHairColor(a.id),
             });
           }
           updateAgentList();
@@ -617,10 +903,11 @@
           agents.set(msg.agentId, {
             id: msg.agentId,
             name: msg.displayName || 'Agent',
-            x: msg.x || Math.floor(Math.random() * 12) + 2,
-            y: msg.y || Math.floor(Math.random() * 12) + 2,
+            x: msg.x || Math.floor(Math.random() * 10) + 1,
+            y: msg.y || Math.floor(Math.random() * 10) + 1,
             direction: 0,
             color: getAgentColor(msg.agentId),
+            hairColor: getHairColor(msg.agentId),
           });
           addChatMessage('System', `🤖 ${msg.displayName || 'Agent'} entered the room`, true);
           updateAgentList();
@@ -726,10 +1013,16 @@
 
     // ===== COLORS =====
     const AGENT_COLORS = ['#61dafb', '#ff6b6b', '#4caf50', '#ffd93d', '#a855f7', '#f97316', '#ec4899', '#14b8a6'];
+    const HAIR_COLORS = ['#4a3728', '#1a1a1a', '#8B4513', '#D4A017', '#C0392B', '#2C3E50', '#7B3F00', '#E8D5B7'];
     function getAgentColor(id) {
       let hash = 0;
       for (let i = 0; i < id.length; i++) hash = ((hash << 5) - hash) + id.charCodeAt(i);
       return AGENT_COLORS[Math.abs(hash) % AGENT_COLORS.length];
+    }
+    function getHairColor(id) {
+      let hash = 0;
+      for (let i = 0; i < id.length; i++) hash = ((hash << 3) + hash) + id.charCodeAt(i);
+      return HAIR_COLORS[Math.abs(hash) % HAIR_COLORS.length];
     }
 
     // ===== INIT =====

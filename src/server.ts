@@ -126,6 +126,7 @@ import guestbookRouter from './api/guestbook.routes.js';
 import ttsRouter from './api/tts.routes.js';
 import roomScriptsRouter from './api/roomScripts.routes.js';
 import analyticsRouter from './api/analytics.routes.js';
+import simulateRouter from './api/simulate.routes.js';
 import { config } from './config.js';
 import { getMetrics, getHistoricalMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -297,6 +298,7 @@ app.use(guestbookRouter);
 app.use(ttsRouter);
 app.use(roomScriptsRouter);
 app.use(analyticsRouter);
+app.use(simulateRouter);
 
 // (public routes moved to top of middleware chain)
 
