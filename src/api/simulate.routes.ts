@@ -28,11 +28,11 @@ function randomPick<T>(array: T[]): T {
   return array[randomInt(0, array.length - 1)];
 }
 
-// Move coordinate by ±1, keeping within bounds [0, 15]
+// Move coordinate by ±1, keeping within bounds [0, 11] (12x12 room grid)
 function randomAdjacent(coord: number): number {
   const delta = randomInt(-1, 1);
   const newCoord = coord + delta;
-  return Math.max(0, Math.min(15, newCoord));
+  return Math.max(1, Math.min(10, newCoord));
 }
 
 /**
