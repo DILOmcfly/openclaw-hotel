@@ -86,14 +86,15 @@ describe('Connect Four Game', () => {
 
     it('should detect horizontal win (middle row)', () => {
       const game = createGame(roomId, p1, p2);
-      dropDisc(game.id, p1, 2);
-      dropDisc(game.id, p2, 2);
-      dropDisc(game.id, p1, 3);
-      dropDisc(game.id, p2, 3);
-      dropDisc(game.id, p1, 4);
-      dropDisc(game.id, p2, 4);
-      dropDisc(game.id, p1, 5);
-      const final = dropDisc(game.id, p2, 5);
+      // p2 builds row 2 (on top of p1's row 1)
+      dropDisc(game.id, p1, 0); // p1 col0 row0
+      dropDisc(game.id, p2, 2); // p2 col2 row0
+      dropDisc(game.id, p1, 2); // p1 col2 row1
+      dropDisc(game.id, p2, 3); // p2 col3 row0
+      dropDisc(game.id, p1, 3); // p1 col3 row1
+      dropDisc(game.id, p2, 4); // p2 col4 row0
+      dropDisc(game.id, p1, 4); // p1 col4 row1
+      const final = dropDisc(game.id, p2, 5); // p2 col5 row0 → 4 in a row (2,3,4,5)
       expect(final.winnerId).toBe(p2);
     });
   });
