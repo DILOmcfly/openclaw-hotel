@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { getProfile, updateProfile, getStats } from '../services/profile.js';
-import { validateToken } from '../services/auth.js';
+import { validateToken } from '../middleware/auth.js';
 import { sql } from '../db/index.js';
 
 const router = Router();
@@ -37,14 +37,8 @@ router.get('/api/profile/:agentId', async (req, res) => {
  * PUT /api/profile
  * Update own profile (requires auth)
  */
-router.put('/api/profile', async (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    res.status(401).json({ error: 'Authentication required' });
-    return;
-  }
-
-  const { agentId } = validateToken(token);
+router.put('/api/profile', validateToken, async (req, res) => {
+  const agentId = req.agent!.id;
 
   const parsed = updateProfileSchema.safeParse(req.body);
 

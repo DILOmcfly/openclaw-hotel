@@ -1,6 +1,6 @@
 import express from 'express';
 import { sql } from '../db/index.js';
-import { validateToken } from '../services/auth.js';
+import { validateToken } from '../middleware/auth.js';
 import {
   createTrade,
   getTrade,
@@ -15,24 +15,17 @@ import {
 
 const router = express.Router();
 
+// All trading routes require authentication
+router.use(validateToken);
+
 /**
  * POST /api/trades
  * Create a new trade request
  */
 router.post('/api/trades', async (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  let agentId: string;
-  try {
-    ({ agentId } = validateToken(token));
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-
+  const agentId = req.agent!.id;
   const { targetAgentId } = req.body;
+  
   if (!targetAgentId) {
     return res.status(400).json({ error: 'targetAgentId is required' });
   }
@@ -58,18 +51,7 @@ router.post('/api/trades', async (req, res) => {
  * Get a specific trade with items
  */
 router.get('/api/trades/:id', async (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  let agentId: string;
-  try {
-    ({ agentId } = validateToken(token));
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-
+  const agentId = req.agent!.id;
   const { id } = req.params;
 
   try {
@@ -97,18 +79,7 @@ router.get('/api/trades/:id', async (req, res) => {
  * Update items offered in a trade
  */
 router.put('/api/trades/:id/items', async (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  let agentId: string;
-  try {
-    ({ agentId } = validateToken(token));
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-
+  const agentId = req.agent!.id;
   const { id } = req.params;
   const { items } = req.body;
 
@@ -130,18 +101,7 @@ router.put('/api/trades/:id/items', async (req, res) => {
  * Accept a trade
  */
 router.put('/api/trades/:id/accept', async (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  let agentId: string;
-  try {
-    ({ agentId } = validateToken(token));
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-
+  const agentId = req.agent!.id;
   const { id } = req.params;
 
   try {
@@ -158,18 +118,7 @@ router.put('/api/trades/:id/accept', async (req, res) => {
  * Reject a trade
  */
 router.put('/api/trades/:id/reject', async (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  let agentId: string;
-  try {
-    ({ agentId } = validateToken(token));
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-
+  const agentId = req.agent!.id;
   const { id } = req.params;
 
   try {
@@ -186,18 +135,7 @@ router.put('/api/trades/:id/reject', async (req, res) => {
  * Cancel a trade
  */
 router.put('/api/trades/:id/cancel', async (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  let agentId: string;
-  try {
-    ({ agentId } = validateToken(token));
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-
+  const agentId = req.agent!.id;
   const { id } = req.params;
 
   try {
@@ -214,17 +152,7 @@ router.put('/api/trades/:id/cancel', async (req, res) => {
  * Get trade history for the authenticated agent
  */
 router.get('/api/trades/history', async (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  let agentId: string;
-  try {
-    ({ agentId } = validateToken(token));
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
+  const agentId = req.agent!.id;
 
   try {
     const trades = await getTradeHistory(agentId, sql, 20);

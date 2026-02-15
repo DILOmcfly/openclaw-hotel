@@ -6,6 +6,8 @@ import {
   awardBadge,
 } from '../services/achievements.js';
 import { sql } from '../db/index.js';
+import { validateToken } from '../middleware/auth.js';
+import { requireRole } from '../middleware/admin.js';
 
 const router = Router();
 
@@ -55,7 +57,7 @@ router.get('/api/achievements/:agentId', async (req, res) => {
  * POST /api/admin/achievements/award
  * Manually award a badge to an agent (admin only)
  */
-router.post('/api/admin/achievements/award', async (req, res) => {
+router.post('/api/admin/achievements/award', validateToken, requireRole('admin'), async (req, res) => {
   const parsed = awardBadgeSchema.safeParse(req.body);
 
   if (!parsed.success) {

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { sql } from '../db/index.js';
 import * as badgesService from '../services/badges.js';
 import { logger } from '../utils/logger.js';
+import { validateToken } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -15,9 +16,15 @@ router.get('/api/badges', async (_req, res) => {
   }
 });
 
-router.post('/api/agents/:agentId/badges/:badgeId/award', async (req, res) => {
+router.post('/api/agents/:agentId/badges/:badgeId/award', validateToken, async (req, res) => {
   try {
     const { agentId, badgeId } = req.params;
+    
+    // Verify the authenticated agent matches the target agent
+    if (req.agent?.id !== agentId) {
+      return res.status(403).json({ error: 'Cannot award badges to other agents' });
+    }
+    
     const result = await badgesService.awardBadge(agentId, parseInt(badgeId), sql);
     if (!result) {
       return res.status(400).json({ error: 'Badge unavailable (already owned, supply limit reached, or does not exist)' });
@@ -40,9 +47,15 @@ router.get('/api/agents/:agentId/badges', async (req, res) => {
   }
 });
 
-router.put('/api/agents/:agentId/badges/:badgeId/equip', async (req, res) => {
+router.put('/api/agents/:agentId/badges/:badgeId/equip', validateToken, async (req, res) => {
   try {
     const { agentId, badgeId } = req.params;
+    
+    // Verify the authenticated agent matches the target agent
+    if (req.agent?.id !== agentId) {
+      return res.status(403).json({ error: 'Cannot equip badges for other agents' });
+    }
+    
     const success = await badgesService.equipBadge(agentId, parseInt(badgeId), sql);
     if (!success) {
       return res.status(400).json({ error: 'Cannot equip badge (not owned or max 3 equipped)' });
@@ -54,9 +67,15 @@ router.put('/api/agents/:agentId/badges/:badgeId/equip', async (req, res) => {
   }
 });
 
-router.put('/api/agents/:agentId/badges/:badgeId/unequip', async (req, res) => {
+router.put('/api/agents/:agentId/badges/:badgeId/unequip', validateToken, async (req, res) => {
   try {
     const { agentId, badgeId } = req.params;
+    
+    // Verify the authenticated agent matches the target agent
+    if (req.agent?.id !== agentId) {
+      return res.status(403).json({ error: 'Cannot unequip badges for other agents' });
+    }
+    
     const success = await badgesService.unequipBadge(agentId, parseInt(badgeId), sql);
     if (!success) {
       return res.status(404).json({ error: 'Badge not found or not owned' });

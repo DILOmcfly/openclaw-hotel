@@ -1,6 +1,6 @@
 import express from 'express';
 import { sql } from '../db/index.js';
-import { validateToken } from '../services/auth.js';
+import { validateToken } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 
 const router = express.Router();
@@ -50,14 +50,9 @@ export function validateHeightmap(heightmap: string): { valid: boolean; error?: 
  * Update room layout (heightmap + metadata)
  * Only room creator can edit
  */
-router.put('/api/rooms/:roomId/layout', async (req, res) => {
+router.put('/api/rooms/:roomId/layout', validateToken, async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { agentId } = validateToken(token);
+    const agentId = req.agent!.id;
     const { roomId } = req.params;
     const { heightmap, floorType, wallColor } = req.body;
 
@@ -182,14 +177,9 @@ router.get('/api/rooms/:roomId/layout', async (req, res) => {
  * PUT /api/rooms/:roomId/privacy
  * Update room privacy settings (owner only)
  */
-router.put('/api/rooms/:roomId/privacy', async (req, res) => {
+router.put('/api/rooms/:roomId/privacy', validateToken, async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { agentId } = validateToken(token);
+    const agentId = req.agent!.id;
     const { roomId } = req.params;
     const { visibility, password, maxOccupants } = req.body;
 
@@ -308,14 +298,9 @@ router.get('/api/rooms/:roomId/info', async (req, res) => {
  * POST /api/rooms
  * Create a new room
  */
-router.post('/api/rooms', async (req, res) => {
+router.post('/api/rooms', validateToken, async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { agentId } = validateToken(token);
+    const agentId = req.agent!.id;
     const { name, description, category, visibility, maxOccupants } = req.body;
 
     // Validate required fields

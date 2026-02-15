@@ -1,6 +1,6 @@
 import express from 'express';
 import { sql } from '../db/index.js';
-import { validateToken } from '../services/auth.js';
+import { validateToken } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 import {
   sendFriendRequest,
@@ -13,18 +13,16 @@ import {
 
 const router = express.Router();
 
+// All friends routes require authentication
+router.use(validateToken);
+
 /**
  * POST /api/friends/request
  * Send a friend request
  */
 router.post('/api/friends/request', async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { agentId } = validateToken(token);
+    const agentId = req.agent!.id;
     const { targetAgentId } = req.body;
 
     if (!targetAgentId) {
@@ -52,12 +50,7 @@ router.post('/api/friends/request', async (req, res) => {
  */
 router.put('/api/friends/:id/accept', async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { agentId } = validateToken(token);
+    const agentId = req.agent!.id;
     const { id } = req.params;
 
     await acceptFriendRequest(id, agentId, sql);
@@ -80,12 +73,7 @@ router.put('/api/friends/:id/accept', async (req, res) => {
  */
 router.put('/api/friends/:id/reject', async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { agentId } = validateToken(token);
+    const agentId = req.agent!.id;
     const { id } = req.params;
 
     await rejectFriendRequest(id, agentId, sql);
@@ -108,12 +96,7 @@ router.put('/api/friends/:id/reject', async (req, res) => {
  */
 router.delete('/api/friends/:id', async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { agentId } = validateToken(token);
+    const agentId = req.agent!.id;
     const { id } = req.params;
 
     await removeFriend(id, agentId, sql);
@@ -136,12 +119,7 @@ router.delete('/api/friends/:id', async (req, res) => {
  */
 router.get('/api/friends', async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { agentId } = validateToken(token);
+    const agentId = req.agent!.id;
     const friends = await getFriends(agentId, sql);
 
     res.json({ friends });
@@ -157,12 +135,7 @@ router.get('/api/friends', async (req, res) => {
  */
 router.get('/api/friends/pending', async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { agentId } = validateToken(token);
+    const agentId = req.agent!.id;
     const requests = await getPendingRequests(agentId, sql);
 
     res.json({ requests });
