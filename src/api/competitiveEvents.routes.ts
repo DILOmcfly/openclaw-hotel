@@ -24,7 +24,6 @@ const createEventSchema = z.object({
   startTime: z.string().datetime(),
   endTime: z.string().datetime().nullable(),
   config: z.record(z.any()).optional(),
-  createdBy: z.string().uuid().nullable().optional(),
 });
 
 const submitScoreSchema = z.object({
@@ -250,7 +249,7 @@ router.put('/api/admin/events/:id/end', requireRole('admin'), async (req, res) =
  * DELETE /api/admin/events/:id
  * Cancel an event (admin only)
  */
-router.delete('/api/admin/events/:id', async (req, res) => {
+router.delete('/api/admin/events/:id', requireRole('admin'), async (req, res) => {
   const { id } = req.params;
 
   // Validate UUID format
