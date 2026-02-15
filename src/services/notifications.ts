@@ -16,6 +16,20 @@ export type Notification = {
 };
 
 /**
+ * Convenience wrapper: send a notification to an agent from a structured object.
+ */
+export async function notifyAgent(
+  opts: { agentId: string; type: string; title: string; message: string; link?: string },
+  sql: any
+): Promise<void> {
+  try {
+    await create(opts.agentId, opts.type as NotificationType, opts.title, opts.message, opts.link ?? null, sql);
+  } catch {
+    // Best-effort notification — don't break the caller
+  }
+}
+
+/**
  * Create a single notification for an agent
  */
 export async function create(
