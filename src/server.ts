@@ -32,6 +32,8 @@ import petsRouter from './api/pets.routes.js';
 import agentStatusRouter from './api/agentStatus.routes.js';
 import eventsRouter from './api/events.routes.js';
 import rollersRouter from './api/rollers.routes.js';
+import pollsRouter from './api/polls.routes.js';
+import jukeboxRouter from './api/jukebox.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -73,6 +75,8 @@ app.use(petsRouter);
 app.use(agentStatusRouter);
 app.use(eventsRouter);
 app.use(rollersRouter);
+app.use(pollsRouter);
+app.use(jukeboxRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
