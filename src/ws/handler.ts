@@ -328,6 +328,78 @@ export function setupWebSocket(server: Server): void {
             break;
           }
 
+          // Check for chat commands
+          const { processCommand } = await import('../services/chatCommands.js');
+          const commandResult = processCommand(clientMessage.content, {
+            roomId: clientMessage.roomId,
+            agentName: `Agent ${agentId.slice(0, 8)}`,
+            getOnlineCount: () => connections.size,
+            getRoomInfo: async () => {
+              const [room] = await sql`
+                SELECT name, created_by AS "createdBy" FROM rooms WHERE id = ${clientMessage.roomId}::uuid
+              `;
+              const members = roomMembers.get(clientMessage.roomId);
+              return {
+                name: room?.name || 'Unknown Room',
+                owner: room?.createdBy || 'Unknown',
+                occupantCount: members?.size || 0,
+              };
+            },
+          });
+
+          // Handle command result
+          if (commandResult) {
+            if (commandResult.type === 'system') {
+              // Send system message only to the command sender
+              sendMessage(ws, {
+                type: 'message.new',
+                roomId: clientMessage.roomId,
+                agentId: '00000000-0000-0000-0000-000000000000',
+                displayName: 'System',
+                content: commandResult.message,
+                signature: '',
+                timestamp: new Date().toISOString(),
+              });
+            } else if (commandResult.type === 'action' || commandResult.type === 'broadcast') {
+              // Broadcast action or broadcast messages to all room members
+              broadcastToRoom(clientMessage.roomId, {
+                type: 'message.new',
+                roomId: clientMessage.roomId,
+                agentId,
+                displayName: `Agent ${agentId.slice(0, 8)}`,
+                content: commandResult.message,
+                signature: clientMessage.signature,
+                timestamp: new Date().toISOString(),
+              });
+            }
+
+            // Special handling for /roominfo to fetch actual data
+            if (clientMessage.content.trim().toLowerCase().startsWith('/roominfo')) {
+              try {
+                const [room] = await sql`
+                  SELECT name, created_by AS "createdBy" FROM rooms WHERE id = ${clientMessage.roomId}::uuid
+                `;
+                const members = roomMembers.get(clientMessage.roomId);
+                const ownerName = room?.createdBy ? `Agent ${room.createdBy.slice(0, 8)}` : 'Unknown';
+                const infoMessage = `Room: ${room?.name || 'Unknown'} | Owner: ${ownerName} | Occupants: ${members?.size || 0}`;
+                
+                sendMessage(ws, {
+                  type: 'message.new',
+                  roomId: clientMessage.roomId,
+                  agentId: '00000000-0000-0000-0000-000000000000',
+                  displayName: 'System',
+                  content: infoMessage,
+                  signature: '',
+                  timestamp: new Date().toISOString(),
+                });
+              } catch (error) {
+                console.error('[WS] Error fetching room info:', error);
+              }
+            }
+
+            break;
+          }
+
           // Check message against word filters
           const filterResult = await checkMessageFilters(clientMessage.content);
 

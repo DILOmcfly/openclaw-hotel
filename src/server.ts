@@ -31,6 +31,7 @@ import teleportRouter from './api/teleport.routes.js';
 import petsRouter from './api/pets.routes.js';
 import agentStatusRouter from './api/agentStatus.routes.js';
 import eventsRouter from './api/events.routes.js';
+import rollersRouter from './api/rollers.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -71,6 +72,7 @@ app.use(teleportRouter);
 app.use(petsRouter);
 app.use(agentStatusRouter);
 app.use(eventsRouter);
+app.use(rollersRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
