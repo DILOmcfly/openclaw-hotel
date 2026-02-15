@@ -223,6 +223,11 @@ export function setupWebSocket(server: Server): void {
   const wss = new WebSocketServer({ noServer: true });
 
   server.on('upgrade', async (req, socket, head) => {
+    // Skip spectator WebSocket paths — handled by spectator.ts
+    if (req.url?.startsWith('/ws/spectate')) {
+      return;
+    }
+
     const token = extractToken(req);
     const apiKey = extractApiKey(req);
 

@@ -137,8 +137,51 @@ import { sql } from './db/index.js';
 const app = express();
 
 app.use(express.json());
-// Spectator routes are public - mount before auth middleware
+
+// Serve static files from client directory
+app.use(express.static(join(import.meta.dirname, '..', 'client')));
+
+// === PUBLIC ROUTES (no auth required) ===
+app.get('/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/metrics', (_req, res) => {
+  res.json(getMetrics());
+});
+
+app.get('/metrics/history', (_req, res) => {
+  res.json(getHistoricalMetrics());
+});
+
+// Serve static HTML pages
+app.get('/', (_req, res) => {
+  res.type('html').send(readFileSync(join(import.meta.dirname, '..', 'client', 'index.html'), 'utf8'));
+});
+
+app.get('/spectate', (_req, res) => {
+  res.type('html').send(readFileSync(join(import.meta.dirname, '..', 'client', 'spectate.html'), 'utf8'));
+});
+
+app.get('/directory', (_req, res) => {
+  res.type('html').send(readFileSync(join(import.meta.dirname, '..', 'client', 'directory.html'), 'utf8'));
+});
+
+app.get('/admin', (_req, res) => {
+  res.type('html').send(readFileSync(join(import.meta.dirname, '..', 'client', 'admin.html'), 'utf8'));
+});
+
+app.get('/monitoring', (_req, res) => {
+  res.type('html').send(readFileSync(join(import.meta.dirname, '..', 'client', 'monitoring.html'), 'utf8'));
+});
+
+// Public API routes (no auth required)
 app.use(spectatorRouter);
+app.use(directoryRouter);
 app.use(authRouter);
 app.use(agentAuthRouter);
 app.use(furnitureRouter);
@@ -255,51 +298,9 @@ app.use(ttsRouter);
 app.use(roomScriptsRouter);
 app.use(analyticsRouter);
 
-app.get('/', (_req, res) => {
-  res
-    .type('html')
-    .send(readFileSync(join(import.meta.dirname, '..', 'client', 'index.html'), 'utf8'));
-});
+// (public routes moved to top of middleware chain)
 
-app.get('/health', (_req, res) => {
-  res.json({
-    status: 'ok',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-  });
-});
-
-app.get('/metrics', (_req, res) => {
-  res.json(getMetrics());
-});
-
-app.get('/metrics/history', (_req, res) => {
-  res.json(getHistoricalMetrics());
-});
-
-app.get('/admin', (_req, res) => {
-  res
-    .type('html')
-    .send(readFileSync(join(import.meta.dirname, '..', 'client', 'admin.html'), 'utf8'));
-});
-
-app.get('/monitoring', (_req, res) => {
-  res
-    .type('html')
-    .send(readFileSync(join(import.meta.dirname, '..', 'client', 'monitoring.html'), 'utf8'));
-});
-
-app.get('/spectate', (_req, res) => {
-  res
-    .type('html')
-    .send(readFileSync(join(import.meta.dirname, '..', 'client', 'spectate.html'), 'utf8'));
-});
-
-app.get('/directory', (_req, res) => {
-  res
-    .type('html')
-    .send(readFileSync(join(import.meta.dirname, '..', 'client', 'directory.html'), 'utf8'));
-});
+// (spectate + directory routes moved to top)
 
 const server = createServer(app);
 setupWebSocket(server);

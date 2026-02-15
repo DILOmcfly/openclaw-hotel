@@ -1,5 +1,6 @@
 import { Application, Assets } from 'pixi.js';
 import { IsoRenderer } from './renderer/IsoRenderer.js';
+import { SpriteLoader } from './renderer/SpriteLoader.js';
 
 // API base URL (detect from current location)
 const API_BASE = window.location.origin;
@@ -279,12 +280,14 @@ async function initializeRenderer(roomData: any) {
   
   container.appendChild(app.canvas as HTMLCanvasElement);
   
-  // Load assets
-  // const assetLoader = new AssetLoader(app);
-  // await assetLoader.loadAssets();
+  // Load sprites
+  console.log('[Spectator] Loading sprites...');
+  const spriteLoader = new SpriteLoader();
+  await spriteLoader.loadSprites();
+  console.log('[Spectator] Sprites loaded');
   
   // Create isometric renderer
-  renderer = new IsoRenderer(app, roomData.heightmap || '0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000');
+  renderer = new IsoRenderer(app, roomData.heightmap || '0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000', spriteLoader);
   
   // Render initial furniture
   if (roomData.furniture) {

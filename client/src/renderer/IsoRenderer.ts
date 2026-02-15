@@ -1,4 +1,5 @@
 import { Application, Container, Sprite, Texture, Graphics, Text, TextStyle } from 'pixi.js';
+import { SpriteLoader } from './SpriteLoader.js';
 
 export const TILE_WIDTH = 64;
 export const TILE_HEIGHT = 32;
@@ -45,9 +46,12 @@ export class IsoRenderer {
   private gridWidth: number = 0;
   private gridHeight: number = 0;
   private floorTexture: Texture | null = null;
+  private spriteLoader: SpriteLoader;
+  private spritesLoaded: boolean = false;
 
-  constructor(app: Application, heightmap: string) {
+  constructor(app: Application, heightmap: string, spriteLoader: SpriteLoader) {
     this.app = app;
+    this.spriteLoader = spriteLoader;
     
     // Create world container
     this.world = new Container();
@@ -95,35 +99,45 @@ export class IsoRenderer {
   }
 
   private drawFloor() {
+    const floorTexture = this.spriteLoader.getTexture('floor_stone');
+    
     for (let gy = 0; gy < this.gridHeight; gy++) {
       for (let gx = 0; gx < this.gridWidth; gx++) {
         if (!this.grid[gy]?.[gx]) continue;
         
         const { x, y } = gridToScreen(gx, gy);
         
-        // Draw isometric diamond tile
-        const tile = new Graphics();
+        let tile: Sprite | Graphics;
         
-        // Tile color with slight variation for checker pattern
-        const isEven = (gx + gy) % 2 === 0;
-        const baseColor = isEven ? 0x2d5a3d : 0x346b47;
-        
-        tile.fill({ color: baseColor, alpha: 1 });
-        tile.moveTo(0, -TILE_HEIGHT / 2);          // top
-        tile.lineTo(TILE_WIDTH / 2, 0);             // right
-        tile.lineTo(0, TILE_HEIGHT / 2);             // bottom
-        tile.lineTo(-TILE_WIDTH / 2, 0);             // left
-        tile.closePath();
-        tile.fill();
-        
-        // Add subtle border
-        tile.stroke({ color: 0x1a3a25, width: 1, alpha: 0.5 });
-        tile.moveTo(0, -TILE_HEIGHT / 2);
-        tile.lineTo(TILE_WIDTH / 2, 0);
-        tile.lineTo(0, TILE_HEIGHT / 2);
-        tile.lineTo(-TILE_WIDTH / 2, 0);
-        tile.closePath();
-        tile.stroke();
+        if (floorTexture) {
+          // Use real sprite
+          tile = new Sprite(floorTexture);
+          tile.anchor.set(0.5, 0.5);
+        } else {
+          // Fallback to Graphics primitive
+          tile = new Graphics();
+          
+          // Tile color with slight variation for checker pattern
+          const isEven = (gx + gy) % 2 === 0;
+          const baseColor = isEven ? 0x2d5a3d : 0x346b47;
+          
+          tile.fill({ color: baseColor, alpha: 1 });
+          tile.moveTo(0, -TILE_HEIGHT / 2);          // top
+          tile.lineTo(TILE_WIDTH / 2, 0);             // right
+          tile.lineTo(0, TILE_HEIGHT / 2);             // bottom
+          tile.lineTo(-TILE_WIDTH / 2, 0);             // left
+          tile.closePath();
+          tile.fill();
+          
+          // Add subtle border
+          tile.stroke({ color: 0x1a3a25, width: 1, alpha: 0.5 });
+          tile.moveTo(0, -TILE_HEIGHT / 2);
+          tile.lineTo(TILE_WIDTH / 2, 0);
+          tile.lineTo(0, TILE_HEIGHT / 2);
+          tile.lineTo(-TILE_WIDTH / 2, 0);
+          tile.closePath();
+          tile.stroke();
+        }
         
         tile.x = x;
         tile.y = y;
@@ -173,27 +187,37 @@ export class IsoRenderer {
     
     const container = new Container();
     
-    // Agent body - simple colored circle/diamond
-    const body = new Graphics();
-    const colors = [0x00ffcc, 0xff6b6b, 0x6b9bff, 0xffcc00, 0xff69b4, 0x88ff88];
-    const color = colors[Math.abs(hashCode(id)) % colors.length];
+    // Try to load agent sprite (use agent_idle_se as default)
+    const agentTexture = this.spriteLoader.getTexture('agent_idle_se');
     
-    // Draw a simple agent shape (isometric character placeholder)
-    body.fill({ color: color, alpha: 0.9 });
-    body.roundRect(-10, -30, 20, 30, 4);
-    body.fill();
-    
-    // Head
-    body.fill({ color: color, alpha: 1 });
-    body.circle(0, -36, 8);
-    body.fill();
-    
-    // Shadow
-    body.fill({ color: 0x000000, alpha: 0.3 });
-    body.ellipse(0, 2, 12, 4);
-    body.fill();
-    
-    container.addChild(body);
+    if (agentTexture) {
+      // Use real pixel art sprite
+      const agentSprite = new Sprite(agentTexture);
+      agentSprite.anchor.set(0.5, 1); // Bottom-center anchor for isometric
+      container.addChild(agentSprite);
+    } else {
+      // Fallback to Graphics primitive
+      const body = new Graphics();
+      const colors = [0x00ffcc, 0xff6b6b, 0x6b9bff, 0xffcc00, 0xff69b4, 0x88ff88];
+      const color = colors[Math.abs(hashCode(id)) % colors.length];
+      
+      // Draw a simple agent shape (isometric character placeholder)
+      body.fill({ color: color, alpha: 0.9 });
+      body.roundRect(-10, -30, 20, 30, 4);
+      body.fill();
+      
+      // Head
+      body.fill({ color: color, alpha: 1 });
+      body.circle(0, -36, 8);
+      body.fill();
+      
+      // Shadow
+      body.fill({ color: 0x000000, alpha: 0.3 });
+      body.ellipse(0, 2, 12, 4);
+      body.fill();
+      
+      container.addChild(body);
+    }
     
     // Name label
     const nameStyle = new TextStyle({
@@ -205,7 +229,7 @@ export class IsoRenderer {
     });
     const nameText = new Text({ text: name, style: nameStyle });
     nameText.anchor.set(0.5, 1);
-    nameText.y = -48;
+    nameText.y = agentTexture ? -agentTexture.height : -48;
     container.addChild(nameText);
     
     container.x = x;
@@ -244,44 +268,54 @@ export class IsoRenderer {
     
     const container = new Container();
     
-    // Simple furniture representation
-    const box = new Graphics();
-    const furnitureColors: Record<string, number> = {
-      sofa: 0x4488cc,
-      table: 0x8B4513,
-      chair: 0xA0522D,
-      lamp: 0xFFD700,
-      bed: 0x6B4226,
-      bookshelf: 0x654321,
-      tv: 0x333333,
-      computer: 0x555555,
-      plant: 0x228B22,
-      fridge: 0xCCCCCC,
-    };
-    const color = furnitureColors[type] || 0x888888;
+    // Try to load furniture sprite (e.g., 'sofa' → 'furniture_sofa')
+    const furnitureTexture = this.spriteLoader.getTexture(`furniture_${type}`) || this.spriteLoader.getTexture(type);
     
-    // Isometric box
-    box.fill({ color, alpha: 0.8 });
-    box.roundRect(-12, -20, 24, 20, 2);
-    box.fill();
-    
-    // Shadow
-    box.fill({ color: 0x000000, alpha: 0.2 });
-    box.ellipse(0, 2, 14, 5);
-    box.fill();
-    
-    container.addChild(box);
-    
-    // Label
-    const labelStyle = new TextStyle({
-      fontSize: 9,
-      fill: 0xaaaaaa,
-      fontFamily: 'monospace',
-    });
-    const label = new Text({ text: type, style: labelStyle });
-    label.anchor.set(0.5, 1);
-    label.y = -22;
-    container.addChild(label);
+    if (furnitureTexture) {
+      // Use real pixel art sprite
+      const furnitureSprite = new Sprite(furnitureTexture);
+      furnitureSprite.anchor.set(0.5, 1); // Bottom-center anchor for isometric
+      container.addChild(furnitureSprite);
+    } else {
+      // Fallback to Graphics primitive
+      const box = new Graphics();
+      const furnitureColors: Record<string, number> = {
+        sofa: 0x4488cc,
+        table: 0x8B4513,
+        chair: 0xA0522D,
+        lamp: 0xFFD700,
+        bed: 0x6B4226,
+        bookshelf: 0x654321,
+        tv: 0x333333,
+        computer: 0x555555,
+        plant: 0x228B22,
+        fridge: 0xCCCCCC,
+      };
+      const color = furnitureColors[type] || 0x888888;
+      
+      // Isometric box
+      box.fill({ color, alpha: 0.8 });
+      box.roundRect(-12, -20, 24, 20, 2);
+      box.fill();
+      
+      // Shadow
+      box.fill({ color: 0x000000, alpha: 0.2 });
+      box.ellipse(0, 2, 14, 5);
+      box.fill();
+      
+      container.addChild(box);
+      
+      // Label
+      const labelStyle = new TextStyle({
+        fontSize: 9,
+        fill: 0xaaaaaa,
+        fontFamily: 'monospace',
+      });
+      const label = new Text({ text: type, style: labelStyle });
+      label.anchor.set(0.5, 1);
+      label.y = -22;
+      container.addChild(label);
+    }
     
     container.x = x;
     container.y = y;
