@@ -923,25 +923,28 @@
           break;
 
         case 'agent.move':
+        case 'agent.moved':
           const mover = agents.get(msg.agentId);
           if (mover) {
             mover.x = msg.x;
             mover.y = msg.y;
-            mover.direction = msg.direction || mover.direction;
+            mover.direction = msg.rotation || msg.direction || mover.direction;
             drawRoom();
           }
           break;
 
         case 'agent.chat':
         case 'chat.message':
+        case 'message.new':
           const chatter = agents.get(msg.agentId);
+          const chatText = msg.message || msg.text || msg.content || '';
           if (chatter) {
-            chatter.lastMessage = msg.message || msg.text;
+            chatter.lastMessage = chatText;
             chatter.lastMessageTime = Date.now();
           }
           addChatMessage(
             msg.displayName || chatter?.name || 'Agent',
-            msg.message || msg.text || ''
+            chatText
           );
           drawRoom();
           // Clear bubble after 5s

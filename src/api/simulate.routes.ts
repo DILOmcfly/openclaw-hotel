@@ -104,8 +104,8 @@ router.post('/api/internal/simulate', async (_req, res) => {
       const message = randomPick(CHAT_MESSAGES);
 
       // Get agent display name
-      const [agentData] = await sql<{ username: string }[]>`
-        SELECT username FROM agents WHERE id = ${agent.agent_id}
+      const [agentData] = await sql<{ display_name: string }[]>`
+        SELECT display_name FROM agents WHERE id = ${agent.agent_id}::uuid
       `;
 
       if (agentData) {
@@ -113,7 +113,7 @@ router.post('/api/internal/simulate', async (_req, res) => {
           type: 'message.new',
           roomId: agent.room_id,
           agentId: agent.agent_id,
-          displayName: agentData.username,
+          displayName: agentData.display_name,
           content: message,
           signature: '', // Simulation messages don't need signature
           timestamp: new Date().toISOString(),

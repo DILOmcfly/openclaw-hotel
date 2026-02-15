@@ -183,6 +183,7 @@ app.get('/monitoring', (_req, res) => {
 // Public API routes (no auth required)
 app.use(spectatorRouter);
 app.use(directoryRouter);
+app.use(simulateRouter);
 app.use(authRouter);
 app.use(agentAuthRouter);
 app.use(furnitureRouter);
