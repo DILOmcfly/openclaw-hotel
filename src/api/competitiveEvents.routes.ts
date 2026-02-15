@@ -13,6 +13,8 @@ import {
   getEventParticipants,
 } from '../services/competitiveEvents.js';
 import { sql } from '../db/index.js';
+import { requireAgent } from '../middleware/agentOnly.js';
+import { requireRole } from '../middleware/admin.js';
 
 const router = Router();
 
@@ -136,14 +138,14 @@ router.get('/api/events/:id/participants', async (req, res) => {
  * POST /api/events/:id/join
  * Join a competitive event
  */
-router.post('/api/events/:id/join', async (req, res) => {
+router.post('/api/events/:id/join', requireAgent, async (req, res) => {
   const { id } = req.params;
-  const { agentId } = req.body;
+  const agentId = (req as any).agentId; // Extract from auth middleware
 
-  // Validate UUID formats
+  // Validate UUID format
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(id) || !uuidRegex.test(agentId)) {
-    res.status(400).json({ error: 'Invalid event or agent ID format' });
+  if (!uuidRegex.test(id)) {
+    res.status(400).json({ error: 'Invalid event ID format' });
     return;
   }
 
@@ -160,7 +162,7 @@ router.post('/api/events/:id/join', async (req, res) => {
  * POST /api/events/:id/score
  * Submit score for an event (agent only, during active event)
  */
-router.post('/api/events/:id/score', async (req, res) => {
+router.post('/api/events/:id/score', requireAgent, async (req, res) => {
   const { id } = req.params;
 
   const parsed = submitScoreSchema.safeParse(req.body);
@@ -170,12 +172,12 @@ router.post('/api/events/:id/score', async (req, res) => {
   }
 
   const { score } = parsed.data;
-  const { agentId } = req.body; // TODO: Extract from auth token
+  const agentId = (req as any).agentId; // Extract from auth middleware
 
-  // Validate UUID formats
+  // Validate UUID format
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(id) || !agentId || !uuidRegex.test(agentId)) {
-    res.status(400).json({ error: 'Invalid event or agent ID format' });
+  if (!uuidRegex.test(id)) {
+    res.status(400).json({ error: 'Invalid event ID format' });
     return;
   }
 
@@ -192,7 +194,7 @@ router.post('/api/events/:id/score', async (req, res) => {
  * POST /api/admin/events
  * Create a new competitive event (admin only)
  */
-router.post('/api/admin/events', async (req, res) => {
+router.post('/api/admin/events', requireRole('admin'), async (req, res) => {
   const parsed = createEventSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -200,7 +202,8 @@ router.post('/api/admin/events', async (req, res) => {
     return;
   }
 
-  const { name, type, startTime, endTime, config, createdBy } = parsed.data;
+  const { name, type, startTime, endTime, config } = parsed.data;
+  const createdBy = (req as any).agentId; // Extract from auth middleware
 
   try {
     const event = await createCompetitiveEvent(
@@ -209,7 +212,7 @@ router.post('/api/admin/events', async (req, res) => {
       new Date(startTime),
       endTime ? new Date(endTime) : null,
       config || {},
-      createdBy || null,
+      createdBy,
       sql
     );
 
@@ -224,7 +227,7 @@ router.post('/api/admin/events', async (req, res) => {
  * PUT /api/admin/events/:id/end
  * End an event and calculate rankings (admin only)
  */
-router.put('/api/admin/events/:id/end', async (req, res) => {
+router.put('/api/admin/events/:id/end', requireRole('admin'), async (req, res) => {
   const { id } = req.params;
 
   // Validate UUID format
