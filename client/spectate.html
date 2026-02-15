@@ -334,40 +334,36 @@
         // Furniture: [sprite, x, y, scale]
         // Designed as a cozy hotel lobby - logical zones
         furniture: [
-          // === LOUNGE ZONE (left side, against left wall) ===
-          // Sofa facing inward with coffee table
-          ['sofa', 1, 3, 0.4],
-          ['table', 2, 5, 0.4],    // coffee table in front of sofa
-          ['sofa', 1, 7, 0.4],     // second sofa opposite
-          ['lamp', 1, 1, 0.2],     // corner lamp
+          // === LOUNGE AREA 1 (left side) ===
+          // Sofa + rug + coffee table — facing right wall
+          ['sofa', 2, 3, 0.55],       // bigger sofa
+          ['rug', 3, 3, 0.4],         // rug in front of sofa
+          ['table', 3, 4, 0.4],       // coffee table in front
 
-          // === ENTERTAINMENT ZONE (against back wall, center) ===
-          ['tv', 5, 1, 0.35],      // TV against back wall
-          ['bookshelf', 7, 1, 0.3],// bookshelf next to TV
+          // === LOUNGE AREA 2 (left side, lower) ===
+          ['sofa', 2, 7, 0.55],       // second bigger sofa
+          ['rug', 3, 7, 0.4],         // rug in front
+          ['table', 3, 8, 0.4],       // coffee table in front
 
-          // === RECEPTION/WORK AREA (right side, against back wall) ===
-          ['computer', 9, 1, 0.3], // desk against back wall
-          ['chair', 9, 2, 0.28],   // chair at desk
+          // === TV AREA (facing sofas, couple tiles away) ===
+          ['tv', 5, 5, 0.5],          // TV bigger, between both sofas, facing left
 
-          // === CENTRAL AREA ===
-          ['rug', 5, 5, 0.5],      // central rug defining the space
-          ['table', 5, 4, 0.35],   // table on rug
+          // === BOOKSHELF (against back wall) ===
+          ['bookshelf', 3, 1, 0.4],   // against back wall
 
-          // === DINING CORNER (far right) ===
-          ['table', 9, 6, 0.35],
-          ['chair', 8, 6, 0.28],
-          ['chair', 10, 6, 0.28],
-          ['fridge', 10, 8, 0.3],  // kitchenette
+          // === WORK AREA (right side, against back wall) ===
+          ['computer', 8, 1, 0.45],   // bigger computer
+          ['chair', 8, 2, 0.35],      // chair at desk
 
-          // === DECORATIVE (corners & walls) ===
-          ['plant', 10, 1, 0.3],   // corner plant
-          ['plant', 1, 10, 0.3],   // corner plant  
-          ['plant', 10, 10, 0.3],  // corner plant
-          ['lamp', 10, 3, 0.2],    // wall lamp right
-          ['painting', 3, 1, 0.25],// painting on back wall
+          // === KITCHEN CORNER (far right) ===
+          ['fridge', 10, 1, 0.4],     // fridge against back wall corner
 
-          // === ENTRANCE (bottom-right edge) ===
-          ['door', 11, 5, 0.35],
+          // === DECORATIVE ===
+          ['plant', 1, 1, 0.35],      // corner plant
+          ['plant', 1, 10, 0.35],     // corner plant
+          ['plant', 10, 10, 0.35],    // corner plant
+          ['lamp', 1, 5, 0.25],       // lamp on left wall between sofas
+          ['lamp', 10, 5, 0.25],      // lamp on right side
         ],
         // Wall decorations: [sprite, position, side] (side: 'back'=top, 'left'=left)
         wallWindows: [
@@ -430,8 +426,8 @@
         // Wall fill - warm cream/beige
         const g = ctx.createLinearGradient(x0, y3, x0, y0);
         g.addColorStop(0, '#c4b096');
-        g.addColorStop(0.05, '#b8a488');
-        g.addColorStop(0.95, '#a89478');
+        g.addColorStop(0.1, '#c4b496');
+        g.addColorStop(0.9, '#c0b090');
         g.addColorStop(1, '#8a7a64');
         ctx.fillStyle = g;
         ctx.beginPath();
@@ -489,10 +485,10 @@
         const x3 = sx, y3 = sy - WALL_H;
 
         const g = ctx.createLinearGradient(x0, y3, x0, y0);
-        g.addColorStop(0, '#b09a80');
-        g.addColorStop(0.05, '#a48e74');
-        g.addColorStop(0.95, '#948068');
-        g.addColorStop(1, '#7a6a54');
+        g.addColorStop(0, '#b8a48c');
+        g.addColorStop(0.1, '#b4a088');
+        g.addColorStop(0.9, '#b09c84');
+        g.addColorStop(1, '#a89880');
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3);
@@ -553,7 +549,7 @@
 
       // Shadow
       ctx.beginPath();
-      ctx.ellipse(sx, sy + TILE_H/2 - 2, 14, 7, 0, 0, Math.PI * 2);
+      ctx.ellipse(sx, sy + 2, 14, 6, 0, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(0,0,0,0.25)';
       ctx.fill();
 
