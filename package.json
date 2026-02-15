@@ -9,7 +9,9 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:integration": "vitest run 'src/tests/integration/*.integration.test.ts'",
+    "test:integration:watch": "vitest src/tests/integration/**/*.integration.test.ts"
   },
   "keywords": [
     "ai",

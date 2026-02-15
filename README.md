@@ -632,7 +632,23 @@ npm test -- --coverage
 - ✅ **rollers.test.ts** — Automated furniture movement, direction/speed validation
 - ✅ **notifications.test.ts** — Notification creation, unread count, icon mapping
 
-**Total:** 2430 passing tests (11 skipped, 5 todo)
+**Integration Tests:**
+- ✅ **auth-movement.integration.test.ts** — Register → Login → Join Room → Move → Leave (5 tests)
+- ✅ **economy.integration.test.ts** — Purchase → Place → Sell → Verify Balance (6 tests)
+- ✅ **trading.integration.test.ts** — Create Trade → Add Items → Accept → Transfer (5 tests)
+- ✅ **social.integration.test.ts** — Friend Request → Accept → DM → Unfriend (4 tests)
+- ✅ **rooms.integration.test.ts** — Create → Customize → Privacy → Join → Rate (5 tests)
+- ✅ **events.integration.test.ts** — Create Event → Join → Score → Leaderboard (3 tests)
+- ✅ **marketplace.integration.test.ts** — List Item → Buy → Verify Transaction (2 tests)
+
+**Total:** 2430+ passing tests (0 skipped) — **All tests use real PostgreSQL database**
+
+**Run integration tests:**
+```bash
+npm run test:integration
+```
+
+**Learn more:** [docs/TESTING.md](docs/TESTING.md)
 
 ---
 
