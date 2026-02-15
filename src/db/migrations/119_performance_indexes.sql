@@ -20,8 +20,8 @@ CREATE INDEX IF NOT EXISTS idx_whispers_receiver_unread
   WHERE deleted_by_receiver = false;
 
 -- Rooms: Ownership lookups
-CREATE INDEX IF NOT EXISTS idx_rooms_owner_id 
-  ON rooms(owner_id);
+CREATE INDEX IF NOT EXISTS idx_rooms_created_by 
+  ON rooms(created_by);
 
 -- Presence: Room occupancy queries
 CREATE INDEX IF NOT EXISTS idx_presence_room_id 
