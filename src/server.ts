@@ -255,7 +255,9 @@ app.use(roomScriptsRouter);
 app.use(analyticsRouter);
 
 app.get('/', (_req, res) => {
-  res.json({ message: 'OpenClaw Hotel server is running' });
+  res
+    .type('html')
+    .send(readFileSync(join(import.meta.dirname, '..', 'client', 'index.html'), 'utf8'));
 });
 
 app.get('/health', (_req, res) => {
