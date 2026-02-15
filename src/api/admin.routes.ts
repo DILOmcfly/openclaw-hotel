@@ -1,10 +1,14 @@
 import express from 'express';
 import { sql } from '../db/index.js';
 import { requireRole, AdminRole } from '../middleware/admin.js';
+import { validateToken } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 import { banAgent as banAgentInMemory } from '../services/moderation.js';
 
 const router = express.Router();
+
+// All admin routes require valid JWT token
+router.use(validateToken);
 
 // Helper to safely extract string from query param
 function getQueryParam(value: any): string {

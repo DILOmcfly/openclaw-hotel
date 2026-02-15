@@ -86,7 +86,7 @@ router.get('/api/spectate/rooms/:id', async (req, res) => {
       return res.status(404).json({ error: 'Room not found' });
     }
 
-    // Get agents currently in room
+    // Get agents currently in room (WebSocket-connected first, fallback to presence table)
     const members = roomMembers.get(id);
     const agentIds = members ? Array.from(members) : [];
 
@@ -99,6 +99,21 @@ router.get('/api/spectate/rooms/:id', async (req, res) => {
         FROM agents
         WHERE id = ANY(${agentIds}::uuid[])
       `;
+    } else {
+      // Fallback: read from presence table for demo/seed data
+      try {
+        agentsInside = await sql`
+          SELECT 
+            a.id,
+            a.display_name AS "displayName",
+            p.x,
+            p.y
+          FROM presence p
+          JOIN agents a ON a.id = p.agent_id
+          WHERE p.room_id = ${id}::uuid
+          LIMIT 50
+        `;
+      } catch { /* presence table may not exist */ }
     }
 
     // Get furniture in room

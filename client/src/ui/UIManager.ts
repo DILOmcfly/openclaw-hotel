@@ -583,18 +583,21 @@ export class UIManager {
     });
   }
 
-  // Auth handlers (to be connected to real API)
+  // Auth handlers (connected to Ed25519 challenge-response API)
   private async handleLogin(username: string, password: string): Promise<void> {
     try {
-      // TODO: Connect to real auth API
-      // For now, simulate successful login
-      console.log('[Auth] Login attempt:', username);
+      console.log('[Auth] Login attempt with stored keypair...');
       
-      // Placeholder: simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Import authAPI dynamically
+      const { login } = await import('../api/authAPI.js');
+      const result = await login();
       
-      this.username = username;
-      this.token = `demo-token-${Date.now()}`;
+      if (!result.success || !result.agentId || !result.token) {
+        throw new Error(result.error || 'Login failed');
+      }
+      
+      this.username = username; // Display name from UI
+      this.token = result.token;
       
       this.onAuthSuccess?.(this.username, this.token);
       this.showScreen('navigator');
@@ -605,13 +608,18 @@ export class UIManager {
 
   private async handleRegister(username: string, displayName: string, password: string): Promise<void> {
     try {
-      console.log('[Auth] Register attempt:', username, displayName);
+      console.log('[Auth] Register attempt:', displayName);
       
-      // TODO: Connect to real auth API
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Import authAPI dynamically
+      const { register } = await import('../api/authAPI.js');
+      const result = await register(displayName);
       
-      this.username = username;
-      this.token = `demo-token-${Date.now()}`;
+      if (!result.success || !result.agentId || !result.token) {
+        throw new Error(result.error || 'Registration failed');
+      }
+      
+      this.username = displayName;
+      this.token = result.token;
       
       this.onAuthSuccess?.(this.username, this.token);
       this.showScreen('navigator');
@@ -624,11 +632,21 @@ export class UIManager {
     try {
       console.log('[Auth] Guest login:', guestName);
       
-      // TODO: Connect to real auth API
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Import authAPI dynamically
+      const { register } = await import('../api/authAPI.js');
       
-      this.username = `Guest-${guestName}`;
-      this.token = `guest-token-${Date.now()}`;
+      // Generate unique guest name
+      const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const displayName = `Guest_${guestName || randomSuffix}`;
+      
+      const result = await register(displayName);
+      
+      if (!result.success || !result.agentId || !result.token) {
+        throw new Error(result.error || 'Guest registration failed');
+      }
+      
+      this.username = displayName;
+      this.token = result.token;
       
       this.onAuthSuccess?.(this.username, this.token);
       this.showScreen('navigator');

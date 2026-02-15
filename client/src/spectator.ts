@@ -1,16 +1,5 @@
 import { Application, Assets } from 'pixi.js';
-// import { IsoRenderer } from './renderer/IsoRenderer.js';
-// import { AssetLoader } from './AssetLoader.js';
-
-// Stub IsoRenderer until the real one is fixed
-class IsoRenderer {
-  constructor(_app: any, _heightmap: string) {}
-  placeAgent(_id: string, _x: number, _y: number, _name: string) {}
-  removeAgent(_id: string) {}
-  moveAgent(_id: string, _x: number, _y: number) {}
-  placeFurniture(_id: string, _type: string, _x: number, _y: number) {}
-  destroy() {}
-}
+import { IsoRenderer } from './renderer/IsoRenderer.js';
 
 // API base URL (detect from current location)
 const API_BASE = window.location.origin;

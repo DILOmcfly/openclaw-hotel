@@ -137,6 +137,8 @@ import { sql } from './db/index.js';
 const app = express();
 
 app.use(express.json());
+// Spectator routes are public - mount before auth middleware
+app.use(spectatorRouter);
 app.use(authRouter);
 app.use(agentAuthRouter);
 app.use(furnitureRouter);
@@ -159,7 +161,6 @@ app.use(leaderboardRouter);
 app.use(appearanceRouter);
 app.use('/api/templates', roomTemplatesRouter);
 app.use('/api/rooms', ratingRouter);
-app.use(spectatorRouter);
 app.use(directoryRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use(roomPermissionsRouter);
