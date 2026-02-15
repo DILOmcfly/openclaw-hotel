@@ -420,6 +420,12 @@ export class UIManager {
       inventoryPanel?.classList.add('hidden');
     });
 
+    // Marketplace toggle
+    const marketplaceToggle = document.getElementById('marketplace-toggle');
+    marketplaceToggle?.addEventListener('click', () => {
+      this.onMarketplaceToggle?.();
+    });
+
     // Settings toggle
     const settingsBtn = document.getElementById('settings-btn');
     const settingsPanel = document.getElementById('settings-panel');
@@ -853,6 +859,7 @@ export class UIManager {
   public onLeaderboardToggle?: () => void;
   public onInventoryToggle?: () => void;
   public onShopToggle?: () => void;
+  public onMarketplaceToggle?: () => void;
   public onTemplatesToggle?: () => void;
   public onClaimDailyBonus?: () => void;
 

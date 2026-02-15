@@ -25,6 +25,7 @@ import { LeaderboardPanel } from './ui/LeaderboardPanel.js';
 import { ShopPanel } from './ui/ShopPanel.js';
 import { TemplatesBrowser } from './ui/TemplatesBrowser.js';
 import { InventoryPanel } from './ui/InventoryPanel.js';
+import { MarketplacePanel } from './ui/MarketplacePanel.js';
 import { eventBus, Events } from './utils/EventBus.js';
 
 const DEMO_MAP = `
@@ -239,6 +240,169 @@ async function init() {
     } catch (error: any) {
       console.error('[Inventory] Error loading:', error);
       inventoryPanel.showEmpty();
+    }
+  }
+  
+  // Marketplace Panel
+  const marketplacePanel = new MarketplacePanel();
+  
+  marketplacePanel.onRefresh = () => {
+    loadMarketplaceListings();
+    loadMyMarketplaceListings();
+    loadInventoryForMarketplace();
+  };
+
+  marketplacePanel.onBuy = async (listingId) => {
+    try {
+      const token = ui.getToken();
+      if (!token) {
+        toastManager.error('You must be logged in');
+        return;
+      }
+
+      const response = await fetch(`/api/marketplace/${listingId}/buy`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to buy listing');
+      }
+
+      toastManager.success('Purchase successful!');
+      loadMarketplaceListings();
+      loadMyMarketplaceListings();
+      eventBus.emit(Events.INVENTORY_UPDATE);
+      eventBus.emit(Events.BALANCE_UPDATE);
+    } catch (error: any) {
+      console.error('[Marketplace] Buy error:', error);
+      toastManager.error(error.message || 'Failed to buy listing');
+    }
+  };
+
+  marketplacePanel.onCreateListing = async (itemId, price) => {
+    try {
+      const token = ui.getToken();
+      if (!token) {
+        toastManager.error('You must be logged in');
+        return;
+      }
+
+      // Get item type from inventory
+      const inventoryResponse = await fetch('/api/inventory?inRoom=false', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const inventoryData = await inventoryResponse.json();
+      const item = inventoryData.items.find((i: any) => i.id === itemId);
+      
+      if (!item) {
+        toastManager.error('Item not found');
+        return;
+      }
+
+      const response = await fetch('/api/marketplace/list', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          itemId,
+          itemType: item.itemDefId,
+          price,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to create listing');
+      }
+
+      toastManager.success('Listing created successfully!');
+      loadMyMarketplaceListings();
+      loadInventoryForMarketplace();
+    } catch (error: any) {
+      console.error('[Marketplace] Create listing error:', error);
+      toastManager.error(error.message || 'Failed to create listing');
+    }
+  };
+
+  marketplacePanel.onCancelListing = async (listingId) => {
+    try {
+      const token = ui.getToken();
+      if (!token) {
+        toastManager.error('You must be logged in');
+        return;
+      }
+
+      const response = await fetch(`/api/marketplace/${listingId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to cancel listing');
+      }
+
+      toastManager.success('Listing cancelled');
+      loadMyMarketplaceListings();
+    } catch (error: any) {
+      console.error('[Marketplace] Cancel listing error:', error);
+      toastManager.error(error.message || 'Failed to cancel listing');
+    }
+  };
+
+  async function loadMarketplaceListings() {
+    try {
+      const response = await fetch('/api/marketplace?status=active&limit=50');
+      if (response.ok) {
+        const data = await response.json();
+        marketplacePanel.setListings(data.listings);
+      }
+    } catch (error) {
+      console.error('[Marketplace] Error loading listings:', error);
+    }
+  }
+
+  async function loadMyMarketplaceListings() {
+    try {
+      const token = ui.getToken();
+      if (!token) return;
+
+      const response = await fetch('/api/marketplace/mine', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        marketplacePanel.setMyListings(data.listings);
+      }
+    } catch (error) {
+      console.error('[Marketplace] Error loading my listings:', error);
+    }
+  }
+
+  async function loadInventoryForMarketplace() {
+    try {
+      const token = ui.getToken();
+      if (!token) return;
+
+      const response = await fetch('/api/inventory?inRoom=false', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        marketplacePanel.setInventoryItems(data.items);
+      }
+    } catch (error) {
+      console.error('[Marketplace] Error loading inventory:', error);
     }
   }
   
