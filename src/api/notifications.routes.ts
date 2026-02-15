@@ -1,129 +1,137 @@
 import express from 'express';
-import * as NotificationService from '../services/notifications.js';
 import { sql } from '../db/index.js';
 import { validateToken } from '../services/auth.js';
+import * as notificationsService from '../services/notifications.js';
 
 const router = express.Router();
 
 /**
- * GET /api/notifications
- * Get all notifications for the authenticated agent
+ * GET /api/agents/:agentId/notifications
+ * Get notifications for an agent (paginated, optional unread filter)
  */
-router.get('/api/notifications', async (req, res) => {
+router.get('/api/agents/:agentId/notifications', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (!token) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { agentId } = validateToken(token);
-    const limit = parseInt(req.query?.limit as string) || 20;
-    const notifications = await NotificationService.getAllNotifications(agentId, sql, limit);
+    if (agentId !== req.params.agentId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
-    return res.json({ notifications });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message || 'Failed to fetch notifications' });
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const offset = parseInt(req.query.offset as string) || 0;
+    const unreadOnly = req.query.unread === 'true';
+
+    const notifications = await notificationsService.getAll(agentId, limit, offset, unreadOnly, sql);
+
+    res.json({ notifications, limit, offset, unreadOnly });
+  } catch (error) {
+    console.error('[Notifications API] Error fetching notifications:', error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
   }
 });
 
 /**
- * GET /api/notifications/unread
- * Get unread notifications and count
+ * GET /api/agents/:agentId/notifications/count
+ * Get unread notification count
  */
-router.get('/api/notifications/unread', async (req, res) => {
+router.get('/api/agents/:agentId/notifications/count', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (!token) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { agentId } = validateToken(token);
-    const notifications = await NotificationService.getUnreadNotifications(agentId, sql);
-    const unreadCount = await NotificationService.getUnreadCount(agentId, sql);
+    if (agentId !== req.params.agentId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
-    return res.json({ notifications, unreadCount });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message || 'Failed to fetch unread notifications' });
+    const count = await notificationsService.getUnreadCount(agentId, sql);
+
+    res.json({ unreadCount: count });
+  } catch (error) {
+    console.error('[Notifications API] Error fetching count:', error);
+    res.status(500).json({ error: 'Failed to fetch count' });
   }
 });
 
 /**
- * PUT /api/notifications/:id/read
+ * PUT /api/agents/:agentId/notifications/:id/read
  * Mark a notification as read
  */
-router.put('/api/notifications/:id/read', async (req, res) => {
+router.put('/api/agents/:agentId/notifications/:id/read', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (!token) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { agentId } = validateToken(token);
-    const notificationId = req.params.id;
-
-    if (!notificationId) {
-      return res.status(400).json({ error: 'Invalid notification ID' });
+    if (agentId !== req.params.agentId) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const success = await NotificationService.markAsRead(notificationId, agentId, sql);
+    const id = parseInt(req.params.id);
+    const success = await notificationsService.markRead(id, agentId, sql);
 
-    if (!success) {
-      return res.status(404).json({ error: 'Notification not found or already read' });
-    }
-
-    return res.json({ success: true });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message || 'Failed to mark notification as read' });
+    res.json({ success });
+  } catch (error) {
+    console.error('[Notifications API] Error marking read:', error);
+    res.status(500).json({ error: 'Failed to mark read' });
   }
 });
 
 /**
- * PUT /api/notifications/read-all
- * Mark all notifications as read for the authenticated agent
+ * PUT /api/agents/:agentId/notifications/read-all
+ * Mark all notifications as read
  */
-router.put('/api/notifications/read-all', async (req, res) => {
+router.put('/api/agents/:agentId/notifications/read-all', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (!token) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { agentId } = validateToken(token);
-    const count = await NotificationService.markAllAsRead(agentId, sql);
+    if (agentId !== req.params.agentId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
 
-    return res.json({ success: true, markedCount: count });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message || 'Failed to mark all as read' });
+    const count = await notificationsService.markAllRead(agentId, sql);
+
+    res.json({ success: true, markedCount: count });
+  } catch (error) {
+    console.error('[Notifications API] Error marking all read:', error);
+    res.status(500).json({ error: 'Failed to mark all read' });
   }
 });
 
 /**
- * DELETE /api/notifications/:id
- * Delete a notification
+ * DELETE /api/agents/:agentId/notifications/old
+ * Delete notifications older than 30 days (admin/system endpoint)
  */
-router.delete('/api/notifications/:id', async (req, res) => {
+router.delete('/api/agents/:agentId/notifications/old', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (!token) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { agentId } = validateToken(token);
-    const notificationId = req.params.id;
-
-    if (!notificationId) {
-      return res.status(400).json({ error: 'Invalid notification ID' });
+    if (agentId !== req.params.agentId) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const success = await NotificationService.deleteNotification(notificationId, agentId, sql);
+    const count = await notificationsService.deleteOld(sql);
 
-    if (!success) {
-      return res.status(404).json({ error: 'Notification not found' });
-    }
-
-    return res.json({ success: true });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message || 'Failed to delete notification' });
+    res.json({ success: true, deletedCount: count });
+  } catch (error) {
+    console.error('[Notifications API] Error deleting old:', error);
+    res.status(500).json({ error: 'Failed to delete old notifications' });
   }
 });
 

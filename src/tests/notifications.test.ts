@@ -1,254 +1,382 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import * as notificationsService from '../services/notifications.js';
+import type { NotificationType } from '../services/notifications.js';
 
 /**
  * Notification System Unit Tests
- * These tests validate logic and data structures without requiring a database
+ * All SQL queries are mocked - NO real database connections
  */
 
-describe('Notification System - Validation', () => {
-  it('should validate notification types', () => {
-    const validTypes = ['friend_request', 'trade_offer', 'whisper', 'achievement', 'system'];
-
-    const validateNotificationType = (type: string): boolean => {
-      return validTypes.includes(type);
-    };
-
-    expect(validateNotificationType('friend_request')).toBe(true);
-    expect(validateNotificationType('trade_offer')).toBe(true);
-    expect(validateNotificationType('whisper')).toBe(true);
-    expect(validateNotificationType('achievement')).toBe(true);
-    expect(validateNotificationType('system')).toBe(true);
-    expect(validateNotificationType('invalid_type')).toBe(false);
-    expect(validateNotificationType('')).toBe(false);
-  });
-
-  it('should validate notification data structure', () => {
-    type NotificationInput = {
-      agentId: string;
-      type: string;
-      title: string;
-      message: string;
-      link?: string;
-    };
-
-    const validateNotification = (input: NotificationInput): { valid: boolean; error?: string } => {
-      const validTypes = ['friend_request', 'trade_offer', 'whisper', 'achievement', 'system'];
-
-      if (!input.agentId) {
-        return { valid: false, error: 'Agent ID is required' };
-      }
-
-      if (!validTypes.includes(input.type)) {
-        return { valid: false, error: 'Invalid notification type' };
-      }
-
-      if (!input.title || input.title.trim() === '') {
-        return { valid: false, error: 'Title is required' };
-      }
-
-      if (input.title.length > 128) {
-        return { valid: false, error: 'Title must be ≤ 128 characters' };
-      }
-
-      if (!input.message || input.message.trim() === '') {
-        return { valid: false, error: 'Message is required' };
-      }
-
-      if (input.message.length > 1000) {
-        return { valid: false, error: 'Message must be ≤ 1000 characters' };
-      }
-
-      return { valid: true };
-    };
-
-    // Valid notification
-    const valid = validateNotification({
+describe('Notifications Service - Mocked SQL', () => {
+  
+  it('should create a single notification', async () => {
+    const mockSql = vi.fn().mockResolvedValue([{
+      id: 1,
       agentId: 'agent-123',
-      type: 'friend_request',
+      type: 'friend',
       title: 'New Friend Request',
-      message: 'John wants to be your friend',
-      link: '/friends',
-    });
-    expect(valid.valid).toBe(true);
+      body: 'Agent-456 wants to be your friend',
+      read: false,
+      actionUrl: '/friends',
+      createdAt: new Date('2024-02-15T10:00:00Z'),
+    }]);
 
-    // Missing agent ID
-    const noAgent = validateNotification({
-      agentId: '',
-      type: 'system',
-      title: 'Test',
-      message: 'Message',
-    });
-    expect(noAgent.valid).toBe(false);
-    expect(noAgent.error).toBe('Agent ID is required');
+    const result = await notificationsService.create(
+      'agent-123',
+      'friend',
+      'New Friend Request',
+      'Agent-456 wants to be your friend',
+      '/friends',
+      mockSql
+    );
 
-    // Invalid type
-    const invalidType = validateNotification({
+    expect(result.id).toBe(1);
+    expect(result.agentId).toBe('agent-123');
+    expect(result.type).toBe('friend');
+    expect(result.title).toBe('New Friend Request');
+    expect(result.read).toBe(false);
+  });
+
+  it('should create bulk notifications for multiple agents', async () => {
+    const mockSql = vi.fn().mockResolvedValue([
+      { id: 1 },
+      { id: 2 },
+      { id: 3 },
+    ]);
+
+    const count = await notificationsService.createBulk(
+      ['agent-1', 'agent-2', 'agent-3'],
+      'system',
+      'Server Maintenance',
+      'Server will restart in 10 minutes',
+      null,
+      mockSql
+    );
+
+    expect(count).toBe(3);
+  });
+
+  it('should return 0 when creating bulk with empty agent list', async () => {
+    const mockSql = vi.fn();
+
+    const count = await notificationsService.createBulk(
+      [],
+      'system',
+      'Test',
+      'Test',
+      null,
+      mockSql
+    );
+
+    expect(count).toBe(0);
+    expect(mockSql).not.toHaveBeenCalled();
+  });
+
+  it('should get unread notifications for an agent', async () => {
+    const mockSql = vi.fn().mockResolvedValue([
+      {
+        id: 1,
+        agentId: 'agent-123',
+        type: 'trade',
+        title: 'Trade Offer',
+        body: 'New trade offer received',
+        read: false,
+        actionUrl: '/trades/1',
+        createdAt: new Date('2024-02-15T12:00:00Z'),
+      },
+      {
+        id: 2,
+        agentId: 'agent-123',
+        type: 'achievement',
+        title: 'Achievement Unlocked',
+        body: 'You unlocked "First Trade"',
+        read: false,
+        actionUrl: '/achievements',
+        createdAt: new Date('2024-02-15T11:00:00Z'),
+      },
+    ]);
+
+    const result = await notificationsService.getUnread('agent-123', mockSql);
+
+    expect(result.length).toBe(2);
+    expect(result[0].read).toBe(false);
+    expect(result[1].read).toBe(false);
+  });
+
+  it('should get all notifications with pagination', async () => {
+    const mockSql = vi.fn().mockResolvedValue([
+      {
+        id: 1,
+        agentId: 'agent-123',
+        type: 'friend',
+        title: 'Friend Request',
+        body: 'New friend request',
+        read: true,
+        actionUrl: '/friends',
+        createdAt: new Date('2024-02-15T10:00:00Z'),
+      },
+    ]);
+
+    const result = await notificationsService.getAll('agent-123', 10, 0, false, mockSql);
+
+    expect(result.length).toBe(1);
+    expect(mockSql).toHaveBeenCalled();
+  });
+
+  it('should get only unread notifications when unreadOnly is true', async () => {
+    const mockSql = vi.fn().mockResolvedValue([
+      {
+        id: 2,
+        agentId: 'agent-123',
+        type: 'gift',
+        title: 'Gift Received',
+        body: 'You received a gift!',
+        read: false,
+        actionUrl: '/inventory',
+        createdAt: new Date('2024-02-15T11:00:00Z'),
+      },
+    ]);
+
+    const result = await notificationsService.getAll('agent-123', 10, 0, true, mockSql);
+
+    expect(result.length).toBe(1);
+    expect(result[0].read).toBe(false);
+  });
+
+  it('should mark a notification as read', async () => {
+    const mockSql = vi.fn().mockResolvedValue([{ id: 1 }]);
+
+    const success = await notificationsService.markRead(1, 'agent-123', mockSql);
+
+    expect(success).toBe(true);
+    expect(mockSql).toHaveBeenCalled();
+  });
+
+  it('should return false when marking non-existent notification', async () => {
+    const mockSql = vi.fn().mockResolvedValue([]);
+
+    const success = await notificationsService.markRead(999, 'agent-123', mockSql);
+
+    expect(success).toBe(false);
+  });
+
+  it('should mark all notifications as read', async () => {
+    const mockSql = vi.fn().mockResolvedValue([
+      { id: 1 },
+      { id: 2 },
+      { id: 3 },
+    ]);
+
+    const count = await notificationsService.markAllRead('agent-123', mockSql);
+
+    expect(count).toBe(3);
+  });
+
+  it('should return 0 when marking all read with no unread notifications', async () => {
+    const mockSql = vi.fn().mockResolvedValue([]);
+
+    const count = await notificationsService.markAllRead('agent-123', mockSql);
+
+    expect(count).toBe(0);
+  });
+
+  it('should delete old notifications (older than 30 days)', async () => {
+    const mockSql = vi.fn().mockResolvedValue([
+      { id: 1 },
+      { id: 2 },
+    ]);
+
+    const count = await notificationsService.deleteOld(mockSql);
+
+    expect(count).toBe(2);
+    expect(mockSql).toHaveBeenCalled();
+  });
+
+  it('should get unread count for an agent', async () => {
+    const mockSql = vi.fn().mockResolvedValue([{ count: '5' }]);
+
+    const count = await notificationsService.getUnreadCount('agent-123', mockSql);
+
+    expect(count).toBe(5);
+  });
+
+  it('should return 0 unread count when agent has no notifications', async () => {
+    const mockSql = vi.fn().mockResolvedValue([{ count: '0' }]);
+
+    const count = await notificationsService.getUnreadCount('agent-123', mockSql);
+
+    expect(count).toBe(0);
+  });
+
+  it('should handle all notification types correctly', async () => {
+    const types: NotificationType[] = ['trade', 'bid', 'gift', 'achievement', 'level_up', 'friend', 'guild', 'system', 'event', 'quest'];
+
+    for (const type of types) {
+      const mockSql = vi.fn().mockResolvedValue([{
+        id: 1,
+        agentId: 'agent-123',
+        type,
+        title: `Test ${type}`,
+        body: `Test notification for ${type}`,
+        read: false,
+        actionUrl: null,
+        createdAt: new Date(),
+      }]);
+
+      const result = await notificationsService.create(
+        'agent-123',
+        type,
+        `Test ${type}`,
+        `Test notification for ${type}`,
+        null,
+        mockSql
+      );
+
+      expect(result.type).toBe(type);
+    }
+  });
+
+  it('should create notification with null title and body', async () => {
+    const mockSql = vi.fn().mockResolvedValue([{
+      id: 1,
       agentId: 'agent-123',
-      type: 'invalid',
-      title: 'Test',
-      message: 'Message',
-    });
-    expect(invalidType.valid).toBe(false);
-    expect(invalidType.error).toBe('Invalid notification type');
-
-    // Empty title
-    const emptyTitle = validateNotification({
-      agentId: 'agent-123',
       type: 'system',
-      title: '',
-      message: 'Message',
-    });
-    expect(emptyTitle.valid).toBe(false);
-    expect(emptyTitle.error).toBe('Title is required');
+      title: null,
+      body: null,
+      read: false,
+      actionUrl: null,
+      createdAt: new Date(),
+    }]);
 
-    // Empty message
-    const emptyMessage = validateNotification({
+    const result = await notificationsService.create(
+      'agent-123',
+      'system',
+      null,
+      null,
+      null,
+      mockSql
+    );
+
+    expect(result.title).toBeNull();
+    expect(result.body).toBeNull();
+    expect(result.actionUrl).toBeNull();
+  });
+
+  it('should handle pagination offset correctly', async () => {
+    const mockSql = vi.fn().mockResolvedValue([
+      {
+        id: 11,
+        agentId: 'agent-123',
+        type: 'friend',
+        title: 'Friend Request',
+        body: 'Page 2 notification',
+        read: false,
+        actionUrl: '/friends',
+        createdAt: new Date(),
+      },
+    ]);
+
+    const result = await notificationsService.getAll('agent-123', 10, 10, false, mockSql);
+
+    expect(result.length).toBe(1);
+    expect(result[0].id).toBe(11);
+  });
+
+  it('should create notification with action URL', async () => {
+    const mockSql = vi.fn().mockResolvedValue([{
+      id: 1,
       agentId: 'agent-123',
-      type: 'system',
-      title: 'Title',
-      message: '',
-    });
-    expect(emptyMessage.valid).toBe(false);
-    expect(emptyMessage.error).toBe('Message is required');
+      type: 'trade',
+      title: 'Trade Complete',
+      body: 'Your trade was successful',
+      read: false,
+      actionUrl: '/trades/123/details',
+      createdAt: new Date(),
+    }]);
 
-    // Title too long
-    const longTitle = validateNotification({
+    const result = await notificationsService.create(
+      'agent-123',
+      'trade',
+      'Trade Complete',
+      'Your trade was successful',
+      '/trades/123/details',
+      mockSql
+    );
+
+    expect(result.actionUrl).toBe('/trades/123/details');
+  });
+
+  it('should handle level_up notification type', async () => {
+    const mockSql = vi.fn().mockResolvedValue([{
+      id: 1,
       agentId: 'agent-123',
-      type: 'system',
-      title: 'x'.repeat(129),
-      message: 'Message',
-    });
-    expect(longTitle.valid).toBe(false);
-    expect(longTitle.error).toBe('Title must be ≤ 128 characters');
+      type: 'level_up',
+      title: 'Level Up!',
+      body: 'You reached level 10',
+      read: false,
+      actionUrl: '/profile',
+      createdAt: new Date(),
+    }]);
 
-    // Message too long
-    const longMessage = validateNotification({
+    const result = await notificationsService.create(
+      'agent-123',
+      'level_up',
+      'Level Up!',
+      'You reached level 10',
+      '/profile',
+      mockSql
+    );
+
+    expect(result.type).toBe('level_up');
+    expect(result.title).toBe('Level Up!');
+  });
+
+  it('should handle quest notification type', async () => {
+    const mockSql = vi.fn().mockResolvedValue([{
+      id: 1,
       agentId: 'agent-123',
-      type: 'system',
-      title: 'Title',
-      message: 'y'.repeat(1001),
-    });
-    expect(longMessage.valid).toBe(false);
-    expect(longMessage.error).toBe('Message must be ≤ 1000 characters');
+      type: 'quest',
+      title: 'Quest Complete',
+      body: 'You completed "First Steps"',
+      read: false,
+      actionUrl: '/quests',
+      createdAt: new Date(),
+    }]);
+
+    const result = await notificationsService.create(
+      'agent-123',
+      'quest',
+      'Quest Complete',
+      'You completed "First Steps"',
+      '/quests',
+      mockSql
+    );
+
+    expect(result.type).toBe('quest');
   });
 
-  it('should sanitize notification content', () => {
-    const sanitizeText = (text: string, maxLength: number): string => {
-      return text.slice(0, maxLength);
-    };
+  it('should handle event notification type', async () => {
+    const mockSql = vi.fn().mockResolvedValue([{
+      id: 1,
+      agentId: 'agent-123',
+      type: 'event',
+      title: 'Event Starting',
+      body: 'Valentine\'s Day event begins now!',
+      read: false,
+      actionUrl: '/events/valentine',
+      createdAt: new Date(),
+    }]);
 
-    // Long title
-    const longTitle = 'x'.repeat(200);
-    const sanitizedTitle = sanitizeText(longTitle, 128);
-    expect(sanitizedTitle.length).toBe(128);
+    const result = await notificationsService.create(
+      'agent-123',
+      'event',
+      'Event Starting',
+      'Valentine\'s Day event begins now!',
+      '/events/valentine',
+      mockSql
+    );
 
-    // Long message
-    const longMessage = 'y'.repeat(2000);
-    const sanitizedMessage = sanitizeText(longMessage, 1000);
-    expect(sanitizedMessage.length).toBe(1000);
-
-    // Normal inputs
-    const normalTitle = 'New Friend Request';
-    const normalMessage = 'John wants to be your friend';
-    expect(sanitizeText(normalTitle, 128)).toBe(normalTitle);
-    expect(sanitizeText(normalMessage, 1000)).toBe(normalMessage);
-  });
-
-  it('should format notification time ago', () => {
-    const formatTimeAgo = (timestamp: number): string => {
-      const now = Math.floor(Date.now() / 1000);
-      const diff = now - timestamp;
-
-      if (diff < 60) return 'Just now';
-      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-      return `${Math.floor(diff / 86400)}d ago`;
-    };
-
-    const now = Math.floor(Date.now() / 1000);
-
-    expect(formatTimeAgo(now)).toBe('Just now');
-    expect(formatTimeAgo(now - 30)).toBe('Just now');
-    expect(formatTimeAgo(now - 120)).toBe('2m ago');
-    expect(formatTimeAgo(now - 3600)).toBe('1h ago');
-    expect(formatTimeAgo(now - 7200)).toBe('2h ago');
-    expect(formatTimeAgo(now - 86400)).toBe('1d ago');
-    expect(formatTimeAgo(now - 172800)).toBe('2d ago');
-  });
-
-  it('should get correct icon for notification type', () => {
-    const getIcon = (type: string): string => {
-      const icons: Record<string, string> = {
-        friend_request: '👋',
-        trade_offer: '💱',
-        whisper: '💬',
-        achievement: '🏆',
-        system: '📢',
-      };
-      return icons[type] || '📬';
-    };
-
-    expect(getIcon('friend_request')).toBe('👋');
-    expect(getIcon('trade_offer')).toBe('💱');
-    expect(getIcon('whisper')).toBe('💬');
-    expect(getIcon('achievement')).toBe('🏆');
-    expect(getIcon('system')).toBe('📢');
-    expect(getIcon('unknown')).toBe('📬');
-  });
-
-  it('should format unread count for badge', () => {
-    const formatBadgeCount = (count: number): string => {
-      if (count === 0) return '';
-      if (count > 99) return '99+';
-      return String(count);
-    };
-
-    expect(formatBadgeCount(0)).toBe('');
-    expect(formatBadgeCount(1)).toBe('1');
-    expect(formatBadgeCount(5)).toBe('5');
-    expect(formatBadgeCount(99)).toBe('99');
-    expect(formatBadgeCount(100)).toBe('99+');
-    expect(formatBadgeCount(500)).toBe('99+');
-  });
-
-  it('should determine if notification is unread', () => {
-    type Notification = {
-      id: number;
-      readAt?: number;
-    };
-
-    const isUnread = (notif: Notification): boolean => {
-      return !notif.readAt;
-    };
-
-    expect(isUnread({ id: 1 })).toBe(true);
-    expect(isUnread({ id: 2, readAt: undefined })).toBe(true);
-    expect(isUnread({ id: 3, readAt: Date.now() / 1000 })).toBe(false);
-  });
-
-  it('should build notification link correctly', () => {
-    const buildNotificationLink = (type: string, entityId?: string): string | undefined => {
-      switch (type) {
-        case 'friend_request':
-          return '/friends';
-        case 'trade_offer':
-          return entityId ? `/trades/${entityId}` : '/trades';
-        case 'whisper':
-          return entityId ? `/whispers/${entityId}` : '/whispers';
-        case 'achievement':
-          return '/profile/achievements';
-        case 'system':
-          return undefined; // System notifications may not have links
-        default:
-          return undefined;
-      }
-    };
-
-    expect(buildNotificationLink('friend_request')).toBe('/friends');
-    expect(buildNotificationLink('trade_offer', 'trade-123')).toBe('/trades/trade-123');
-    expect(buildNotificationLink('trade_offer')).toBe('/trades');
-    expect(buildNotificationLink('whisper', 'agent-456')).toBe('/whispers/agent-456');
-    expect(buildNotificationLink('achievement')).toBe('/profile/achievements');
-    expect(buildNotificationLink('system')).toBeUndefined();
+    expect(result.type).toBe('event');
+    expect(result.body).toContain('Valentine');
   });
 });

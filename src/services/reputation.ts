@@ -1,206 +1,100 @@
-import type { Sql } from 'postgres';
-import { randomUUID } from 'crypto';
-
-export type AgentReputation = {
+export type Reputation = {
   agentId: string;
-  karma: number;
-  positiveReviews: number;
-  negativeReviews: number;
-  lastReviewAt: Date | null;
+  reputation: number;
+  positiveCount: number;
+  negativeCount: number;
+  updatedAt: Date;
 };
 
-export type ReputationReview = {
-  id: string;
-  reviewerId: string;
-  targetId: string;
-  score: number;
-  comment: string;
+export type ReputationEvent = {
+  id: number;
+  agentId: string;
+  givenBy: string | null;
+  eventType: string;
+  points: number;
+  reason: string | null;
   createdAt: Date;
 };
 
-/**
- * Submit or create a review for an agent
- */
-export async function reviewAgent(
-  reviewerId: string,
-  targetId: string,
-  score: number,
-  comment: string,
-  sql: Sql
-): Promise<ReputationReview> {
-  // Validate score
-  if (score !== -1 && score !== 1) {
-    throw new Error('Score must be -1 or 1');
-  }
+export type TrustLevel = {
+  level: string;
+  score: number;
+  minRequired: number;
+  maxRequired: number;
+};
 
-  // Prevent self-review
-  if (reviewerId === targetId) {
-    throw new Error('Cannot review yourself');
-  }
+const EVENT_POINTS: Record<string, number> = {
+  upvote: 5, downvote: -5, trade_success: 10, trade_fail: -10,
+  report: -25, helpful: 15, scam: -50,
+};
 
-  // Validate comment length
-  if (comment.length > 200) {
-    throw new Error('Comment must be 200 characters or less');
-  }
-
-  // Check for existing review
-  const [existingReview] = await sql<ReputationReview[]>`
-    SELECT id, reviewer_id AS "reviewerId", target_id AS "targetId", score, comment, created_at AS "createdAt"
-    FROM reputation_reviews
-    WHERE reviewer_id = ${reviewerId} AND target_id = ${targetId}
+const TRUST_LEVELS = [
+  { level: 'untrusted', min: -Infinity, max: -50 },
+  { level: 'new', min: -49, max: 0 },
+  { level: 'basic', min: 1, max: 50 },
+  { level: 'trusted', min: 51, max: 150 },
+  { level: 'verified', min: 151, max: 300 },
+  { level: 'elite', min: 301, max: Infinity },
+];
+export async function addEvent(agentId: string, eventType: string, givenBy: string | null, reason: string | null, sql: any): Promise<ReputationEvent> {
+  const points = EVENT_POINTS[eventType] || 0;
+  const eventResult = await sql`
+    INSERT INTO reputation_events (agent_id, given_by, event_type, points, reason)
+    VALUES (${agentId}, ${givenBy}, ${eventType}, ${points}, ${reason})
+    RETURNING id, agent_id AS "agentId", given_by AS "givenBy", event_type AS "eventType", points, reason, created_at AS "createdAt"
   `;
-
-  if (existingReview) {
-    throw new Error('You have already reviewed this agent');
-  }
-
-  // Create review
-  const reviewId = randomUUID();
-  const [review] = await sql<ReputationReview[]>`
-    INSERT INTO reputation_reviews (id, reviewer_id, target_id, score, comment)
-    VALUES (${reviewId}, ${reviewerId}, ${targetId}, ${score}, ${comment})
-    RETURNING id, reviewer_id AS "reviewerId", target_id AS "targetId", score, comment, created_at AS "createdAt"
-  `;
-
-  // Update or create reputation record
+  const isPositive = points > 0;
   await sql`
-    INSERT INTO agent_reputation (agent_id, karma, positive_reviews, negative_reviews, last_review_at)
-    VALUES (
-      ${targetId},
-      ${score},
-      ${score === 1 ? 1 : 0},
-      ${score === -1 ? 1 : 0},
-      NOW()
-    )
+    INSERT INTO agent_reputation (agent_id, reputation, positive_count, negative_count, updated_at)
+    VALUES (${agentId}, ${points}, ${isPositive ? 1 : 0}, ${isPositive ? 0 : 1}, NOW())
     ON CONFLICT (agent_id) DO UPDATE SET
-      karma = agent_reputation.karma + ${score},
-      positive_reviews = agent_reputation.positive_reviews + ${score === 1 ? 1 : 0},
-      negative_reviews = agent_reputation.negative_reviews + ${score === -1 ? 1 : 0},
-      last_review_at = NOW()
+      reputation = agent_reputation.reputation + ${points},
+      positive_count = agent_reputation.positive_count + ${isPositive ? 1 : 0},
+      negative_count = agent_reputation.negative_count + ${isPositive ? 0 : 1},
+      updated_at = NOW()
   `;
-
-  return review;
+  return eventResult[0];
+}
+export async function getReputation(agentId: string, sql: any): Promise<Reputation> {
+  const result = await sql`
+    SELECT agent_id AS "agentId", reputation, positive_count AS "positiveCount", negative_count AS "negativeCount", updated_at AS "updatedAt"
+    FROM agent_reputation WHERE agent_id = ${agentId}
+  `;
+  if (result.length === 0) {
+    return { agentId, reputation: 0, positiveCount: 0, negativeCount: 0, updatedAt: new Date() };
+  }
+  return result[0];
 }
 
-/**
- * Get reputation for an agent
- */
-export async function getReputation(agentId: string, sql: Sql): Promise<AgentReputation> {
-  const [reputation] = await sql<AgentReputation[]>`
-    SELECT 
-      agent_id AS "agentId",
-      karma,
-      positive_reviews AS "positiveReviews",
-      negative_reviews AS "negativeReviews",
-      last_review_at AS "lastReviewAt"
-    FROM agent_reputation
-    WHERE agent_id = ${agentId}
+export async function getReputationHistory(agentId: string, limit: number = 20, offset: number = 0, sql: any): Promise<ReputationEvent[]> {
+  return await sql`
+    SELECT id, agent_id AS "agentId", given_by AS "givenBy", event_type AS "eventType", points, reason, created_at AS "createdAt"
+    FROM reputation_events WHERE agent_id = ${agentId} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}
   `;
-
-  if (!reputation) {
-    return {
-      agentId,
-      karma: 0,
-      positiveReviews: 0,
-      negativeReviews: 0,
-      lastReviewAt: null,
-    };
-  }
-
-  return reputation;
 }
 
-/**
- * Get reviews received by an agent
- */
-export async function getReviews(agentId: string, limit: number, sql: Sql): Promise<ReputationReview[]> {
-  const reviews = await sql<ReputationReview[]>`
-    SELECT 
-      id,
-      reviewer_id AS "reviewerId",
-      target_id AS "targetId",
-      score,
-      comment,
-      created_at AS "createdAt"
-    FROM reputation_reviews
-    WHERE target_id = ${agentId}
-    ORDER BY created_at DESC
-    LIMIT ${limit}
+export async function getLeaderboard(limit: number, sql: any): Promise<Reputation[]> {
+  return await sql`
+    SELECT agent_id AS "agentId", reputation, positive_count AS "positiveCount", negative_count AS "negativeCount", updated_at AS "updatedAt"
+    FROM agent_reputation ORDER BY reputation DESC LIMIT ${limit}
   `;
-
-  return reviews;
+}
+export function calculateTrustLevel(reputation: number): TrustLevel {
+  for (const level of TRUST_LEVELS) {
+    if (reputation >= level.min && reputation <= level.max) {
+      return {
+        level: level.level,
+        score: Math.max(0, Math.min(100, Math.round((reputation + 100) / 4))),
+        minRequired: level.min === -Infinity ? -1000 : level.min,
+        maxRequired: level.max === Infinity ? 10000 : level.max,
+      };
+    }
+  }
+  return { level: 'new', score: 50, minRequired: -49, maxRequired: 0 };
 }
 
-/**
- * Get agents with highest reputation
- */
-export async function getTopReputation(limit: number, sql: Sql): Promise<AgentReputation[]> {
-  const topAgents = await sql<AgentReputation[]>`
-    SELECT 
-      agent_id AS "agentId",
-      karma,
-      positive_reviews AS "positiveReviews",
-      negative_reviews AS "negativeReviews",
-      last_review_at AS "lastReviewAt"
-    FROM agent_reputation
-    ORDER BY karma DESC, positive_reviews DESC
-    LIMIT ${limit}
-  `;
-
-  return topAgents;
-}
-
-/**
- * Update an existing review
- */
-export async function updateReview(
-  reviewerId: string,
-  targetId: string,
-  newScore: number,
-  sql: Sql
-): Promise<ReputationReview> {
-  // Validate new score
-  if (newScore !== -1 && newScore !== 1) {
-    throw new Error('Score must be -1 or 1');
-  }
-
-  // Get existing review
-  const [existingReview] = await sql<ReputationReview[]>`
-    SELECT id, reviewer_id AS "reviewerId", target_id AS "targetId", score, comment, created_at AS "createdAt"
-    FROM reputation_reviews
-    WHERE reviewer_id = ${reviewerId} AND target_id = ${targetId}
-  `;
-
-  if (!existingReview) {
-    throw new Error('Review not found');
-  }
-
-  // If score hasn't changed, return existing
-  if (existingReview.score === newScore) {
-    return existingReview;
-  }
-
-  // Update review
-  const [updatedReview] = await sql<ReputationReview[]>`
-    UPDATE reputation_reviews
-    SET score = ${newScore}
-    WHERE reviewer_id = ${reviewerId} AND target_id = ${targetId}
-    RETURNING id, reviewer_id AS "reviewerId", target_id AS "targetId", score, comment, created_at AS "createdAt"
-  `;
-
-  // Calculate the delta change
-  const delta = newScore - existingReview.score;
-
-  // Update reputation record
-  await sql`
-    UPDATE agent_reputation
-    SET 
-      karma = karma + ${delta},
-      positive_reviews = positive_reviews + ${newScore === 1 ? 1 : -1},
-      negative_reviews = negative_reviews + ${newScore === -1 ? 1 : -1},
-      last_review_at = NOW()
-    WHERE agent_id = ${targetId}
-  `;
-
-  return updatedReview;
+export function canTrade(reputation: number, tradeValue: number = 0): boolean {
+  if (tradeValue >= 1000 && reputation < 50) return false;
+  if (tradeValue >= 5000 && reputation < 150) return false;
+  return reputation >= 1;
 }

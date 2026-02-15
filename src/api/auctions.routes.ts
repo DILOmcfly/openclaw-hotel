@@ -1,155 +1,92 @@
-/**
- * Auctions API Routes
- */
-
-import { Router } from 'express';
-import { createAuction, placeBid, getActiveAuctions, getAuctionById, cancelAuction, getMyAuctions } from '../services/auctions.js';
-import { validateToken } from '../middleware/auth.js';
+import express from 'express';
 import { sql } from '../db/index.js';
+import { validateToken } from '../services/auth.js';
+import * as auctionsService from '../services/auctions.js';
 
-const router = Router();
+const router = express.Router();
 
-/**
- * POST /api/auctions - Create a new auction (requires auth)
- */
-router.post('/api/auctions', validateToken, async (req, res) => {
+router.post('/api/auctions', async (req, res) => {
   try {
-    const agentId = res.locals.agentId;
-    if (!agentId) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { itemId, itemType, startingPrice, durationHours } = req.body;
-    if (!itemId || !itemType || !startingPrice || !durationHours) {
-      res.status(400).json({ error: 'Missing required fields' });
-      return;
-    }
-
-    const auction = await createAuction(agentId, itemId, itemType, startingPrice, durationHours, sql);
-    res.status(201).json({ auction });
+    const { agentId } = validateToken(token);
+    const { itemName, itemRarity, startingPrice, durationHours } = req.body;
+    const auction = await auctionsService.createAuction(
+      agentId, itemName, itemRarity || 'common', startingPrice || 1, durationHours || 24, sql
+    );
+    res.status(201).json({ success: true, auction });
   } catch (error: any) {
-    console.error('[Auctions API] Error creating auction:', error);
-    const status = error.message.includes('Duration') || error.message.includes('price') || 
-                   error.message.includes('not found') || error.message.includes('not belong') ? 400 : 500;
-    res.status(status).json({ error: error.message || 'Failed to create auction' });
+    res.status(400).json({ error: error.message || 'Failed to create auction' });
   }
 });
 
-/**
- * GET /api/auctions - Get all active auctions
- */
+router.post('/api/auctions/:id/bid', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { agentId } = validateToken(token);
+    const auction = await auctionsService.placeBid(parseInt(req.params.id), agentId, req.body.amount, sql);
+    res.json({ success: true, auction });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message || 'Failed to place bid' });
+  }
+});
+
 router.get('/api/auctions', async (req, res) => {
   try {
-    const auctions = await getActiveAuctions(sql);
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+    const offset = parseInt(req.query.offset as string) || 0;
+    const sortBy = (req.query.sortBy as any) || 'ending_soon';
+    const auctions = await auctionsService.getActiveAuctions(limit, offset, sortBy, sql);
     res.json({ auctions });
-  } catch (error: any) {
-    console.error('[Auctions API] Error fetching auctions:', error);
+  } catch (error) {
     res.status(500).json({ error: 'Failed to fetch auctions' });
   }
 });
 
-/**
- * GET /api/auctions/:id - Get auction details with bid history
- */
 router.get('/api/auctions/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    if (!id) {
-      res.status(400).json({ error: 'Missing auction ID' });
-      return;
-    }
+    const auctionId = parseInt(req.params.id);
+    const auction = await auctionsService.getAuctionById(auctionId, sql);
+    if (!auction) return res.status(404).json({ error: 'Auction not found' });
 
-    const result = await getAuctionById(id, sql);
-    if (!result) {
-      res.status(404).json({ error: 'Auction not found' });
-      return;
-    }
-
-    res.json(result);
-  } catch (error: any) {
-    console.error('[Auctions API] Error fetching auction:', error);
+    const bidHistory = await auctionsService.getAuctionBidHistory(auctionId, sql);
+    res.json({ auction, bidHistory });
+  } catch (error) {
     res.status(500).json({ error: 'Failed to fetch auction' });
   }
 });
 
-/**
- * POST /api/auctions/:id/bid - Place a bid on an auction (requires auth)
- */
-router.post('/api/auctions/:id/bid', validateToken, async (req, res) => {
+router.delete('/api/auctions/:id', async (req, res) => {
   try {
-    const agentId = res.locals.agentId;
-    if (!agentId) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { id } = req.params;
-    const { amount } = req.body;
-
-    if (!id) {
-      res.status(400).json({ error: 'Missing auction ID' });
-      return;
-    }
-    if (!amount || amount <= 0) {
-      res.status(400).json({ error: 'Invalid bid amount' });
-      return;
-    }
-
-    const bid = await placeBid(id, agentId, amount, sql);
-    res.status(201).json({ bid });
+    const { agentId } = validateToken(token);
+    const auction = await auctionsService.cancelAuction(parseInt(req.params.id), agentId, sql);
+    res.json({ success: true, auction });
   } catch (error: any) {
-    console.error('[Auctions API] Error placing bid:', error);
-    const status = error.message.includes('not found') || error.message.includes('not active') ||
-                   error.message.includes('ended') || error.message.includes('own auction') ||
-                   error.message.includes('must be at least') ? 400 : 500;
-    res.status(status).json({ error: error.message || 'Failed to place bid' });
+    res.status(400).json({ error: error.message || 'Failed to cancel auction' });
   }
 });
 
-/**
- * DELETE /api/auctions/:id - Cancel an auction (requires auth, seller only, no bids)
- */
-router.delete('/api/auctions/:id', validateToken, async (req, res) => {
+router.post('/api/auctions/expire', async (req, res) => {
   try {
-    const agentId = res.locals.agentId;
-    if (!agentId) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
-    const { id } = req.params;
-    if (!id) {
-      res.status(400).json({ error: 'Missing auction ID' });
-      return;
-    }
-
-    await cancelAuction(id, agentId, sql);
-    res.json({ success: true });
-  } catch (error: any) {
-    console.error('[Auctions API] Error cancelling auction:', error);
-    const status = error.message.includes('not found') || error.message.includes('Only seller') ||
-                   error.message.includes('not active') || error.message.includes('with bids') ? 400 : 500;
-    res.status(status).json({ error: error.message || 'Failed to cancel auction' });
+    const expiredCount = await auctionsService.expireAuctions(sql);
+    res.json({ success: true, expiredCount });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to expire auctions' });
   }
 });
 
-/**
- * GET /api/auctions/mine - Get auctions where agent is seller or bidder (requires auth)
- */
-router.get('/api/auctions/mine', validateToken, async (req, res) => {
+router.get('/api/agents/:agentId/auctions', async (req, res) => {
   try {
-    const agentId = res.locals.agentId;
-    if (!agentId) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
-    const auctions = await getMyAuctions(agentId, sql);
+    const auctions = await auctionsService.getAgentAuctions(req.params.agentId, sql);
     res.json({ auctions });
-  } catch (error: any) {
-    console.error('[Auctions API] Error fetching my auctions:', error);
-    res.status(500).json({ error: 'Failed to fetch auctions' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch agent auctions' });
   }
 });
 
