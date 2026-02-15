@@ -64,6 +64,8 @@ import craftingRouter from './api/crafting.routes.js';
 import dailyChallengesRouter from './api/dailyChallenges.routes.js';
 import luckyWheelRouter from './api/luckyWheel.routes.js';
 import auctionsRouter from './api/auctions.routes.js';
+import cardsRouter from './api/cards.routes.js';
+import contestsRouter from './api/contests.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -137,6 +139,8 @@ app.use(craftingRouter);
 app.use(dailyChallengesRouter);
 app.use(luckyWheelRouter);
 app.use(auctionsRouter);
+app.use(contestsRouter);
+app.use(cardsRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
