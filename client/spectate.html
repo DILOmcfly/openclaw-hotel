@@ -275,6 +275,7 @@
 
     // State
     let currentRoomId = null;
+    let currentRoomName = '';
     let ws = null;
     let agents = new Map(); // agentId -> { name, x, y, direction, element }
     let chatMessages = [];
@@ -377,6 +378,98 @@
           { side: 'back', pos: 7 },
           { side: 'left', pos: 3 },
           { side: 'left', pos: 7 },
+        ]
+      },
+      'chill': {
+        size: 10,
+        floor: [
+          'cccccccccc',
+          'cccccccccc',
+          'ccwwwwwwcc',
+          'ccwwwwwwcc',
+          'ccwwwwwwcc',
+          'ccwwwwwwcc',
+          'cccccccccc',
+          'cccccccccc',
+          'cccccccccc',
+          'cccccccccc',
+        ],
+        furniture: [
+          // === CHILL ZONE (center) ===
+          ['sofa', 3, 3, 0.38],
+          ['sofa', 3, 5, 0.38],
+          ['coffee_table', 4, 4, 0.5],
+          ['rug', 4, 3, 0.32],
+          ['rug', 4, 5, 0.32],
+          // === READING CORNER (top-left) ===
+          ['bookshelf', 1, 1, 0.45],
+          ['lounge_chair', 2, 2, 0.45],
+          ['lamp', 1, 2, 0.55],
+          // === MUSIC CORNER (top-right) ===
+          ['speaker', 7, 1, 0.6],
+          ['radio', 8, 1, 0.8],
+          // === DECORATIVE ===
+          ['plant', 1, 8, 0.7],
+          ['plant', 8, 8, 0.7],
+          ['plant', 8, 1, 0.6],
+          ['lamp', 8, 5, 0.55],
+        ],
+        wallWindows: [
+          { side: 'back', pos: 3 },
+          { side: 'back', pos: 6 },
+          { side: 'left', pos: 4 },
+          { side: 'left', pos: 7 },
+        ],
+        wallColor: '#6b5b4f',
+        floorTint: 'warm'
+      },
+      'arena': {
+        size: 14,
+        floor: [
+          'ssssssssssssss',
+          'ssssssssssssss',
+          'ssssccccccssss',
+          'sssccccccccsss',
+          'ssccccccccccss',
+          'ssccccccccccss',
+          'ssccccccccccss',
+          'ssccccccccccss',
+          'ssccccccccccss',
+          'ssccccccccccss',
+          'sssccccccccsss',
+          'ssssccccccssss',
+          'ssssssssssssss',
+          'ssssssssssssss',
+        ],
+        furniture: [
+          // === ARENA PERIMETER ===
+          ['chair', 2, 2, 0.55],
+          ['chair', 2, 11, 0.55],
+          ['chair', 11, 2, 0.55],
+          ['chair', 11, 11, 0.55],
+          // === SPECTATOR BENCHES ===
+          ['sofa', 1, 5, 0.35],
+          ['sofa', 1, 8, 0.35],
+          ['sofa', 12, 5, 0.35],
+          ['sofa', 12, 8, 0.35],
+          // === SCORE AREA ===
+          ['tv', 6, 1, 0.65],
+          ['computer', 7, 1, 0.7],
+          // === DECORATIVE ===
+          ['lamp', 1, 1, 0.55],
+          ['lamp', 1, 12, 0.55],
+          ['lamp', 12, 1, 0.55],
+          ['lamp', 12, 12, 0.55],
+          ['plant', 6, 12, 0.6],
+          ['plant', 7, 12, 0.6],
+        ],
+        wallWindows: [
+          { side: 'back', pos: 3 },
+          { side: 'back', pos: 6 },
+          { side: 'back', pos: 9 },
+          { side: 'left', pos: 3 },
+          { side: 'left', pos: 6 },
+          { side: 'left', pos: 9 },
         ]
       }
     };
@@ -648,7 +741,12 @@
       ctx.fillStyle = '#0f1923';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      const layout = ROOM_LAYOUTS['default'];
+      // Select layout based on room name
+      const roomNameLower = (currentRoomName || '').toLowerCase();
+      const layoutKey = roomNameLower.includes('chill') ? 'chill'
+        : roomNameLower.includes('arena') ? 'arena'
+        : 'default';
+      const layout = ROOM_LAYOUTS[layoutKey];
       const size = layout.size;
 
       // Check which wall positions have windows
@@ -793,6 +891,7 @@
     // ===== ENTER ROOM =====
     async function enterRoom(roomId, roomName) {
       currentRoomId = roomId;
+      currentRoomName = roomName || '';
       agents.clear();
       chatMessages = [];
 
