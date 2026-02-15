@@ -21,6 +21,7 @@
   "author": "OpenClaw Hotel",
   "license": "MIT",
   "dependencies": {
+    "@types/ioredis": "^4.28.10",
     "express": "^5.2.1",
     "ioredis": "^5.9.3",
     "jsonwebtoken": "^9.0.3",

@@ -136,8 +136,47 @@ async function init() {
   const inventoryPanel = new InventoryPanel();
   inventoryPanel.onPlace = async (itemId) => {
     console.log('[Inventory] Place item:', itemId);
-    toastManager.show('Place furniture feature coming soon!', 'info');
-    // TODO: Implement furniture placement from inventory
+    
+    if (!isConnected) {
+      toastManager.error('You must be in a room to place furniture');
+      return;
+    }
+
+    // Auto-place in center of room (simple MVP - no manual placement UI yet)
+    const x = 5;
+    const y = 5;
+    const rotation = 0;
+
+    try {
+      ws.send({
+        type: 'furniture.place',
+        roomId: currentRoom,
+        itemDefId: itemId,
+        x,
+        y,
+        rotation,
+      });
+
+      toastManager.success(`Furniture placed at (${x}, ${y})`);
+      inventoryPanel.hide();
+      
+      // Refresh inventory after placement
+      setTimeout(async () => {
+        const token = ui.getToken();
+        if (token) {
+          const response = await fetch('/api/inventory', {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          if (response.ok) {
+            const { items } = await response.json();
+            inventoryPanel.setItems(items);
+          }
+        }
+      }, 500);
+    } catch (error: any) {
+      console.error('[Inventory] Place error:', error);
+      toastManager.error(error.message || 'Failed to place furniture');
+    }
   };
 
   inventoryPanel.onSell = async (itemId) => {
@@ -334,16 +373,67 @@ async function init() {
     }
   };
 
-  friendsPanel.onRejectRequest = (friendshipId) => {
+  friendsPanel.onRejectRequest = async (friendshipId) => {
     console.log('[Friends] Rejecting friend request:', friendshipId);
-    // TODO: Implement reject endpoint when backend is ready
-    toastManager.info('Reject friend request not implemented yet');
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`/api/friends/${friendshipId}/reject`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to reject friend request');
+      }
+
+      toastManager.success('Friend request rejected');
+      // Refresh pending requests list
+      const pendingResponse = await fetch('/api/friends/pending', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (pendingResponse.ok) {
+        const { requests } = await pendingResponse.json();
+        friendsPanel.setPendingRequests(requests);
+      }
+    } catch (error: any) {
+      console.error('[Friends] Reject error:', error);
+      toastManager.error(error.message || 'Failed to reject friend request');
+    }
   };
 
-  friendsPanel.onRemoveFriend = (friendshipId) => {
+  friendsPanel.onRemoveFriend = async (friendshipId) => {
     console.log('[Friends] Removing friend:', friendshipId);
-    // TODO: Implement remove endpoint when backend is ready
-    toastManager.info('Remove friend not implemented yet');
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`/api/friends/${friendshipId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to remove friend');
+      }
+
+      toastManager.success('Friend removed');
+      // Refresh friends list
+      const friendsResponse = await fetch('/api/friends', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (friendsResponse.ok) {
+        const { friends } = await friendsResponse.json();
+        friendsPanel.setFriends(friends);
+      }
+    } catch (error: any) {
+      console.error('[Friends] Remove error:', error);
+      toastManager.error(error.message || 'Failed to remove friend');
+    }
   };
 
   // WebSocket connection
@@ -443,14 +533,52 @@ async function init() {
     }
   };
 
-  ui.onCreateRoom = (name: string, size: string) => {
-    console.log('[Room] Creating:', name, size);
-    // TODO: Implement room creation API call
-    // For now, just reload rooms with the new one
-    setTimeout(() => {
-      loadRooms();
-      ui.addChatMessage('System', `Room "${name}" created!`);
-    }, 500);
+  ui.onCreateRoom = async (name: string, category: string) => {
+    console.log('[Room] Creating:', name, category);
+    
+    try {
+      const token = ui.getToken();
+      if (!token) {
+        toastManager.error('You must be logged in to create rooms');
+        return;
+      }
+
+      const response = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          category: category || 'public',
+          visibility: 'public',
+          maxOccupants: 50,
+          description: `${name} - A new room`,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create room');
+      }
+
+      const { room } = await response.json();
+      
+      toastManager.success(`Room "${room.name}" created successfully!`);
+      ui.addChatMessage('System', `Room "${room.name}" created!`);
+      
+      // Reload rooms list
+      await loadRooms();
+      
+      // Auto-join the new room
+      if (isConnected) {
+        ws.send({ type: 'room.join', roomId: room.id });
+      }
+    } catch (error: any) {
+      console.error('[Room] Create error:', error);
+      toastManager.error(error.message || 'Failed to create room');
+    }
   };
 
   ui.onGamesToggle = () => {

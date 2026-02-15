@@ -2,11 +2,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { createChallenge, registerAgent, verifyChallenge } from '../services/auth.js';
 import { sql } from '../db/index.js';
+import { redisClient } from '../services/redis.js';
 
 const router = Router();
 
-// TODO: replace placeholder with real Redis client wiring
-const redis = null as any;
+// Get raw Redis client for auth operations
+const redis = redisClient.getClient();
 
 const registerSchema = z.object({
   publicKey: z.string(),
@@ -84,6 +85,32 @@ router.post('/api/v1/auth/verify', async (req, res) => {
     res.status(200).json({ token, expiresAt });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Verification failed';
+    res.status(400).json({ error: message });
+  }
+});
+
+/**
+ * Logout endpoint
+ * JWTs are stateless, so logout is client-side (delete token).
+ * This endpoint exists for API consistency and future blacklist support.
+ */
+router.post('/api/v1/auth/logout', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader?.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'No token provided' });
+    return;
+  }
+
+  const token = authHeader.substring(7);
+  
+  try {
+    // Future: Add token to Redis blacklist with remaining TTL
+    // For now, client-side deletion is sufficient for stateless JWT
+    
+    res.status(200).json({ message: 'Logged out successfully. Client should delete token.' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Logout failed';
     res.status(400).json({ error: message });
   }
 });

@@ -304,4 +304,122 @@ router.get('/api/rooms/:roomId/info', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/rooms
+ * Create a new room
+ */
+router.post('/api/rooms', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { agentId } = validateToken(token);
+    const { name, description, category, visibility, maxOccupants } = req.body;
+
+    // Validate required fields
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ error: 'Room name is required' });
+    }
+
+    if (name.length > 128) {
+      return res.status(400).json({ error: 'Room name must be 128 characters or less' });
+    }
+
+    // Generate slug from name (lowercase, replace spaces with hyphens, remove special chars)
+    const baseSlug = name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .substring(0, 128);
+
+    // Check if slug exists, add suffix if needed
+    let slug = baseSlug;
+    let suffix = 1;
+    while (true) {
+      const existing = await sql`
+        SELECT id FROM rooms WHERE slug = ${slug} LIMIT 1
+      `;
+      if (existing.length === 0) break;
+      slug = `${baseSlug}-${suffix}`;
+      suffix++;
+    }
+
+    // Default heightmap: 15x15 flat grid
+    const defaultHeightmap = Array(15).fill('0'.repeat(15)).join('|');
+
+    // Validate category
+    const validCategories = ['public', 'official', 'roleplay', 'games', 'trading', 'hangout', 'custom'];
+    const roomCategory = validCategories.includes(category) ? category : 'public';
+
+    // Validate visibility
+    const validVisibilities = ['public', 'private'];
+    const roomVisibility = validVisibilities.includes(visibility) ? visibility : 'public';
+
+    // Validate max occupants (10-100)
+    const maxOcc = Math.max(10, Math.min(100, maxOccupants || 50));
+
+    // Create room
+    const result = await sql`
+      INSERT INTO rooms (
+        name,
+        slug,
+        description,
+        heightmap,
+        created_by,
+        max_occupants,
+        category,
+        visibility,
+        metadata
+      )
+      VALUES (
+        ${name.trim()},
+        ${slug},
+        ${description || ''},
+        ${defaultHeightmap},
+        ${agentId}::uuid,
+        ${maxOcc},
+        ${roomCategory},
+        ${roomVisibility},
+        ${JSON.stringify({ createdAt: new Date().toISOString() })}::jsonb
+      )
+      RETURNING id, name, slug, description, max_occupants, category, visibility
+    `;
+
+    const room = result[0];
+
+    // Update agent's room_count in profiles
+    await sql`
+      UPDATE agent_profiles
+      SET room_count = room_count + 1
+      WHERE agent_id = ${agentId}::uuid
+    `;
+
+    logger.info('Room created', {
+      roomId: room.id,
+      name: room.name,
+      createdBy: agentId,
+    });
+
+    res.status(201).json({
+      success: true,
+      room: {
+        id: room.id,
+        name: room.name,
+        slug: room.slug,
+        description: room.description,
+        maxOccupants: room.max_occupants,
+        category: room.category,
+        visibility: room.visibility,
+      },
+    });
+  } catch (error) {
+    logger.error('Failed to create room', { error });
+    res.status(500).json({ error: 'Failed to create room' });
+  }
+});
+
 export default router;
