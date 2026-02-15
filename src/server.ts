@@ -2,6 +2,14 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import express from 'express';
+
+// Prevent uncaught errors from crashing the server
+process.on('uncaughtException', (err) => {
+  console.error('[UNCAUGHT]', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[UNHANDLED]', reason instanceof Error ? reason.message : reason);
+});
 import authRouter from './api/auth.routes.js';
 import agentAuthRouter from './api/agentAuth.routes.js';
 import furnitureRouter from './api/furniture.routes.js';
@@ -155,7 +163,7 @@ app.use(spectatorRouter);
 app.use(directoryRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use(roomPermissionsRouter);
-app.use(marketplaceRouter);
+app.use('/api/marketplace', marketplaceRouter);
 app.use(teleportRouter);
 app.use(petsRouter);
 app.use(agentStatusRouter);

@@ -83,11 +83,12 @@ export async function getListings(
   let query = `
     SELECT 
       ml.*, 
-      rf.item_type,
-      seller.name AS seller_name,
-      buyer.name AS buyer_name
+      f.name AS item_type,
+      seller.display_name AS seller_name,
+      buyer.display_name AS buyer_name
     FROM marketplace_listings ml
     JOIN room_furniture rf ON ml.item_id = rf.id
+    JOIN furniture f ON rf.furniture_id = f.id
     JOIN agents seller ON ml.seller_id = seller.id
     LEFT JOIN agents buyer ON ml.buyer_id = buyer.id
     WHERE ml.status = $1
@@ -142,11 +143,12 @@ export async function getListing(
   const listings = await sqlClient`
     SELECT 
       ml.*, 
-      rf.item_type,
-      seller.name AS seller_name,
-      buyer.name AS buyer_name
+      f.name AS item_type,
+      seller.display_name AS seller_name,
+      buyer.display_name AS buyer_name
     FROM marketplace_listings ml
     JOIN room_furniture rf ON ml.item_id = rf.id
+    JOIN furniture f ON rf.furniture_id = f.id
     JOIN agents seller ON ml.seller_id = seller.id
     LEFT JOIN agents buyer ON ml.buyer_id = buyer.id
     WHERE ml.id = ${listingId}

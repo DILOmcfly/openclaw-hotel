@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import jwt from 'jsonwebtoken';
 import { sql } from '../db/index.js';
 import {
   registerAgent,
@@ -88,7 +89,6 @@ router.post('/api/agent/authenticate', async (req, res) => {
 
     // Generate JWT token for WebSocket auth
     // Reuse existing auth.ts token generation
-    const jwt = require('jsonwebtoken');
     const { config } = await import('../config.js');
     
     const token = jwt.sign(
