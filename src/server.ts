@@ -294,6 +294,12 @@ app.get('/spectate', (_req, res) => {
     .send(readFileSync(join(import.meta.dirname, '..', 'client', 'spectate.html'), 'utf8'));
 });
 
+app.get('/directory', (_req, res) => {
+  res
+    .type('html')
+    .send(readFileSync(join(import.meta.dirname, '..', 'client', 'directory.html'), 'utf8'));
+});
+
 const server = createServer(app);
 setupWebSocket(server);
 setupSpectatorWebSocket(server);

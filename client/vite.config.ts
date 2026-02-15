@@ -19,4 +19,15 @@ function pixiCdnPlugin(): Plugin {
 export default defineConfig({
   root: '.',
   plugins: [pixiCdnPlugin()],
+  server: {
+    proxy: {
+      '/api': 'http://localhost:3000',
+      '/ws': {
+        target: 'ws://localhost:3000',
+        ws: true,
+      },
+      '/health': 'http://localhost:3000',
+      '/metrics': 'http://localhost:3000',
+    },
+  },
 });
