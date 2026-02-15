@@ -1,25 +1,31 @@
 # Dependencies
 node_modules/
-client/node_modules/
-
-# Build artifacts
-dist/
-client/dist/
-
-# Development files
-*.log
-*.env
-.env
-.env.local
-.env.*.local
 
 # Git
 .git/
 .gitignore
 
-# Testing
-coverage/
-.nyc_output/
+# Documentation
+*.md
+
+# Tests
+tests/
+test/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# Tools
+tools/
+
+# Build artifacts
+dist/
+
+# Development
+.env
+.env.*
+*.log
 
 # IDE
 .vscode/
@@ -27,19 +33,6 @@ coverage/
 *.swp
 *.swo
 *~
-
-# Documentation
-docs/
-*.md
-!README.md
-
-# Research & planning
-research/
-architecture/
-TICKETS.md
-OPENCLAW_HOTEL_PLAN.md
-*.COMPLETION-REPORT.md
-*.SUMMARY*.md
 
 # macOS
 .DS_Store

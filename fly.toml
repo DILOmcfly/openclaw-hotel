@@ -1,0 +1,48 @@
+# Fly.io deployment configuration for OpenClaw Hotel
+# Deploy with: fly deploy
+
+app = "openclaw-hotel"
+primary_region = "mad" # Madrid - change to your preferred region
+
+[build]
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = 256
+
+# Note: PostgreSQL and Redis need separate setup on Fly.io
+# 1. Create Postgres: fly postgres create --name openclaw-hotel-db
+# 2. Attach to app: fly postgres attach openclaw-hotel-db
+# 3. Create Redis: fly redis create --name openclaw-hotel-redis
+# 4. Get Redis URL: fly redis status openclaw-hotel-redis
+# 5. Set secret: fly secrets set REDIS_URL=redis://...
+#
+# Environment variables will be automatically set:
+# - DATABASE_URL (from attached Postgres)
+# - REDIS_URL (set manually as secret)
+# - JWT_SECRET (set manually: fly secrets set JWT_SECRET=your-secret)
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+
+# Uncomment and configure if using Fly.io Postgres addon
+# [[services]]
+#   internal_port = 3000
+#   protocol = "tcp"
+
+#   [[services.ports]]
+#     handlers = ["http"]
+#     port = 80
+#     force_https = true
+
+#   [[services.ports]]
+#     handlers = ["tls", "http"]
+#     port = 443
