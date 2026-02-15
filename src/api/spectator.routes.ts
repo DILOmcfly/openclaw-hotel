@@ -25,10 +25,19 @@ router.get('/api/spectate/rooms', async (_req, res) => {
       LIMIT 100
     `;
 
-    // Enrich with live counts
+    // Get agent counts from presence table (populated by simulate endpoint)
+    const presenceCounts = await sql`
+      SELECT room_id, COUNT(*)::int AS cnt
+      FROM presence
+      GROUP BY room_id
+    `;
+    const presenceMap = new Map(presenceCounts.map((r: any) => [r.room_id, r.cnt]));
+
+    // Enrich with live counts (use presence DB OR in-memory, whichever is higher)
     const activeRooms = rooms.map((room) => {
-      const members = roomMembers.get(room.id);
-      const agentCount = members ? members.size : 0;
+      const wsCount = roomMembers.get(room.id)?.size ?? 0;
+      const dbCount = presenceMap.get(room.id) ?? 0;
+      const agentCount = Math.max(wsCount, dbCount);
       const spectatorCount = getSpectatorCount(room.id);
 
       return {
@@ -153,11 +162,17 @@ router.get('/api/spectate/rooms/:id', async (req, res) => {
  */
 router.get('/api/spectate/stats', async (_req, res) => {
   try {
-    // Count total agents online
-    const totalAgentsOnline = Array.from(roomMembers.values()).reduce(
+    // Count total agents online (WS + presence DB)
+    const wsAgentsOnline = Array.from(roomMembers.values()).reduce(
       (sum, members) => sum + members.size,
       0
     );
+    let dbAgentsOnline = 0;
+    try {
+      const [{ cnt }] = await sql`SELECT COUNT(*)::int AS cnt FROM presence`;
+      dbAgentsOnline = cnt;
+    } catch { /* presence table may not exist */ }
+    const totalAgentsOnline = Math.max(wsAgentsOnline, dbAgentsOnline);
 
     // Count total spectators
     let totalSpectators = 0;
