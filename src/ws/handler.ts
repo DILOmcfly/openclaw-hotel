@@ -445,6 +445,8 @@ export function setupWebSocket(server: Server): void {
             });
           }
 
+          const timestamp = new Date().toISOString();
+
           broadcastToRoom(clientMessage.roomId, {
             type: 'message.new',
             roomId: clientMessage.roomId,
@@ -452,8 +454,48 @@ export function setupWebSocket(server: Server): void {
             displayName: `Agent ${agentId.slice(0, 8)}`,
             content: clientMessage.content,
             signature: clientMessage.signature,
-            timestamp: new Date().toISOString(),
+            timestamp,
           });
+
+          // Generate TTS audio for spectators (async, non-blocking)
+          if (process.env.TTS_ENABLED !== 'false') {
+            import('../services/tts.js').then(async ({ synthesizeSpeech, getVoiceForArchetype, sanitizeText }) => {
+              try {
+                // Fetch agent's personality archetype
+                const agents = await sql`
+                  SELECT 
+                    a.id,
+                    p.archetype
+                  FROM agents a
+                  LEFT JOIN agent_personality p ON a.id = p.agent_id
+                  WHERE a.id = ${agentId}::uuid
+                  LIMIT 1
+                `;
+
+                if (agents.length === 0) return;
+
+                const archetype = agents[0].archetype as string | null;
+                const voiceId = getVoiceForArchetype(archetype);
+
+                // Synthesize speech
+                const { cacheKey } = await synthesizeSpeech(clientMessage.content, voiceId, agentId);
+                const audioUrl = `/api/tts/audio/${cacheKey}.aiff`;
+
+                // Broadcast audio URL to spectators only
+                const { broadcastToSpectators } = await import('../ws/spectator.js');
+                broadcastToSpectators(clientMessage.roomId, {
+                  type: 'message.audio',
+                  roomId: clientMessage.roomId,
+                  agentId,
+                  audioUrl,
+                  timestamp,
+                });
+              } catch (error) {
+                // Silent fail on TTS errors (don't block chat)
+                console.error('[TTS] Synthesis error:', error);
+              }
+            });
+          }
 
           // Let bots respond to the message
           const { handleChatToBots } = await import('../services/botManager.js');

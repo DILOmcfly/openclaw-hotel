@@ -41,6 +41,102 @@ let renderer: IsoRenderer | null = null;
 let chatMessagesArray: Array<{ username: string; message: string; timestamp: string; isOwn: boolean }> = [];
 const MAX_CHAT_MESSAGES = 100;
 
+// TTS audio queue and settings
+let ttsEnabled = localStorage.getItem('tts_enabled') !== 'false'; // Default: enabled
+let ttsVolume = parseFloat(localStorage.getItem('tts_volume') || '0.7'); // Default: 70%
+const audioQueue: Array<{ url: string; agentId: string }> = [];
+let isPlayingAudio = false;
+
+/**
+ * Play TTS audio for agent message
+ */
+function playTTSAudio(audioUrl: string, agentId: string) {
+  if (!ttsEnabled) {
+    return; // TTS disabled
+  }
+  
+  // Add to queue
+  audioQueue.push({ url: `${API_BASE}${audioUrl}`, agentId });
+  
+  // Start playing if not already playing
+  if (!isPlayingAudio) {
+    processAudioQueue();
+  }
+  
+  // Show visual indicator (🔊 icon)
+  showSpeakingIndicator(agentId);
+}
+
+/**
+ * Process audio queue (play one at a time)
+ */
+async function processAudioQueue() {
+  if (audioQueue.length === 0) {
+    isPlayingAudio = false;
+    return;
+  }
+  
+  isPlayingAudio = true;
+  const { url, agentId } = audioQueue.shift()!;
+  
+  try {
+    const audio = new Audio(url);
+    audio.volume = ttsVolume;
+    
+    audio.onended = () => {
+      hideSpeakingIndicator(agentId);
+      processAudioQueue(); // Play next in queue
+    };
+    
+    audio.onerror = (error) => {
+      console.error('[TTS] Audio playback error:', error);
+      hideSpeakingIndicator(agentId);
+      processAudioQueue(); // Skip to next
+    };
+    
+    await audio.play();
+  } catch (error) {
+    console.error('[TTS] Audio play failed:', error);
+    hideSpeakingIndicator(agentId);
+    processAudioQueue(); // Skip to next
+  }
+}
+
+/**
+ * Show speaking indicator for agent
+ */
+function showSpeakingIndicator(agentId: string) {
+  if (renderer) {
+    // Show 🔊 emote for 2 seconds
+    renderer.showEmote(agentId, '🔊');
+  }
+}
+
+/**
+ * Hide speaking indicator for agent
+ */
+function hideSpeakingIndicator(agentId: string) {
+  // Indicator auto-hides after emote duration in renderer
+}
+
+/**
+ * Toggle TTS on/off
+ */
+function toggleTTS() {
+  ttsEnabled = !ttsEnabled;
+  localStorage.setItem('tts_enabled', ttsEnabled.toString());
+  console.log('[TTS] Enabled:', ttsEnabled);
+}
+
+/**
+ * Set TTS volume
+ */
+function setTTSVolume(volume: number) {
+  ttsVolume = Math.max(0, Math.min(1, volume)); // Clamp 0-1
+  localStorage.setItem('tts_volume', ttsVolume.toString());
+  console.log('[TTS] Volume:', ttsVolume);
+}
+
 /**
  * Fetch global stats
  */
@@ -319,6 +415,11 @@ function handleServerMessage(message: any) {
       if (renderer) {
         renderer.showChatBubble(message.agentId, message.content);
       }
+      break;
+      
+    case 'message.audio':
+      // Play TTS audio if enabled
+      playTTSAudio(message.audioUrl, message.agentId);
       break;
       
     case 'emote.broadcast':

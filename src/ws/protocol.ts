@@ -265,6 +265,14 @@ export type MessageNewMsg = {
   timestamp: string
 }
 
+export type MessageAudioMsg = {
+  type: 'message.audio'
+  roomId: string
+  agentId: string
+  audioUrl: string
+  timestamp: string
+}
+
 export type PresenceJoinMsg = {
   type: 'presence.join'
   roomId: string
@@ -506,6 +514,7 @@ export type ServerMessage =
   | ConnectedMsg
   | RoomJoinedMsg
   | MessageNewMsg
+  | MessageAudioMsg
   | PresenceJoinMsg
   | PresenceLeaveMsg
   | AgentMovedMsg
