@@ -1,46 +1,81 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 import { sql } from './index.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 export async function migrate(): Promise<void> {
-  const migration001 = await readFile(new URL('./migrations/001_initial.sql', import.meta.url), 'utf8');
-  await sql.unsafe(migration001);
+  // Create migrations tracking table
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS migrations_applied (
+      name TEXT PRIMARY KEY,
+      applied_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // Get migrations directory path
+  const migrationsDir = join(__dirname, 'migrations');
   
-  const migration002 = await readFile(new URL('./migrations/002_inventory.sql', import.meta.url), 'utf8');
-  await sql.unsafe(migration002);
-  
-  const migration003 = await readFile(new URL('./migrations/003_trading.sql', import.meta.url), 'utf8');
-  await sql.unsafe(migration003);
-  
-  const migration004 = await readFile(new URL('./migrations/004_friends.sql', import.meta.url), 'utf8');
-  await sql.unsafe(migration004);
-  
-  const migration005 = await readFile(new URL('./migrations/005_profiles.sql', import.meta.url), 'utf8');
-  await sql.unsafe(migration005);
-  
-  const migration006 = await readFile(new URL('./migrations/006_achievements.sql', import.meta.url), 'utf8');
-  await sql.unsafe(migration006);
-  
-  const migration008 = await readFile(new URL('./migrations/008_direct_messages.sql', import.meta.url), 'utf8');
-  await sql.unsafe(migration008);
-  
-  const migration009 = await readFile(new URL('./migrations/009_notifications.sql', import.meta.url), 'utf8');
-  await sql.unsafe(migration009);
-  
-  const migration010 = await readFile(new URL('./migrations/010_economy.sql', import.meta.url), 'utf8');
-  await sql.unsafe(migration010);
-  
-  const migration011 = await readFile(new URL('./migrations/011_admin_roles.sql', import.meta.url), 'utf8');
-  await sql.unsafe(migration011);
-  
-  const migration012 = await readFile(new URL('./migrations/012_navigator_enhancements.sql', import.meta.url), 'utf8');
-  await sql.unsafe(migration012);
-  
-  const migration013 = await readFile(new URL('./migrations/013_room_privacy.sql', import.meta.url), 'utf8');
-  await sql.unsafe(migration013);
-  
-  const migration014 = await readFile(new URL('./migrations/014_moderation.sql', import.meta.url), 'utf8');
-  await sql.unsafe(migration014);
-  
-  const migration015 = await readFile(new URL('./migrations/015_bots.sql', import.meta.url), 'utf8');
-  await sql.unsafe(migration015);
+  // Read all .sql files
+  const files = await readdir(migrationsDir);
+  const sqlFiles = files
+    .filter(f => f.endsWith('.sql'))
+    .sort((a, b) => {
+      // Extract numeric prefix for sorting
+      const numA = parseInt(a.split('_')[0], 10);
+      const numB = parseInt(b.split('_')[0], 10);
+      return numA - numB;
+    });
+
+  console.log(`Found ${sqlFiles.length} migration files`);
+
+  // Get already applied migrations
+  const applied = await sql<{ name: string }[]>`
+    SELECT name FROM migrations_applied
+  `;
+  const appliedSet = new Set(applied.map(r => r.name));
+
+  // Run each migration
+  let successCount = 0;
+  let skipCount = 0;
+  let errorCount = 0;
+
+  for (const file of sqlFiles) {
+    if (appliedSet.has(file)) {
+      console.log(`⏭️  Skipping ${file} (already applied)`);
+      skipCount++;
+      continue;
+    }
+
+    try {
+      console.log(`🔄 Running ${file}...`);
+      const migrationPath = join(migrationsDir, file);
+      const migrationSQL = await readFile(migrationPath, 'utf8');
+      
+      // Run migration
+      await sql.unsafe(migrationSQL);
+      
+      // Mark as applied
+      await sql`
+        INSERT INTO migrations_applied (name) 
+        VALUES (${file})
+      `;
+      
+      console.log(`✅ Applied ${file}`);
+      successCount++;
+    } catch (error) {
+      console.error(`❌ Error applying ${file}:`, error instanceof Error ? error.message : error);
+      errorCount++;
+      // Continue with next migration despite error
+    }
+  }
+
+  console.log(`\n📊 Migration Summary:`);
+  console.log(`   ✅ Applied: ${successCount}`);
+  console.log(`   ⏭️  Skipped: ${skipCount}`);
+  console.log(`   ❌ Errors: ${errorCount}`);
+  console.log(`   📁 Total: ${sqlFiles.length}`);
 }
