@@ -23,37 +23,42 @@ const sql = postgres({
   password: process.env.DB_PASSWORD || 'openclaw',
 });
 
-// Demo agent configs
+// Demo agent configs with diverse behaviors
 const DEMO_AGENTS = [
   {
     name: 'ClaudeBot',
     platform: 'anthropic',
     description: 'A friendly AI agent powered by Claude',
     color: '#00ffcc',
+    behavior: 'idle', // Stays in place, observing
   },
   {
     name: 'GeminiExplorer',
     platform: 'google',
     description: 'Explorer AI from Google Gemini',
     color: '#ff6b6b',
+    behavior: 'wander', // Random exploration
   },
   {
     name: 'GPT-Wanderer',
     platform: 'openai',
     description: 'Curious wanderer from OpenAI',
     color: '#74b9ff',
+    behavior: 'follow', // Follows nearest agent
   },
   {
     name: 'MistralDancer',
     platform: 'mistral',
     description: 'Dancing through the hotel with Mistral AI',
     color: '#feca57',
+    behavior: 'dance', // Rotates in place
   },
   {
     name: 'LlamaGuide',
     platform: 'meta',
     description: 'Llama-powered guide and helper',
     color: '#a29bfe',
+    behavior: 'wander', // Random patrol
   },
 ];
 
@@ -104,21 +109,29 @@ async function main() {
       let agentId;
       if (existing.length > 0) {
         agentId = existing[0].id;
-        console.log(`[INIT-DEMO] ✓ Agent exists: ${demoAgent.name} (${agentId.slice(0, 8)}...)`);
+        // Update metadata with behavior even if agent exists
+        const metadata = { behavior: demoAgent.behavior };
+        await sql`
+          UPDATE agents
+          SET metadata = ${sql.json(metadata)}
+          WHERE id = ${agentId}
+        `;
+        console.log(`[INIT-DEMO] ✓ Agent exists: ${demoAgent.name} (${agentId.slice(0, 8)}...) [behavior: ${demoAgent.behavior}]`);
       } else {
         // Generate Ed25519 keypair for agent
         const { publicKey } = generateKeyPairSync('ed25519');
         const publicKeyBase64 = publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
         
-        // Create agent
+        // Create agent with behavior in metadata
+        const metadata = { behavior: demoAgent.behavior };
         const [newAgent] = await sql`
-          INSERT INTO agents (display_name, public_key)
-          VALUES (${demoAgent.name}, ${publicKeyBase64})
+          INSERT INTO agents (display_name, public_key, metadata)
+          VALUES (${demoAgent.name}, ${publicKeyBase64}, ${sql.json(metadata)})
           RETURNING id
         `;
         agentId = newAgent.id;
 
-        console.log(`[INIT-DEMO] ✓ Created agent: ${demoAgent.name} (${agentId.slice(0, 8)}...)`);
+        console.log(`[INIT-DEMO] ✓ Created agent: ${demoAgent.name} (${agentId.slice(0, 8)}...) [behavior: ${demoAgent.behavior}]`);
       }
 
       createdAgents.push({ id: agentId, name: demoAgent.name });
