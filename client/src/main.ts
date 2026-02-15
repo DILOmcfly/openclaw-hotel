@@ -105,6 +105,7 @@ async function init() {
 
   // Room Editor
   const roomEditor = new RoomEditor();
+  let currentRoomId: string | null = null; // Track current room
   let currentRoomOwnerId: string | null = null; // Track if current user owns the room
 
   // Trade Window
@@ -706,19 +707,23 @@ async function init() {
 
         if (response.ok) {
           const roomData = await response.json();
+          currentRoomId = roomId;
           currentRoomOwnerId = roomData.createdBy;
           
-          // Show editor button if user is owner
+          // Show editor and jukebox buttons if user is owner
           if (currentRoomOwnerId === MY_ID) {
             ui.showRoomEditorButton();
+            ui.showJukeboxButton();
           } else {
             ui.hideRoomEditorButton();
+            ui.hideJukeboxButton();
           }
         }
       }
     } catch (error) {
       console.error('[Room] Failed to fetch room details:', error);
       ui.hideRoomEditorButton(); // Hide on error
+      ui.hideJukeboxButton();
     }
   };
 
@@ -806,6 +811,25 @@ async function init() {
     loadMarketplaceListings();
     loadMyMarketplaceListings();
     loadInventoryForMarketplace();
+  };
+
+  // Jukebox Panel (initialized after login)
+  let jukeboxPanel: JukeboxPanel | null = null;
+
+  ui.onJukeboxToggle = () => {
+    console.log('[UI] Toggling jukebox panel');
+    if (!jukeboxPanel) {
+      jukeboxPanel = new JukeboxPanel(MY_ID, () => ui.getToken());
+      jukeboxPanel.setOnPlaylistUpdate((playlist) => {
+        // Broadcast playlist update via WebSocket (future feature)
+        console.log('[Jukebox] Playlist updated:', playlist);
+      });
+    }
+    jukeboxPanel.show();
+    // Load playlist for current room if we're in one
+    if (currentRoomId) {
+      jukeboxPanel.setRoom(currentRoomId, currentRoomId === currentRoomOwnerId);
+    }
   };
 
   // Avatar Customizer (initialized after login)

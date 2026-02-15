@@ -1,319 +1,487 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import {
+  setPlaylist,
+  play,
+  pause,
+  nextTrack,
+  prevTrack,
+  setVolume,
+  setRepeatMode,
+  getPlaylist,
+  addTrack,
+  removeTrack,
+  type Track,
+} from '../services/jukebox.js';
 
-/**
- * Jukebox System Unit Tests
- * These tests validate input and logic without requiring a database connection
- */
+describe('Jukebox Service', () => {
+  const roomId = '11111111-1111-1111-1111-111111111111';
+  const sampleTracks: Track[] = [
+    { title: 'Track 1', artist: 'Artist A', genre: 'Pop', durationSecs: 180 },
+    { title: 'Track 2', artist: 'Artist B', genre: 'Rock', durationSecs: 240 },
+  ];
 
-type Track = {
-  title: string;
-  artist: string;
-  genre: string;
-  durationSecs: number;
-};
+  describe('setPlaylist', () => {
+    it('should create a new playlist', async () => {
+      const mockSql: any = vi.fn()
+        .mockResolvedValueOnce([]) // SELECT existing
+        .mockResolvedValueOnce([{ // INSERT new
+          id: 'playlist-123',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 0,
+          is_playing: false,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }]);
 
-type PlaylistState = {
-  tracks: Track[];
-  currentTrack: number;
-  isPlaying: boolean;
-  volume: number;
-  repeatMode: 'none' | 'one' | 'all';
-};
+      const playlist = await setPlaylist(roomId, sampleTracks, mockSql);
 
-const MAX_TRACKS = 20;
+      expect(playlist.roomId).toBe(roomId);
+      expect(playlist.tracks).toHaveLength(2);
+      expect(playlist.isPlaying).toBe(false);
+      expect(mockSql).toHaveBeenCalledTimes(2);
+    });
 
-describe('Jukebox System - Validation', () => {
-  it('should validate track structure', () => {
-    const isValidTrack = (track: any): boolean => {
-      return (
-        typeof track === 'object' &&
-        typeof track.title === 'string' &&
-        typeof track.artist === 'string' &&
-        typeof track.genre === 'string' &&
-        typeof track.durationSecs === 'number'
-      );
-    };
+    it('should update existing playlist', async () => {
+      const mockSql: any = vi.fn()
+        .mockResolvedValueOnce([{ id: 'existing-id' }]) // SELECT existing
+        .mockResolvedValueOnce([{ // UPDATE
+          id: 'existing-id',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 0,
+          is_playing: false,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }]);
 
-    const validTrack = {
-      title: 'Song Name',
-      artist: 'Artist Name',
-      genre: 'Rock',
-      durationSecs: 180,
-    };
+      const playlist = await setPlaylist(roomId, sampleTracks, mockSql);
 
-    const invalidTracks = [
-      { title: 'Song', artist: 'Artist', genre: 'Rock' }, // missing durationSecs
-      { title: 'Song', artist: 'Artist', durationSecs: 180 }, // missing genre
-      { title: 'Song', genre: 'Rock', durationSecs: 180 }, // missing artist
-      { artist: 'Artist', genre: 'Rock', durationSecs: 180 }, // missing title
-      { title: 123, artist: 'Artist', genre: 'Rock', durationSecs: 180 }, // wrong type
-    ];
+      expect(playlist.id).toBe('existing-id');
+      expect(mockSql).toHaveBeenCalledTimes(2);
+    });
 
-    expect(isValidTrack(validTrack)).toBe(true);
+    it('should reject playlists exceeding 20 tracks', async () => {
+      const mockSql: any = vi.fn();
+      const tooManyTracks: Track[] = Array(21).fill({
+        title: 'Test',
+        artist: 'Test',
+        genre: 'Test',
+        durationSecs: 120,
+      });
 
-    invalidTracks.forEach(track => {
-      expect(isValidTrack(track)).toBe(false);
+      await expect(setPlaylist(roomId, tooManyTracks, mockSql)).rejects.toThrow('cannot exceed 20 tracks');
     });
   });
 
-  it('should enforce max track limit', () => {
-    const canAddTrack = (currentCount: number): boolean => {
-      return currentCount < MAX_TRACKS;
-    };
+  describe('play/pause', () => {
+    it('should start playing', async () => {
+      const mockSql: any = vi.fn().mockResolvedValueOnce([{
+        id: 'playlist-123',
+        room_id: roomId,
+        tracks: sampleTracks,
+        current_track: 0,
+        is_playing: true,
+        volume: 70,
+        repeat_mode: 'none',
+        updated_at: new Date(),
+      }]);
 
-    expect(canAddTrack(0)).toBe(true);
-    expect(canAddTrack(19)).toBe(true);
-    expect(canAddTrack(20)).toBe(false);
-    expect(canAddTrack(21)).toBe(false);
-  });
+      const playlist = await play(roomId, mockSql);
 
-  it('should validate volume range', () => {
-    const isValidVolume = (volume: number): boolean => {
-      return volume >= 0 && volume <= 100;
-    };
-
-    expect(isValidVolume(0)).toBe(true);
-    expect(isValidVolume(50)).toBe(true);
-    expect(isValidVolume(70)).toBe(true);
-    expect(isValidVolume(100)).toBe(true);
-    expect(isValidVolume(-1)).toBe(false);
-    expect(isValidVolume(101)).toBe(false);
-  });
-
-  it('should validate repeat mode values', () => {
-    const validModes = ['none', 'one', 'all'];
-    const invalidModes = ['repeat', 'shuffle', 'random', ''];
-
-    const isValidRepeatMode = (mode: string): boolean => {
-      return validModes.includes(mode);
-    };
-
-    validModes.forEach(mode => {
-      expect(isValidRepeatMode(mode)).toBe(true);
+      expect(playlist.isPlaying).toBe(true);
+      expect(mockSql).toHaveBeenCalled();
     });
 
-    invalidModes.forEach(mode => {
-      expect(isValidRepeatMode(mode)).toBe(false);
+    it('should pause playback', async () => {
+      const mockSql: any = vi.fn().mockResolvedValueOnce([{
+        id: 'playlist-123',
+        room_id: roomId,
+        tracks: sampleTracks,
+        current_track: 0,
+        is_playing: false,
+        volume: 70,
+        repeat_mode: 'none',
+        updated_at: new Date(),
+      }]);
+
+      const playlist = await pause(roomId, mockSql);
+
+      expect(playlist.isPlaying).toBe(false);
+    });
+
+    it('should throw if playlist not found', async () => {
+      const mockSql: any = vi.fn().mockResolvedValueOnce([]);
+
+      await expect(play(roomId, mockSql)).rejects.toThrow('not found');
     });
   });
 
-  it('should calculate next track index with repeat mode "none"', () => {
-    const getNextTrackIndex = (
-      currentIndex: number,
-      totalTracks: number,
-      repeatMode: 'none' | 'one' | 'all'
-    ): number => {
-      if (repeatMode === 'one') {
-        return currentIndex;
-      } else if (repeatMode === 'all') {
-        return (currentIndex + 1) % totalTracks;
-      } else {
-        // 'none'
-        const next = currentIndex + 1;
-        return next >= totalTracks ? totalTracks - 1 : next;
-      }
-    };
+  describe('nextTrack/prevTrack', () => {
+    it('should advance to next track (none repeat)', async () => {
+      const mockGetPlaylist = {
+        tracks: sampleTracks,
+        currentTrack: 0,
+        repeatMode: 'none' as const,
+        roomId,
+        id: 'pl-1',
+        isPlaying: true,
+        volume: 70,
+        updatedAt: new Date(),
+      };
 
-    // 5 tracks, repeat mode 'none'
-    expect(getNextTrackIndex(0, 5, 'none')).toBe(1);
-    expect(getNextTrackIndex(3, 5, 'none')).toBe(4);
-    expect(getNextTrackIndex(4, 5, 'none')).toBe(4); // stay at last
+      const mockSql: any = vi.fn()
+        .mockResolvedValueOnce([{ // getPlaylist
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 0,
+          is_playing: true,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }])
+        .mockResolvedValueOnce([{ // UPDATE
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 1,
+          is_playing: true,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }]);
+
+      const playlist = await nextTrack(roomId, mockSql);
+
+      expect(playlist.currentTrack).toBe(1);
+    });
+
+    it('should loop to first track (all repeat)', async () => {
+      const mockSql: any = vi.fn()
+        .mockResolvedValueOnce([{
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 1, // last track
+          is_playing: true,
+          volume: 70,
+          repeat_mode: 'all',
+          updated_at: new Date(),
+        }])
+        .mockResolvedValueOnce([{
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 0, // back to first
+          is_playing: true,
+          volume: 70,
+          repeat_mode: 'all',
+          updated_at: new Date(),
+        }]);
+
+      const playlist = await nextTrack(roomId, mockSql);
+
+      expect(playlist.currentTrack).toBe(0);
+    });
+
+    it('should repeat same track (one repeat)', async () => {
+      const mockSql: any = vi.fn()
+        .mockResolvedValueOnce([{
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 0,
+          is_playing: true,
+          volume: 70,
+          repeat_mode: 'one',
+          updated_at: new Date(),
+        }])
+        .mockResolvedValueOnce([{
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 0, // stays the same
+          is_playing: true,
+          volume: 70,
+          repeat_mode: 'one',
+          updated_at: new Date(),
+        }]);
+
+      const playlist = await nextTrack(roomId, mockSql);
+
+      expect(playlist.currentTrack).toBe(0);
+    });
+
+    it('should go to previous track', async () => {
+      const mockSql: any = vi.fn()
+        .mockResolvedValueOnce([{
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 1,
+          is_playing: true,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }])
+        .mockResolvedValueOnce([{
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 0,
+          is_playing: true,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }]);
+
+      const playlist = await prevTrack(roomId, mockSql);
+
+      expect(playlist.currentTrack).toBe(0);
+    });
+
+    it('should clamp to 0 when going prev from first track', async () => {
+      const mockSql: any = vi.fn()
+        .mockResolvedValueOnce([{
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 0,
+          is_playing: true,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }])
+        .mockResolvedValueOnce([{
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 0, // clamped
+          is_playing: true,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }]);
+
+      const playlist = await prevTrack(roomId, mockSql);
+
+      expect(playlist.currentTrack).toBe(0);
+    });
   });
 
-  it('should calculate next track index with repeat mode "one"', () => {
-    const getNextTrackIndex = (
-      currentIndex: number,
-      totalTracks: number,
-      repeatMode: 'none' | 'one' | 'all'
-    ): number => {
-      if (repeatMode === 'one') {
-        return currentIndex;
-      } else if (repeatMode === 'all') {
-        return (currentIndex + 1) % totalTracks;
-      } else {
-        const next = currentIndex + 1;
-        return next >= totalTracks ? totalTracks - 1 : next;
-      }
-    };
+  describe('setVolume', () => {
+    it('should update volume', async () => {
+      const mockSql: any = vi.fn().mockResolvedValueOnce([{
+        id: 'pl-1',
+        room_id: roomId,
+        tracks: sampleTracks,
+        current_track: 0,
+        is_playing: true,
+        volume: 50,
+        repeat_mode: 'none',
+        updated_at: new Date(),
+      }]);
 
-    // 5 tracks, repeat mode 'one'
-    expect(getNextTrackIndex(0, 5, 'one')).toBe(0);
-    expect(getNextTrackIndex(3, 5, 'one')).toBe(3);
-    expect(getNextTrackIndex(4, 5, 'one')).toBe(4);
+      const playlist = await setVolume(roomId, 50, mockSql);
+
+      expect(playlist.volume).toBe(50);
+    });
+
+    it('should reject volume < 0', async () => {
+      const mockSql: any = vi.fn();
+
+      await expect(setVolume(roomId, -10, mockSql)).rejects.toThrow('must be between 0 and 100');
+    });
+
+    it('should reject volume > 100', async () => {
+      const mockSql: any = vi.fn();
+
+      await expect(setVolume(roomId, 150, mockSql)).rejects.toThrow('must be between 0 and 100');
+    });
   });
 
-  it('should calculate next track index with repeat mode "all"', () => {
-    const getNextTrackIndex = (
-      currentIndex: number,
-      totalTracks: number,
-      repeatMode: 'none' | 'one' | 'all'
-    ): number => {
-      if (repeatMode === 'one') {
-        return currentIndex;
-      } else if (repeatMode === 'all') {
-        return (currentIndex + 1) % totalTracks;
-      } else {
-        const next = currentIndex + 1;
-        return next >= totalTracks ? totalTracks - 1 : next;
-      }
-    };
+  describe('setRepeatMode', () => {
+    it('should change repeat mode', async () => {
+      const mockSql: any = vi.fn().mockResolvedValueOnce([{
+        id: 'pl-1',
+        room_id: roomId,
+        tracks: sampleTracks,
+        current_track: 0,
+        is_playing: true,
+        volume: 70,
+        repeat_mode: 'all',
+        updated_at: new Date(),
+      }]);
 
-    // 5 tracks, repeat mode 'all'
-    expect(getNextTrackIndex(0, 5, 'all')).toBe(1);
-    expect(getNextTrackIndex(3, 5, 'all')).toBe(4);
-    expect(getNextTrackIndex(4, 5, 'all')).toBe(0); // loop to start
+      const playlist = await setRepeatMode(roomId, 'all', mockSql);
+
+      expect(playlist.repeatMode).toBe('all');
+    });
+
+    it('should reject invalid mode', async () => {
+      const mockSql: any = vi.fn();
+
+      await expect(setRepeatMode(roomId, 'invalid' as any, mockSql)).rejects.toThrow('Invalid repeat mode');
+    });
   });
 
-  it('should calculate previous track index', () => {
-    const getPrevTrackIndex = (currentIndex: number): number => {
-      const prev = currentIndex - 1;
-      return prev < 0 ? 0 : prev;
-    };
+  describe('addTrack', () => {
+    it('should add a track to existing playlist', async () => {
+      const newTrack: Track = { title: 'Track 3', artist: 'Artist C', genre: 'Jazz', durationSecs: 200 };
 
-    expect(getPrevTrackIndex(0)).toBe(0); // stay at first
-    expect(getPrevTrackIndex(1)).toBe(0);
-    expect(getPrevTrackIndex(4)).toBe(3);
+      const mockSql: any = vi.fn()
+        .mockResolvedValueOnce([{ // getPlaylist
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 0,
+          is_playing: false,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }])
+        .mockResolvedValueOnce([{ // UPDATE
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: [...sampleTracks, newTrack],
+          current_track: 0,
+          is_playing: false,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }]);
+
+      const playlist = await addTrack(roomId, newTrack, mockSql);
+
+      expect(playlist.tracks).toHaveLength(3);
+    });
+
+    it('should create playlist if none exists', async () => {
+      const newTrack: Track = { title: 'Track 1', artist: 'Artist A', genre: 'Pop', durationSecs: 180 };
+
+      const mockSql: any = vi.fn()
+        .mockResolvedValueOnce([]) // getPlaylist returns null
+        .mockResolvedValueOnce([]) // setPlaylist SELECT existing
+        .mockResolvedValueOnce([{ // setPlaylist INSERT
+          id: 'pl-new',
+          room_id: roomId,
+          tracks: [newTrack],
+          current_track: 0,
+          is_playing: false,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }]);
+
+      const playlist = await addTrack(roomId, newTrack, mockSql);
+
+      expect(playlist.tracks).toHaveLength(1);
+    });
+
+    it('should reject adding beyond 20 tracks', async () => {
+      const fullPlaylist = Array(20).fill({
+        title: 'Test',
+        artist: 'Test',
+        genre: 'Test',
+        durationSecs: 120,
+      });
+
+      const mockSql: any = vi.fn().mockResolvedValueOnce([{
+        id: 'pl-1',
+        room_id: roomId,
+        tracks: fullPlaylist,
+        current_track: 0,
+        is_playing: false,
+        volume: 70,
+        repeat_mode: 'none',
+        updated_at: new Date(),
+      }]);
+
+      const newTrack: Track = { title: 'Extra', artist: 'Extra', genre: 'Extra', durationSecs: 100 };
+
+      await expect(addTrack(roomId, newTrack, mockSql)).rejects.toThrow('cannot exceed 20 tracks');
+    });
   });
 
-  it('should validate track index bounds', () => {
-    const isValidTrackIndex = (index: number, totalTracks: number): boolean => {
-      return index >= 0 && index < totalTracks;
-    };
+  describe('removeTrack', () => {
+    it('should remove a track', async () => {
+      const mockSql: any = vi.fn()
+        .mockResolvedValueOnce([{
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 0,
+          is_playing: false,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }])
+        .mockResolvedValueOnce([{
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: [sampleTracks[1]], // removed first track
+          current_track: 0,
+          is_playing: false,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }]);
 
-    expect(isValidTrackIndex(0, 5)).toBe(true);
-    expect(isValidTrackIndex(4, 5)).toBe(true);
-    expect(isValidTrackIndex(-1, 5)).toBe(false);
-    expect(isValidTrackIndex(5, 5)).toBe(false);
-    expect(isValidTrackIndex(10, 5)).toBe(false);
-  });
+      const playlist = await removeTrack(roomId, 0, mockSql);
 
-  it('should adjust current track after removing track before it', () => {
-    const adjustCurrentTrackAfterRemoval = (
-      currentTrack: number,
-      removedIndex: number,
-      newTotalTracks: number
-    ): number => {
-      let newCurrent = currentTrack;
+      expect(playlist.tracks).toHaveLength(1);
+    });
 
-      if (removedIndex <= currentTrack && newCurrent > 0) {
-        newCurrent--;
-      }
+    it('should adjust current track index if removed before current', async () => {
+      const mockSql: any = vi.fn()
+        .mockResolvedValueOnce([{
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: sampleTracks,
+          current_track: 1,
+          is_playing: false,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }])
+        .mockResolvedValueOnce([{
+          id: 'pl-1',
+          room_id: roomId,
+          tracks: [sampleTracks[1]],
+          current_track: 0, // adjusted down
+          is_playing: false,
+          volume: 70,
+          repeat_mode: 'none',
+          updated_at: new Date(),
+        }]);
 
-      if (newCurrent >= newTotalTracks && newTotalTracks > 0) {
-        newCurrent = newTotalTracks - 1;
-      }
+      const playlist = await removeTrack(roomId, 0, mockSql);
 
-      return newCurrent;
-    };
+      expect(playlist.currentTrack).toBe(0);
+    });
 
-    // Remove track before current
-    expect(adjustCurrentTrackAfterRemoval(3, 1, 4)).toBe(2);
+    it('should reject invalid index', async () => {
+      const mockSql: any = vi.fn().mockResolvedValueOnce([{
+        id: 'pl-1',
+        room_id: roomId,
+        tracks: sampleTracks,
+        current_track: 0,
+        is_playing: false,
+        volume: 70,
+        repeat_mode: 'none',
+        updated_at: new Date(),
+      }]);
 
-    // Remove track after current
-    expect(adjustCurrentTrackAfterRemoval(2, 4, 4)).toBe(2);
+      await expect(removeTrack(roomId, 99, mockSql)).rejects.toThrow('Invalid track index');
+    });
 
-    // Remove current track
-    expect(adjustCurrentTrackAfterRemoval(3, 3, 4)).toBe(2);
+    it('should throw if playlist not found', async () => {
+      const mockSql: any = vi.fn().mockResolvedValueOnce([]);
 
-    // Remove last track when it's current
-    expect(adjustCurrentTrackAfterRemoval(4, 4, 4)).toBe(3);
-  });
-
-  it('should validate playlist is not empty for playback operations', () => {
-    const canPerformPlaybackOperation = (tracks: Track[]): boolean => {
-      return tracks.length > 0;
-    };
-
-    const tracks: Track[] = [
-      { title: 'Song 1', artist: 'Artist 1', genre: 'Rock', durationSecs: 180 },
-    ];
-
-    expect(canPerformPlaybackOperation(tracks)).toBe(true);
-    expect(canPerformPlaybackOperation([])).toBe(false);
-  });
-
-  it('should toggle play/pause state', () => {
-    const togglePlayState = (isPlaying: boolean): boolean => {
-      return !isPlaying;
-    };
-
-    expect(togglePlayState(false)).toBe(true);
-    expect(togglePlayState(true)).toBe(false);
-  });
-
-  it('should filter tracks by genre', () => {
-    const filterTracksByGenre = (tracks: Track[], genre: string): Track[] => {
-      return tracks.filter(t => t.genre === genre);
-    };
-
-    const tracks: Track[] = [
-      { title: 'Song 1', artist: 'Artist 1', genre: 'Rock', durationSecs: 180 },
-      { title: 'Song 2', artist: 'Artist 2', genre: 'Jazz', durationSecs: 200 },
-      { title: 'Song 3', artist: 'Artist 3', genre: 'Rock', durationSecs: 160 },
-    ];
-
-    const rockTracks = filterTracksByGenre(tracks, 'Rock');
-    expect(rockTracks.length).toBe(2);
-    expect(rockTracks[0].title).toBe('Song 1');
-    expect(rockTracks[1].title).toBe('Song 3');
-
-    const jazzTracks = filterTracksByGenre(tracks, 'Jazz');
-    expect(jazzTracks.length).toBe(1);
-    expect(jazzTracks[0].title).toBe('Song 2');
-  });
-
-  it('should calculate total playlist duration', () => {
-    const getTotalDuration = (tracks: Track[]): number => {
-      return tracks.reduce((sum, track) => sum + track.durationSecs, 0);
-    };
-
-    const tracks: Track[] = [
-      { title: 'Song 1', artist: 'Artist 1', genre: 'Rock', durationSecs: 180 },
-      { title: 'Song 2', artist: 'Artist 2', genre: 'Jazz', durationSecs: 200 },
-      { title: 'Song 3', artist: 'Artist 3', genre: 'Rock', durationSecs: 160 },
-    ];
-
-    expect(getTotalDuration(tracks)).toBe(540);
-    expect(getTotalDuration([])).toBe(0);
-  });
-
-  it('should validate track duration is positive', () => {
-    const isValidDuration = (durationSecs: number): boolean => {
-      return durationSecs > 0;
-    };
-
-    expect(isValidDuration(180)).toBe(true);
-    expect(isValidDuration(1)).toBe(true);
-    expect(isValidDuration(0)).toBe(false);
-    expect(isValidDuration(-10)).toBe(false);
-  });
-
-  it('should check if playlist has next track available', () => {
-    const hasNextTrack = (currentIndex: number, totalTracks: number, repeatMode: 'none' | 'one' | 'all'): boolean => {
-      if (repeatMode === 'all' || repeatMode === 'one') {
-        return totalTracks > 0;
-      }
-      return currentIndex < totalTracks - 1;
-    };
-
-    // 5 tracks, repeat 'none'
-    expect(hasNextTrack(0, 5, 'none')).toBe(true);
-    expect(hasNextTrack(4, 5, 'none')).toBe(false);
-
-    // 5 tracks, repeat 'all'
-    expect(hasNextTrack(4, 5, 'all')).toBe(true);
-
-    // 5 tracks, repeat 'one'
-    expect(hasNextTrack(4, 5, 'one')).toBe(true);
-  });
-
-  it('should check if playlist has previous track available', () => {
-    const hasPrevTrack = (currentIndex: number): boolean => {
-      return currentIndex > 0;
-    };
-
-    expect(hasPrevTrack(0)).toBe(false);
-    expect(hasPrevTrack(1)).toBe(true);
-    expect(hasPrevTrack(4)).toBe(true);
+      await expect(removeTrack(roomId, 0, mockSql)).rejects.toThrow('not found');
+    });
   });
 });

@@ -161,7 +161,7 @@ export class JukeboxPanel {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': `Bearer ${this.getToken()}`,
         },
         body: JSON.stringify({ track }),
       });
@@ -187,7 +187,7 @@ export class JukeboxPanel {
       const response = await fetch(`/api/rooms/${this.currentRoomId}/jukebox/track/${index}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': `Bearer ${this.getToken()}`,
         },
       });
 

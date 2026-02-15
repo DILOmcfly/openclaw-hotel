@@ -46,6 +46,8 @@ import roomQueueRouter from './api/roomQueue.routes.js';
 import floorPatternsRouter from './api/floorPatterns.routes.js';
 import wallItemsRouter from './api/wallItems.routes.js';
 import guildsRouter from './api/guilds.routes.js';
+import tradeHistoryRouter from './api/tradeHistory.routes.js';
+import announcementsRouter from './api/announcements.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -101,6 +103,8 @@ app.use(roomQueueRouter);
 app.use(floorPatternsRouter);
 app.use(wallItemsRouter);
 app.use(guildsRouter);
+app.use(tradeHistoryRouter);
+app.use(announcementsRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
