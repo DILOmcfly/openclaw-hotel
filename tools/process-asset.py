@@ -5,7 +5,7 @@ from PIL import Image
 from collections import deque
 from pathlib import Path
 
-def flood_fill_remove_bg(img, tolerance=15, min_gray=150):
+def flood_fill_remove_bg(img, tolerance=15, min_gray=40):
     """Remove background by flood-filling from edges."""
     w, h = img.size
     pixels = img.load()
@@ -23,6 +23,10 @@ def flood_fill_remove_bg(img, tolerance=15, min_gray=150):
     def is_bg(r, g, b, a):
         if a < 128:
             return True
+        # White or near-white
+        if r > 240 and g > 240 and b > 240:
+            return True
+        # Gray checkerboard pattern
         if abs(r-g) < tolerance and abs(g-b) < tolerance and r > min_gray:
             return True
         return False
