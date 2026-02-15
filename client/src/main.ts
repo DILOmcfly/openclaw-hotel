@@ -22,6 +22,7 @@ import { NotificationCenter } from './ui/NotificationCenter.js';
 import { Navigator } from './ui/Navigator.js';
 import { GamePanel } from './ui/GamePanel.js';
 import { LeaderboardPanel } from './ui/LeaderboardPanel.js';
+import { EventsPanel } from './ui/EventsPanel.js';
 import { ShopPanel } from './ui/ShopPanel.js';
 import { TemplatesBrowser } from './ui/TemplatesBrowser.js';
 import { InventoryPanel } from './ui/InventoryPanel.js';
@@ -122,6 +123,79 @@ async function init() {
   
   // Leaderboard Panel
   const leaderboardPanel = new LeaderboardPanel();
+  
+  // Events Panel
+  const eventsPanel = new EventsPanel();
+  eventsPanel.onJoinEvent = async (eventId) => {
+    try {
+      const token = ui.getToken();
+      if (!token) {
+        toastManager.error('You must be logged in to join events');
+        return;
+      }
+
+      const response = await fetch(`/api/events/${eventId}/join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ agentId: MY_ID }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to join event');
+      }
+
+      toastManager.success('Joined event successfully!');
+      // Reload events to update UI
+      loadEvents();
+    } catch (error: any) {
+      console.error('[Events] Error joining event:', error);
+      toastManager.error(error.message || 'Failed to join event');
+    }
+  };
+
+  eventsPanel.onViewLeaderboard = async (eventId) => {
+    try {
+      const response = await fetch(`/api/events/${eventId}/leaderboard`);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch leaderboard');
+      }
+
+      const leaderboard = await response.json();
+      eventsPanel.setLeaderboard(leaderboard);
+    } catch (error: any) {
+      console.error('[Events] Error loading leaderboard:', error);
+      toastManager.error('Failed to load leaderboard');
+    }
+  };
+
+  // Helper function to load events
+  async function loadEvents() {
+    try {
+      eventsPanel.showLoading();
+      
+      const response = await fetch('/api/events');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch events');
+      }
+
+      const events = await response.json();
+      eventsPanel.setEvents(events);
+      
+      if (events.length === 0) {
+        eventsPanel.showEmpty();
+      }
+    } catch (error: any) {
+      console.error('[Events] Error loading events:', error);
+      toastManager.error('Failed to load events');
+      eventsPanel.showEmpty();
+    }
+  }
   
   // Shop Panel
   const shopPanel = new ShopPanel({
@@ -787,6 +861,13 @@ async function init() {
     
     // Load initial category (coins)
     await loadLeaderboard(leaderboardPanel.getCurrentCategory());
+  };
+
+  ui.onEventsToggle = () => {
+    console.log('[UI] Toggling events panel');
+    eventsPanel.show();
+    eventsPanel.setCurrentAgent(MY_ID);
+    loadEvents();
   };
 
   ui.onShopToggle = () => {

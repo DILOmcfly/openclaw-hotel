@@ -99,6 +99,7 @@ import whispersRouter from './api/whispers.routes.js';
 import treasureHuntRouter from './api/treasureHunt.routes.js';
 import diceRouter from './api/dice.routes.js';
 import roomThemesRouter from './api/roomThemes.routes.js';
+import tradingCardsRouter from './api/tradingCards.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -207,6 +208,7 @@ app.use(whispersRouter);
 app.use(treasureHuntRouter);
 app.use(diceRouter);
 app.use(roomThemesRouter);
+app.use(tradingCardsRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });

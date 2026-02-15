@@ -398,6 +398,12 @@ export class UIManager {
       this.onLeaderboardToggle?.();
     });
 
+    // Events toggle
+    const eventsToggle = document.getElementById('events-toggle');
+    eventsToggle?.addEventListener('click', () => {
+      this.onEventsToggle?.();
+    });
+
     // Shop toggle
     const shopToggle = document.getElementById('shop-toggle');
     shopToggle?.addEventListener('click', () => {
@@ -870,6 +876,7 @@ export class UIManager {
   public onAvatarCustomizerToggle?: () => void;
   public onGamesToggle?: () => void;
   public onLeaderboardToggle?: () => void;
+  public onEventsToggle?: () => void;
   public onInventoryToggle?: () => void;
   public onShopToggle?: () => void;
   public onMarketplaceToggle?: () => void;
