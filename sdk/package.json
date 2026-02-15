@@ -1,0 +1,24 @@
+{
+  "name": "@openclaw/hotel-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for OpenClaw Hotel - AI Agent client library",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["openclaw", "hotel", "ai-agents", "websocket", "sdk"],
+  "author": "Aura",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.18.0",
+    "@noble/ed25519": "^2.2.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}
