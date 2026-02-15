@@ -332,41 +332,42 @@
           'wwwwwwwwwwww',
         ],
         // Furniture: [sprite, x, y, scale]
+        // Designed as a cozy hotel lobby - logical zones
         furniture: [
-          // Living area (top-left)
-          ['sofa', 1, 2, 0.45],
-          ['sofa', 1, 4, 0.45],
-          ['table', 3, 3, 0.45],
-          ['chair', 4, 2, 0.35],
-          ['lamp', 1, 1, 0.25],
+          // === LOUNGE ZONE (left side, against left wall) ===
+          // Sofa facing inward with coffee table
+          ['sofa', 1, 3, 0.4],
+          ['table', 2, 5, 0.4],    // coffee table in front of sofa
+          ['sofa', 1, 7, 0.4],     // second sofa opposite
+          ['lamp', 1, 1, 0.2],     // corner lamp
 
-          // Entertainment (top-right against wall)
-          ['tv', 7, 1, 0.4],
-          ['bookshelf', 9, 1, 0.35],
+          // === ENTERTAINMENT ZONE (against back wall, center) ===
+          ['tv', 5, 1, 0.35],      // TV against back wall
+          ['bookshelf', 7, 1, 0.3],// bookshelf next to TV
 
-          // Work area (right side)
-          ['computer', 10, 3, 0.35],
-          ['chair', 10, 4, 0.3],
+          // === RECEPTION/WORK AREA (right side, against back wall) ===
+          ['computer', 9, 1, 0.3], // desk against back wall
+          ['chair', 9, 2, 0.28],   // chair at desk
 
-          // Kitchen corner (far right)
-          ['fridge', 10, 7, 0.35],
-          ['table', 9, 8, 0.35],
+          // === CENTRAL AREA ===
+          ['rug', 5, 5, 0.5],      // central rug defining the space
+          ['table', 5, 4, 0.35],   // table on rug
 
-          // Central rug
-          ['rug', 5, 5, 0.55],
+          // === DINING CORNER (far right) ===
+          ['table', 9, 6, 0.35],
+          ['chair', 8, 6, 0.28],
+          ['chair', 10, 6, 0.28],
+          ['fridge', 10, 8, 0.3],  // kitchenette
 
-          // Decorative plants (corners)
-          ['plant', 1, 10, 0.35],
-          ['plant', 10, 1, 0.35],
-          ['plant', 10, 10, 0.35],
+          // === DECORATIVE (corners & walls) ===
+          ['plant', 10, 1, 0.3],   // corner plant
+          ['plant', 1, 10, 0.3],   // corner plant  
+          ['plant', 10, 10, 0.3],  // corner plant
+          ['lamp', 10, 3, 0.2],    // wall lamp right
+          ['painting', 3, 1, 0.25],// painting on back wall
 
-          // Wall decorations (against back wall)
-          ['painting', 4, 1, 0.3],
-          ['lamp', 6, 1, 0.22],
-
-          // Entrance
-          ['door', 11, 6, 0.35],
-          ['lamp', 11, 5, 0.22],
+          // === ENTRANCE (bottom-right edge) ===
+          ['door', 11, 5, 0.35],
         ],
         // Wall decorations: [sprite, position, side] (side: 'back'=top, 'left'=left)
         wallWindows: [
@@ -415,115 +416,122 @@
     }
 
     function drawWallSegment(ctx, sx, sy, side, hasWindow) {
-      const WALL_H = 52;
+      const WALL_H = 56;
+      const hw = TILE_W / 2; // 32
+      const hh = TILE_H / 2; // 16
 
       if (side === 'back') {
-        // Right-facing wall — warm solid color with subtle shading
-        {
-          const g = ctx.createLinearGradient(sx, sy - WALL_H, sx, sy);
-          g.addColorStop(0, '#7a6650');
-          g.addColorStop(0.15, '#8a7660');
-          g.addColorStop(0.85, '#6a5640');
-          g.addColorStop(1, '#5a4630');
-          ctx.fillStyle = g;
-          ctx.beginPath();
-          ctx.moveTo(sx, sy);
-          ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2);
-          ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2 - WALL_H);
-          ctx.lineTo(sx, sy - WALL_H);
-          ctx.closePath();
-          ctx.fill();
-        }
+        // Back wall: parallelogram following right isometric edge
+        const x0 = sx, y0 = sy;
+        const x1 = sx + hw, y1 = sy + hh;
+        const x2 = sx + hw, y2 = sy + hh - WALL_H;
+        const x3 = sx, y3 = sy - WALL_H;
+
+        // Wall fill - warm cream/beige
+        const g = ctx.createLinearGradient(x0, y3, x0, y0);
+        g.addColorStop(0, '#c4b096');
+        g.addColorStop(0.05, '#b8a488');
+        g.addColorStop(0.95, '#a89478');
+        g.addColorStop(1, '#8a7a64');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3);
+        ctx.closePath(); ctx.fill();
+
         // Baseboard
-        ctx.fillStyle = '#3a2a1a';
+        ctx.fillStyle = '#6a5a44';
         ctx.beginPath();
-        ctx.moveTo(sx, sy);
-        ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2);
-        ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2 - 4);
-        ctx.lineTo(sx, sy - 4);
-        ctx.closePath();
-        ctx.fill();
-        // Top molding
-        ctx.fillStyle = '#7a6a5a';
+        ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x1, y1-5); ctx.lineTo(x0, y0-5);
+        ctx.closePath(); ctx.fill();
+
+        // Crown molding
+        ctx.fillStyle = '#d4c4a8';
         ctx.beginPath();
-        ctx.moveTo(sx, sy - WALL_H);
-        ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2 - WALL_H);
-        ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2 - WALL_H - 3);
-        ctx.lineTo(sx, sy - WALL_H - 3);
-        ctx.closePath();
-        ctx.fill();
-        // Window
+        ctx.moveTo(x3, y3); ctx.lineTo(x2, y2); ctx.lineTo(x2, y2+4); ctx.lineTo(x3, y3+4);
+        ctx.closePath(); ctx.fill();
+
+        // Outline
+        ctx.strokeStyle = '#5a4a34'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3);
+        ctx.closePath(); ctx.stroke();
+
+        // Window IN PERSPECTIVE (parallelogram matching wall angle)
         if (hasWindow) {
-          const wx = sx + 6;
-          const wy = sy - WALL_H + 12;
-          // Window frame
-          ctx.fillStyle = '#8B7355';
-          ctx.fillRect(wx, wy, 20, 28);
-          // Glass (sky blue gradient)
-          const wg = ctx.createLinearGradient(wx, wy, wx, wy + 24);
-          wg.addColorStop(0, '#87CEEB');
-          wg.addColorStop(1, '#B0E0E6');
-          ctx.fillStyle = wg;
-          ctx.fillRect(wx + 2, wy + 2, 16, 24);
-          // Cross bar
-          ctx.fillStyle = '#8B7355';
-          ctx.fillRect(wx + 2, wy + 13, 16, 2);
-          ctx.fillRect(wx + 9, wy + 2, 2, 24);
-          // Light glow from window
-          ctx.fillStyle = 'rgba(255,255,200,0.05)';
-          ctx.beginPath();
-          ctx.ellipse(wx + 10, wy + 35, 30, 20, 0, 0, Math.PI * 2);
-          ctx.fill();
+          const ww = hw * 0.55, wh = WALL_H * 0.45;
+          const wy_off = WALL_H * 0.2;
+          const wx_off = hw * 0.15;
+          // Window follows the 2:1 slope of the back wall
+          const w0x = x3 + wx_off, w0y = y3 + wy_off;
+          const w1x = w0x + ww, w1y = w0y + ww * (hh/hw);
+          const w2x = w1x, w2y = w1y + wh;
+          const w3x = w0x, w3y = w0y + wh;
+          // Frame
+          ctx.fillStyle = '#7a6844';
+          ctx.beginPath(); ctx.moveTo(w0x,w0y); ctx.lineTo(w1x,w1y); ctx.lineTo(w2x,w2y); ctx.lineTo(w3x,w3y);
+          ctx.closePath(); ctx.fill();
+          // Glass
+          ctx.fillStyle = '#a8d4e8';
+          ctx.beginPath(); ctx.moveTo(w0x+2,w0y+1); ctx.lineTo(w1x-2,w1y+1); ctx.lineTo(w2x-2,w2y-1); ctx.lineTo(w3x+2,w3y-1);
+          ctx.closePath(); ctx.fill();
+          // Crossbars in perspective
+          ctx.strokeStyle = '#7a6844'; ctx.lineWidth = 1.5;
+          const mY0=(w0y+w3y)/2, mY1=(w1y+w2y)/2;
+          ctx.beginPath(); ctx.moveTo(w0x+2,mY0); ctx.lineTo(w1x-2,mY1); ctx.stroke();
+          const mX0=(w0x+w1x)/2, mXb=(w3x+w2x)/2;
+          ctx.beginPath(); ctx.moveTo(mX0,(w0y+w1y)/2+1); ctx.lineTo(mXb,(w3y+w2y)/2-1); ctx.stroke();
         }
       } else {
-        // Left-facing wall — slightly darker for depth
-        {
-          const g = ctx.createLinearGradient(sx, sy - WALL_H, sx, sy);
-          g.addColorStop(0, '#6a5640');
-          g.addColorStop(0.15, '#7a6650');
-          g.addColorStop(0.85, '#5a4630');
-          g.addColorStop(1, '#4a3620');
-          ctx.fillStyle = g;
-          ctx.beginPath();
-          ctx.moveTo(sx, sy);
-          ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2);
-          ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2 - WALL_H);
-          ctx.lineTo(sx, sy - WALL_H);
-          ctx.closePath();
-          ctx.fill();
-        }
-        // Baseboard
-        ctx.fillStyle = '#3a2a1a';
+        // Left wall: parallelogram following left isometric edge
+        const x0 = sx, y0 = sy;
+        const x1 = sx - hw, y1 = sy + hh;
+        const x2 = sx - hw, y2 = sy + hh - WALL_H;
+        const x3 = sx, y3 = sy - WALL_H;
+
+        const g = ctx.createLinearGradient(x0, y3, x0, y0);
+        g.addColorStop(0, '#b09a80');
+        g.addColorStop(0.05, '#a48e74');
+        g.addColorStop(0.95, '#948068');
+        g.addColorStop(1, '#7a6a54');
+        ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.moveTo(sx, sy);
-        ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2);
-        ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2 - 4);
-        ctx.lineTo(sx, sy - 4);
-        ctx.closePath();
-        ctx.fill();
-        // Top molding
-        ctx.fillStyle = '#6a5a4a';
+        ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3);
+        ctx.closePath(); ctx.fill();
+
+        ctx.fillStyle = '#5a4a34';
         ctx.beginPath();
-        ctx.moveTo(sx, sy - WALL_H);
-        ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2 - WALL_H);
-        ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2 - WALL_H - 3);
-        ctx.lineTo(sx, sy - WALL_H - 3);
-        ctx.closePath();
-        ctx.fill();
-        // Window
+        ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x1, y1-5); ctx.lineTo(x0, y0-5);
+        ctx.closePath(); ctx.fill();
+
+        ctx.fillStyle = '#c4b498';
+        ctx.beginPath();
+        ctx.moveTo(x3, y3); ctx.lineTo(x2, y2); ctx.lineTo(x2, y2+4); ctx.lineTo(x3, y3+4);
+        ctx.closePath(); ctx.fill();
+
+        ctx.strokeStyle = '#4a3a24'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3);
+        ctx.closePath(); ctx.stroke();
+
         if (hasWindow) {
-          const wx = sx - 28;
-          const wy = sy - WALL_H + 12;
-          ctx.fillStyle = '#8B7355';
-          ctx.fillRect(wx, wy, 20, 28);
-          const wg = ctx.createLinearGradient(wx, wy, wx, wy + 24);
-          wg.addColorStop(0, '#87CEEB');
-          wg.addColorStop(1, '#B0E0E6');
-          ctx.fillStyle = wg;
-          ctx.fillRect(wx + 2, wy + 2, 16, 24);
-          ctx.fillStyle = '#8B7355';
-          ctx.fillRect(wx + 2, wy + 13, 16, 2);
-          ctx.fillRect(wx + 9, wy + 2, 2, 24);
+          const ww = hw * 0.55, wh = WALL_H * 0.45;
+          const wy_off = WALL_H * 0.2;
+          const wx_off = hw * 0.15;
+          const w0x = x3 - wx_off, w0y = y3 + wy_off;
+          const w1x = w0x - ww, w1y = w0y + ww * (hh/hw);
+          const w2x = w1x, w2y = w1y + wh;
+          const w3x = w0x, w3y = w0y + wh;
+          ctx.fillStyle = '#7a6844';
+          ctx.beginPath(); ctx.moveTo(w0x,w0y); ctx.lineTo(w1x,w1y); ctx.lineTo(w2x,w2y); ctx.lineTo(w3x,w3y);
+          ctx.closePath(); ctx.fill();
+          ctx.fillStyle = '#a8d4e8';
+          ctx.beginPath(); ctx.moveTo(w0x-2,w0y+1); ctx.lineTo(w1x+2,w1y+1); ctx.lineTo(w2x+2,w2y-1); ctx.lineTo(w3x-2,w3y-1);
+          ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = '#7a6844'; ctx.lineWidth = 1.5;
+          const mY0=(w0y+w3y)/2, mY1=(w1y+w2y)/2;
+          ctx.beginPath(); ctx.moveTo(w0x-2,mY0); ctx.lineTo(w1x+2,mY1); ctx.stroke();
+          const mX0=(w0x+w1x)/2, mXb=(w3x+w2x)/2;
+          ctx.beginPath(); ctx.moveTo(mX0,(w0y+w1y)/2+1); ctx.lineTo(mXb,(w3y+w2y)/2-1); ctx.stroke();
         }
       }
     }
