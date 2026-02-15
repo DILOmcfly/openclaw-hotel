@@ -1064,6 +1064,123 @@ export function setupWebSocket(server: Server): void {
           break;
         }
 
+        case 'game.blackjack.create': {
+          try {
+            const { createGame, getGameState, getPlayerValue, getDealerValue } = await import('../services/blackjack.js');
+            
+            const game = createGame(clientMessage.roomId, agentId);
+
+            // Get creator name
+            const [creator] = await sql`
+              SELECT display_name FROM agents WHERE id = ${agentId}
+            `;
+
+            // Send game state to player
+            sendMessage(ws, {
+              type: 'game.blackjack.created',
+              gameId: game.id,
+              playerHand: game.playerHand,
+              dealerHand: game.dealerHidden ? [game.dealerHand[0]] : game.dealerHand,
+              playerValue: getPlayerValue(game.id),
+              dealerValue: game.dealerHidden ? 0 : getDealerValue(game.id),
+              status: game.status,
+            });
+
+            // Broadcast to room
+            broadcastToRoom(clientMessage.roomId, {
+              type: 'game.created',
+              gameId: game.id,
+              gameType: 'blackjack',
+              hostId: agentId,
+              hostName: creator?.display_name || 'Agent',
+              status: game.status,
+            }, agentId);
+          } catch (error: any) {
+            sendError(ws, 'GAME_CREATE_FAILED', error.message || 'Failed to create Blackjack game');
+          }
+          break;
+        }
+
+        case 'game.blackjack.hit': {
+          try {
+            const { hit, getPlayerValue, getDealerValue } = await import('../services/blackjack.js');
+            
+            const game = hit(clientMessage.gameId, agentId);
+
+            // Send updated state to player
+            sendMessage(ws, {
+              type: 'game.blackjack.updated',
+              gameId: game.id,
+              playerHand: game.playerHand,
+              dealerHand: game.dealerHidden ? [game.dealerHand[0]] : game.dealerHand,
+              playerValue: getPlayerValue(game.id),
+              dealerValue: game.dealerHidden ? 0 : getDealerValue(game.id),
+              status: game.status,
+            });
+
+            // If game completed (bust), broadcast result
+            if (game.status !== 'active') {
+              broadcastToRoom(game.roomId, {
+                type: 'game.completed',
+                gameId: game.id,
+                winnerId: game.status === 'player_won' || game.status === 'dealer_bust' ? agentId : null,
+                result: {
+                  blackjack: {
+                    playerValue: getPlayerValue(game.id),
+                    dealerValue: getDealerValue(game.id),
+                    status: game.status,
+                  },
+                },
+              });
+            }
+          } catch (error: any) {
+            sendError(ws, 'GAME_HIT_FAILED', error.message || 'Failed to hit');
+          }
+          break;
+        }
+
+        case 'game.blackjack.stand': {
+          try {
+            const { stand, getPlayerValue, getDealerValue } = await import('../services/blackjack.js');
+            
+            const game = stand(clientMessage.gameId, agentId);
+
+            // Send final state to player
+            sendMessage(ws, {
+              type: 'game.blackjack.updated',
+              gameId: game.id,
+              playerHand: game.playerHand,
+              dealerHand: game.dealerHand,
+              playerValue: getPlayerValue(game.id),
+              dealerValue: getDealerValue(game.id),
+              status: game.status,
+            });
+
+            // Broadcast result to room
+            const winnerId = game.status === 'player_won' || game.status === 'dealer_bust' 
+              ? agentId 
+              : game.status === 'dealer_won' || game.status === 'player_bust'
+              ? null
+              : null; // push
+
+            broadcastToRoom(game.roomId, {
+              type: 'game.completed',
+              gameId: game.id,
+              winnerId,
+              result: {
+                blackjack: {
+                  playerValue: getPlayerValue(game.id),
+                  dealerValue: getDealerValue(game.id),
+                  status: game.status,
+                },
+              },
+            });
+          } catch (error: any) {
+            sendError(ws, 'GAME_STAND_FAILED', error.message || 'Failed to stand');
+          }
+          break;
+        }
+
         case 'friend.request': {
           try {
             const { sendFriendRequest } = await import('../services/friends.js');
