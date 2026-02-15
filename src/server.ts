@@ -25,6 +25,8 @@ import ratingRouter from './api/rating.routes.js';
 import spectatorRouter from './api/spectator.routes.js';
 import directoryRouter from './api/directory.routes.js';
 import inventoryRouter from './api/inventory.routes.js';
+import roomPermissionsRouter from './api/roomPermissions.routes.js';
+import marketplaceRouter from './api/marketplace.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -59,6 +61,8 @@ app.use('/api/rooms', ratingRouter);
 app.use(spectatorRouter);
 app.use(directoryRouter);
 app.use('/api/inventory', inventoryRouter);
+app.use(roomPermissionsRouter);
+app.use(marketplaceRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });

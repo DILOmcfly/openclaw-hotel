@@ -169,6 +169,9 @@ export class UIManager {
             <button class="hud-btn" id="inventory-toggle" title="Inventory">
               <span class="icon">📦</span>
             </button>
+            <button class="hud-btn" id="marketplace-toggle" title="Marketplace">
+              <span class="icon">🛒</span>
+            </button>
             <button class="hud-btn hidden" id="room-editor-toggle" title="Edit Room">
               <span class="icon">🏗️</span>
             </button>

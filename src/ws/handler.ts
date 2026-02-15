@@ -8,6 +8,7 @@ import { sql } from '../db/index.js';
 import { placeFurniture, removeFurniture, getItemsInRoom } from '../services/furniture.js';
 import { validateRoomAccess, isRoomFull } from '../services/roomPrivacy.js';
 import { isAgentMuted, checkMessageFilters, muteAgent } from '../services/moderationTools.js';
+import { isBanned, isGuest } from '../services/roomPermissions.js';
 
 export const connections = new Map<string, WebSocket>();
 export const roomMembers = new Map<string, Set<string>>();
@@ -225,6 +226,13 @@ export function setupWebSocket(server: Server): void {
         }
 
         case 'room.join': {
+          // Check if agent is banned from the room
+          const banned = await isBanned(clientMessage.roomId, agentId, sql);
+          if (banned) {
+            sendError(ws, 'room.banned', 'You are banned from this room');
+            break;
+          }
+
           // Check room privacy and access
           const accessCheck = await validateRoomAccess(
             clientMessage.roomId,
@@ -236,6 +244,25 @@ export function setupWebSocket(server: Server): void {
           if (!accessCheck.allowed) {
             sendError(ws, 'room.access_denied', accessCheck.reason || 'Access denied');
             break;
+          }
+
+          // For private rooms, check guest list (unless owner)
+          const roomRows = await sql`
+            SELECT visibility, created_by AS "createdBy"
+            FROM rooms
+            WHERE id = ${clientMessage.roomId}::uuid
+            LIMIT 1
+          `;
+
+          if (roomRows.length > 0 && roomRows[0].visibility === 'private') {
+            const isOwner = roomRows[0].createdBy === agentId;
+            if (!isOwner) {
+              const onGuestList = await isGuest(clientMessage.roomId, agentId, sql);
+              if (!onGuestList) {
+                sendError(ws, 'room.access_denied', 'You must be on the guest list');
+                break;
+              }
+            }
           }
 
           // Check if room is full

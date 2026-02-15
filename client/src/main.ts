@@ -25,6 +25,7 @@ import { LeaderboardPanel } from './ui/LeaderboardPanel.js';
 import { ShopPanel } from './ui/ShopPanel.js';
 import { TemplatesBrowser } from './ui/TemplatesBrowser.js';
 import { InventoryPanel } from './ui/InventoryPanel.js';
+import { eventBus, Events } from './utils/EventBus.js';
 
 const DEMO_MAP = `
 xxxx00000
@@ -124,8 +125,8 @@ async function init() {
     onPurchase: (itemDefId, quantity) => {
       console.log('[ShopPanel] Purchased:', itemDefId, 'x', quantity);
       toastManager.show(`Purchased ${quantity}× ${itemDefId}!`, 'success');
-      // Refresh inventory when purchase succeeds
-      loadInventory();
+      // Emit inventory update event
+      eventBus.emit(Events.INVENTORY_UPDATE);
     },
     onClose: () => {
       shopPanel.hide();
@@ -160,18 +161,9 @@ async function init() {
       toastManager.success(`Furniture placed at (${x}, ${y})`);
       inventoryPanel.hide();
       
-      // Refresh inventory after placement
-      setTimeout(async () => {
-        const token = ui.getToken();
-        if (token) {
-          const response = await fetch('/api/inventory', {
-            headers: { 'Authorization': `Bearer ${token}` },
-          });
-          if (response.ok) {
-            const { items } = await response.json();
-            inventoryPanel.setItems(items);
-          }
-        }
+      // Emit inventory update event for reactive refresh
+      setTimeout(() => {
+        eventBus.emit(Events.INVENTORY_UPDATE);
       }, 500);
     } catch (error: any) {
       console.error('[Inventory] Place error:', error);
@@ -202,9 +194,9 @@ async function init() {
       const result = await response.json();
       toastManager.show(`Sold for ${result.coinsRefunded} coins!`, 'success');
       
-      // Refresh inventory and balance
-      loadInventory();
-      ui.updateCoinDisplay(0); // Will be updated by balance fetch
+      // Emit events for reactive updates
+      eventBus.emit(Events.INVENTORY_UPDATE);
+      eventBus.emit(Events.BALANCE_UPDATE, result.coinsRefunded);
     } catch (error: any) {
       console.error('[Inventory] Error selling item:', error);
       toastManager.show(error.message || 'Failed to sell item', 'error');
@@ -214,6 +206,11 @@ async function init() {
   inventoryPanel.onRefresh = () => {
     loadInventory();
   };
+
+  // Subscribe inventory panel to auto-refresh on updates
+  eventBus.on(Events.INVENTORY_UPDATE, () => {
+    loadInventory();
+  });
 
   // Helper function to load inventory
   async function loadInventory() {
@@ -370,6 +367,7 @@ async function init() {
     console.log('[Friends] Accepting friend request:', friendshipId);
     if (isConnected) {
       ws.send({ type: 'friend.accept', friendshipId });
+      eventBus.emit(Events.FRIENDS_UPDATE);
     }
   };
 
@@ -391,14 +389,8 @@ async function init() {
       }
 
       toastManager.success('Friend request rejected');
-      // Refresh pending requests list
-      const pendingResponse = await fetch('/api/friends/pending', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (pendingResponse.ok) {
-        const { requests } = await pendingResponse.json();
-        friendsPanel.setPendingRequests(requests);
-      }
+      // Emit event for reactive update
+      eventBus.emit(Events.FRIENDS_UPDATE);
     } catch (error: any) {
       console.error('[Friends] Reject error:', error);
       toastManager.error(error.message || 'Failed to reject friend request');
@@ -422,19 +414,46 @@ async function init() {
       }
 
       toastManager.success('Friend removed');
-      // Refresh friends list
-      const friendsResponse = await fetch('/api/friends', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (friendsResponse.ok) {
-        const { friends } = await friendsResponse.json();
-        friendsPanel.setFriends(friends);
-      }
+      // Emit event for reactive update
+      eventBus.emit(Events.FRIENDS_UPDATE);
     } catch (error: any) {
       console.error('[Friends] Remove error:', error);
       toastManager.error(error.message || 'Failed to remove friend');
     }
   };
+
+  // Helper function to load friends list
+  async function loadFriends() {
+    try {
+      const token = ui.getToken();
+      if (!token) return;
+
+      const response = await fetch('/api/friends', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        friendsPanel.setFriends(data.friends || []);
+      }
+
+      const pendingResponse = await fetch('/api/friends/pending', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      
+      if (pendingResponse.ok) {
+        const { requests } = await pendingResponse.json();
+        friendsPanel.setPendingRequests(requests);
+      }
+    } catch (error) {
+      console.error('[Friends] Failed to load friends:', error);
+    }
+  }
+
+  // Subscribe friends panel to auto-refresh on updates
+  eventBus.on(Events.FRIENDS_UPDATE, () => {
+    loadFriends();
+  });
 
   // WebSocket connection
   const ws = new HotelWSClient();
@@ -474,6 +493,8 @@ async function init() {
     // Cleanup previous room if changing rooms
     if (currentRoom !== roomId) {
       console.log('[Room] Cleaning up previous room');
+      // Emit room left event for previous room
+      eventBus.emit(Events.ROOM_LEFT, currentRoom);
       agentRenderer.cleanup();
       furnitureManager.cleanup();
       // Note: TileMap doesn't change between rooms in current implementation
@@ -492,6 +513,9 @@ async function init() {
     // Switch to game screen
     ui.showScreen('game');
     ui.setCurrentRoom(roomId);
+    
+    // Emit room joined event
+    eventBus.emit(Events.ROOM_JOINED, roomId);
     
     // Initialize Notification Center (once)
     if (!notificationCenter) {
@@ -621,7 +645,8 @@ async function init() {
       avatarCustomizer.onSave = (appearance) => {
         console.log('[AvatarCustomizer] Saved:', appearance);
         toastManager.show('Avatar customized!', 'success');
-        // The appearance change will be broadcast via WebSocket automatically
+        // Emit avatar update event
+        eventBus.emit(Events.AVATAR_UPDATE, appearance);
       };
     }
     avatarCustomizer.show();
@@ -746,6 +771,9 @@ async function init() {
 
   ui.onLogout = () => {
     console.log('[Auth] Logout');
+    
+    // Emit room left event
+    eventBus.emit(Events.ROOM_LEFT, currentRoom);
     
     if (isConnected) {
       ws.disconnect();
@@ -1074,22 +1102,7 @@ async function init() {
     }
     
     // Load friends list on connection
-    try {
-      const token = ui.getToken();
-      if (token) {
-        const response = await fetch('/api/friends', {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          friendsPanel.setFriends(data.friends || []);
-          friendsPanel.setPendingRequests(data.pending || []);
-        }
-      }
-    } catch (error) {
-      console.error('[Friends] Failed to load friends list:', error);
-    }
+    await loadFriends();
   });
 
   ws.on('disconnected', () => {
@@ -1276,8 +1289,9 @@ async function init() {
       toastManager.success('Trade completed!', 3000);
       tradeWindow.showCompleted();
       
-      // Reload inventory after trade
-      setTimeout(() => loadInventory(), 1000);
+      // Emit events for reactive updates
+      eventBus.emit(Events.TRADE_COMPLETE, tradeId);
+      eventBus.emit(Events.INVENTORY_UPDATE);
     }
   });
 
@@ -1448,7 +1462,8 @@ async function init() {
     const requesterName = msg.requesterName as string;
     
     toastManager.info(`Friend request from ${requesterName}`, 5000);
-    // TODO: Refresh pending requests in FriendsPanel
+    // Emit event for reactive update
+    eventBus.emit(Events.FRIENDS_UPDATE);
   });
 
   ws.on('friend.accepted', (msg) => {
@@ -1457,7 +1472,8 @@ async function init() {
     const agentName = msg.agentName as string;
     
     toastManager.success(`${agentName} accepted your friend request!`, 5000);
-    // TODO: Refresh friends list in FriendsPanel
+    // Emit event for reactive update
+    eventBus.emit(Events.FRIENDS_UPDATE);
   });
 
   ws.on('notification.new', (msg: any) => {
@@ -1469,6 +1485,9 @@ async function init() {
     if (notificationCenter) {
       notificationCenter.addNotification(notification, unreadCount);
     }
+    
+    // Emit notification event
+    eventBus.emit(Events.NOTIFICATIONS_NEW, notification, unreadCount);
     
     // Also show toast for important notifications
     if (notification.type === 'friend_request' || notification.type === 'trade_offer') {
