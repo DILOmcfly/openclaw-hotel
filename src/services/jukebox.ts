@@ -57,132 +57,54 @@ export async function setPlaylist(
   }
 }
 
-async function updatePlaylist(roomId: string, updates: any, sql: any): Promise<PlaylistState> {
-  const now = new Date();
-  const keys = Object.keys(updates);
-  const sets = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
-  const values = keys.map(k => updates[k]);
-  
-  const result = await sql`
-    UPDATE room_playlists
-    SET ${sql([sets])}, updated_at = ${now}
-    WHERE room_id = ${roomId}
-    RETURNING *
-  `;
-  
+export async function play(roomId: string, sql: any): Promise<PlaylistState> {
+  const result = await sql`UPDATE room_playlists SET is_playing = true, updated_at = NOW() WHERE room_id = ${roomId} RETURNING *`;
   if (result.length === 0) throw new Error('Playlist not found');
   return mapRowToPlaylistState(result[0]);
 }
 
-export async function play(roomId: string, sql: any): Promise<PlaylistState> {
-  return updatePlaylist(roomId, { is_playing: true }, sql);
-}
-
 export async function pause(roomId: string, sql: any): Promise<PlaylistState> {
-  return updatePlaylist(roomId, { is_playing: false }, sql);
+  const result = await sql`UPDATE room_playlists SET is_playing = false, updated_at = NOW() WHERE room_id = ${roomId} RETURNING *`;
+  if (result.length === 0) throw new Error('Playlist not found');
+  return mapRowToPlaylistState(result[0]);
 }
 
 export async function nextTrack(roomId: string, sql: any): Promise<PlaylistState> {
   const playlist = await getPlaylist(roomId, sql);
-  if (!playlist) {
-    throw new Error('Playlist not found');
-  }
-
+  if (!playlist) throw new Error('Playlist not found');
+  
   let nextIndex = playlist.currentTrack;
-
   if (playlist.repeatMode === 'one') {
-    // Stay on same track
     nextIndex = playlist.currentTrack;
   } else if (playlist.repeatMode === 'all') {
-    // Loop to first track after last
     nextIndex = (playlist.currentTrack + 1) % playlist.tracks.length;
   } else {
-    // 'none': advance or stop at end
-    nextIndex = playlist.currentTrack + 1;
-    if (nextIndex >= playlist.tracks.length) {
-      nextIndex = playlist.tracks.length - 1;
-    }
+    nextIndex = Math.min(playlist.tracks.length - 1, playlist.currentTrack + 1);
   }
 
-  const now = new Date();
-  const result = await sql`
-    UPDATE room_playlists
-    SET current_track = ${nextIndex}, updated_at = ${now}
-    WHERE room_id = ${roomId}
-    RETURNING *
-  `;
-
+  const result = await sql`UPDATE room_playlists SET current_track = ${nextIndex}, updated_at = NOW() WHERE room_id = ${roomId} RETURNING *`;
   return mapRowToPlaylistState(result[0]);
 }
 
 export async function prevTrack(roomId: string, sql: any): Promise<PlaylistState> {
   const playlist = await getPlaylist(roomId, sql);
-  if (!playlist) {
-    throw new Error('Playlist not found');
-  }
-
-  let prevIndex = playlist.currentTrack - 1;
-  if (prevIndex < 0) {
-    prevIndex = 0;
-  }
-
-  const now = new Date();
-  const result = await sql`
-    UPDATE room_playlists
-    SET current_track = ${prevIndex}, updated_at = ${now}
-    WHERE room_id = ${roomId}
-    RETURNING *
-  `;
-
+  if (!playlist) throw new Error('Playlist not found');
+  const prevIndex = Math.max(0, playlist.currentTrack - 1);
+  const result = await sql`UPDATE room_playlists SET current_track = ${prevIndex}, updated_at = NOW() WHERE room_id = ${roomId} RETURNING *`;
   return mapRowToPlaylistState(result[0]);
 }
 
-export async function setVolume(
-  roomId: string,
-  volume: number,
-  sql: any
-): Promise<PlaylistState> {
-  if (volume < 0 || volume > 100) {
-    throw new Error('Volume must be between 0 and 100');
-  }
-
-  const now = new Date();
-  const result = await sql`
-    UPDATE room_playlists
-    SET volume = ${volume}, updated_at = ${now}
-    WHERE room_id = ${roomId}
-    RETURNING *
-  `;
-
-  if (result.length === 0) {
-    throw new Error('Playlist not found');
-  }
-
+export async function setVolume(roomId: string, volume: number, sql: any): Promise<PlaylistState> {
+  if (volume < 0 || volume > 100) throw new Error('Volume must be between 0 and 100');
+  const result = await sql`UPDATE room_playlists SET volume = ${volume}, updated_at = NOW() WHERE room_id = ${roomId} RETURNING *`;
+  if (result.length === 0) throw new Error('Playlist not found');
   return mapRowToPlaylistState(result[0]);
 }
 
-export async function setRepeatMode(
-  roomId: string,
-  mode: 'none' | 'one' | 'all',
-  sql: any
-): Promise<PlaylistState> {
-  const validModes = ['none', 'one', 'all'];
-  if (!validModes.includes(mode)) {
-    throw new Error('Invalid repeat mode');
-  }
-
-  const now = new Date();
-  const result = await sql`
-    UPDATE room_playlists
-    SET repeat_mode = ${mode}, updated_at = ${now}
-    WHERE room_id = ${roomId}
-    RETURNING *
-  `;
-
-  if (result.length === 0) {
-    throw new Error('Playlist not found');
-  }
-
+export async function setRepeatMode(roomId: string, mode: 'none' | 'one' | 'all', sql: any): Promise<PlaylistState> {
+  if (!['none', 'one', 'all'].includes(mode)) throw new Error('Invalid repeat mode');
+  const result = await sql`UPDATE room_playlists SET repeat_mode = ${mode}, updated_at = NOW() WHERE room_id = ${roomId} RETURNING *`;
+  if (result.length === 0) throw new Error('Playlist not found');
   return mapRowToPlaylistState(result[0]);
 }
 
@@ -198,72 +120,27 @@ export async function getPlaylist(roomId: string, sql: any): Promise<PlaylistSta
   return mapRowToPlaylistState(result[0]);
 }
 
-export async function addTrack(
-  roomId: string,
-  track: Track,
-  sql: any
-): Promise<PlaylistState> {
+export async function addTrack(roomId: string, track: Track, sql: any): Promise<PlaylistState> {
   const playlist = await getPlaylist(roomId, sql);
-
-  if (!playlist) {
-    // Create new playlist with this track
-    return setPlaylist(roomId, [track], sql);
-  }
-
-  if (playlist.tracks.length >= MAX_TRACKS) {
-    throw new Error(`Playlist cannot exceed ${MAX_TRACKS} tracks`);
-  }
-
+  if (!playlist) return setPlaylist(roomId, [track], sql);
+  if (playlist.tracks.length >= MAX_TRACKS) throw new Error(`Playlist cannot exceed ${MAX_TRACKS} tracks`);
+  
   const updatedTracks = [...playlist.tracks, track];
-  const now = new Date();
-
-  const result = await sql`
-    UPDATE room_playlists
-    SET tracks = ${JSON.stringify(updatedTracks)}::jsonb,
-        updated_at = ${now}
-    WHERE room_id = ${roomId}
-    RETURNING *
-  `;
-
+  const result = await sql`UPDATE room_playlists SET tracks = ${JSON.stringify(updatedTracks)}::jsonb, updated_at = NOW() WHERE room_id = ${roomId} RETURNING *`;
   return mapRowToPlaylistState(result[0]);
 }
 
-export async function removeTrack(
-  roomId: string,
-  trackIndex: number,
-  sql: any
-): Promise<PlaylistState> {
+export async function removeTrack(roomId: string, trackIndex: number, sql: any): Promise<PlaylistState> {
   const playlist = await getPlaylist(roomId, sql);
-
-  if (!playlist) {
-    throw new Error('Playlist not found');
-  }
-
-  if (trackIndex < 0 || trackIndex >= playlist.tracks.length) {
-    throw new Error('Invalid track index');
-  }
+  if (!playlist) throw new Error('Playlist not found');
+  if (trackIndex < 0 || trackIndex >= playlist.tracks.length) throw new Error('Invalid track index');
 
   const updatedTracks = playlist.tracks.filter((_, idx) => idx !== trackIndex);
-
-  // Adjust current_track if needed
   let newCurrentTrack = playlist.currentTrack;
-  if (trackIndex <= playlist.currentTrack && newCurrentTrack > 0) {
-    newCurrentTrack--;
-  }
-  if (newCurrentTrack >= updatedTracks.length && updatedTracks.length > 0) {
-    newCurrentTrack = updatedTracks.length - 1;
-  }
+  if (trackIndex <= playlist.currentTrack && newCurrentTrack > 0) newCurrentTrack--;
+  if (newCurrentTrack >= updatedTracks.length && updatedTracks.length > 0) newCurrentTrack = updatedTracks.length - 1;
 
-  const now = new Date();
-  const result = await sql`
-    UPDATE room_playlists
-    SET tracks = ${JSON.stringify(updatedTracks)}::jsonb,
-        current_track = ${newCurrentTrack},
-        updated_at = ${now}
-    WHERE room_id = ${roomId}
-    RETURNING *
-  `;
-
+  const result = await sql`UPDATE room_playlists SET tracks = ${JSON.stringify(updatedTracks)}::jsonb, current_track = ${newCurrentTrack}, updated_at = NOW() WHERE room_id = ${roomId} RETURNING *`;
   return mapRowToPlaylistState(result[0]);
 }
 
