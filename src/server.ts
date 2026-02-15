@@ -42,6 +42,8 @@ import activityLogRouter from './api/activityLog.routes.js';
 import atmosphereRouter from './api/atmosphere.routes.js';
 import warpZonesRouter from './api/warpZones.routes.js';
 import titlesRouter from './api/titles.routes.js';
+import roomQueueRouter from './api/roomQueue.routes.js';
+import floorPatternsRouter from './api/floorPatterns.routes.js';
 import { config } from './config.js';
 import { getMetrics } from './services/metrics.js';
 import { logger } from './utils/logger.js';
@@ -93,6 +95,8 @@ app.use(activityLogRouter);
 app.use(atmosphereRouter);
 app.use(warpZonesRouter);
 app.use(titlesRouter);
+app.use(roomQueueRouter);
+app.use(floorPatternsRouter);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'OpenClaw Hotel server is running' });
