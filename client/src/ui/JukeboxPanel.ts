@@ -27,14 +27,14 @@ export class JukeboxPanel {
   private currentRoomId: string | null = null;
   private isRoomOwner: boolean = false;
   private agentId: string;
-  private apiKey: string;
+  private getToken: () => string;
 
   // Callbacks
   private onPlaylistUpdate?: (playlist: PlaylistState) => void;
 
-  constructor(agentId: string, apiKey: string) {
+  constructor(agentId: string, getToken: () => string) {
     this.agentId = agentId;
-    this.apiKey = apiKey;
+    this.getToken = getToken;
     this.container = document.createElement('div');
     this.container.className = 'jukebox-panel hidden';
     this.render();

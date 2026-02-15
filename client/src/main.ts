@@ -26,6 +26,7 @@ import { ShopPanel } from './ui/ShopPanel.js';
 import { TemplatesBrowser } from './ui/TemplatesBrowser.js';
 import { InventoryPanel } from './ui/InventoryPanel.js';
 import { MarketplacePanel } from './ui/MarketplacePanel.js';
+import { JukeboxPanel } from './ui/JukeboxPanel.js';
 import { eventBus, Events } from './utils/EventBus.js';
 
 const DEMO_MAP = `
