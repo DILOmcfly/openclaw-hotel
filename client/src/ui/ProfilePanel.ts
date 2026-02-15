@@ -33,6 +33,17 @@ export type AchievementWithStatus = {
   awardedAt: string | null;
 };
 
+export type PersonalityData = {
+  agent_id: string;
+  sociability: number;
+  curiosity: number;
+  competitiveness: number;
+  generosity: number;
+  volatility: number;
+  archetype: string;
+  total_actions: number;
+};
+
 export class ProfilePanel {
   private container!: HTMLElement;
   private currentProfile: ProfileData | null = null;
@@ -127,6 +138,25 @@ export class ProfilePanel {
             </div>
           </div>
 
+          <!-- Personality Section -->
+          <div class="profile-section">
+            <h4>Personality</h4>
+            <div class="personality-container">
+              <div class="personality-archetype" id="personality-archetype">
+                <span class="archetype-label">Archetype:</span>
+                <span class="archetype-name">The Developing</span>
+              </div>
+              <canvas id="personality-radar" width="300" height="300"></canvas>
+              <div class="personality-legend">
+                <div class="legend-item"><span class="legend-color sociability"></span> Sociability</div>
+                <div class="legend-item"><span class="legend-color curiosity"></span> Curiosity</div>
+                <div class="legend-item"><span class="legend-color competitiveness"></span> Competitiveness</div>
+                <div class="legend-item"><span class="legend-color generosity"></span> Generosity</div>
+                <div class="legend-item"><span class="legend-color volatility"></span> Volatility</div>
+              </div>
+            </div>
+          </div>
+
           <!-- Badges Section -->
           <div class="profile-section">
             <h4>Badges</h4>
@@ -173,6 +203,136 @@ export class ProfilePanel {
     this.container.classList.toggle('hidden');
   }
 
+  private async loadPersonality(agentId: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/personality/${agentId}`);
+      if (!response.ok) {
+        throw new Error('Failed to load personality');
+      }
+
+      const personality: PersonalityData = await response.json();
+      this.renderPersonality(personality);
+    } catch (error) {
+      console.error('[ProfilePanel] Failed to load personality:', error);
+      // Don't show error, just hide personality section
+      const personalitySection = this.container.querySelector('.personality-container');
+      if (personalitySection) {
+        (personalitySection as HTMLElement).innerHTML = '<p class="text-muted">Personality data not available.</p>';
+      }
+    }
+  }
+
+  private renderPersonality(personality: PersonalityData): void {
+    // Update archetype
+    const archetypeEl = this.container.querySelector('.archetype-name');
+    if (archetypeEl) {
+      archetypeEl.textContent = personality.archetype;
+    }
+
+    // Draw radar chart
+    this.drawRadarChart(personality);
+  }
+
+  private drawRadarChart(personality: PersonalityData): void {
+    const canvas = document.getElementById('personality-radar') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const maxRadius = 120;
+    const traits = [
+      { label: 'Sociability', value: personality.sociability, color: '#FF6B6B' },
+      { label: 'Curiosity', value: personality.curiosity, color: '#4ECDC4' },
+      { label: 'Competitive', value: personality.competitiveness, color: '#FFD93D' },
+      { label: 'Generosity', value: personality.generosity, color: '#95E1D3' },
+      { label: 'Volatility', value: personality.volatility, color: '#C77DFF' },
+    ];
+
+    const angleStep = (Math.PI * 2) / traits.length;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw background circles (grid)
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 5; i++) {
+      const radius = (maxRadius / 5) * i;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Draw axes
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < traits.length; i++) {
+      const angle = angleStep * i - Math.PI / 2; // Start from top
+      const x = centerX + Math.cos(angle) * maxRadius;
+      const y = centerY + Math.sin(angle) * maxRadius;
+
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+
+    // Draw personality polygon
+    ctx.beginPath();
+    for (let i = 0; i < traits.length; i++) {
+      const angle = angleStep * i - Math.PI / 2;
+      const radius = (traits[i].value / 100) * maxRadius;
+      const x = centerX + Math.cos(angle) * radius;
+      const y = centerY + Math.sin(angle) * radius;
+
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.closePath();
+
+    // Fill
+    ctx.fillStyle = 'rgba(78, 205, 196, 0.3)';
+    ctx.fill();
+
+    // Stroke
+    ctx.strokeStyle = '#4ECDC4';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Draw trait labels
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < traits.length; i++) {
+      const angle = angleStep * i - Math.PI / 2;
+      const labelRadius = maxRadius + 20;
+      const x = centerX + Math.cos(angle) * labelRadius;
+      const y = centerY + Math.sin(angle) * labelRadius;
+
+      ctx.fillText(traits[i].label.slice(0, 3), x, y);
+    }
+
+    // Draw value dots
+    for (let i = 0; i < traits.length; i++) {
+      const angle = angleStep * i - Math.PI / 2;
+      const radius = (traits[i].value / 100) * maxRadius;
+      const x = centerX + Math.cos(angle) * radius;
+      const y = centerY + Math.sin(angle) * radius;
+
+      ctx.fillStyle = traits[i].color;
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   public async loadProfile(agentId: string, currentAgentId: string): Promise<void> {
     this.currentAgentId = agentId;
     this.isOwnProfile = agentId === currentAgentId;
@@ -202,6 +362,9 @@ export class ProfilePanel {
       
       // Load badges
       await this.loadBadges(agentId);
+      
+      // Load personality
+      await this.loadPersonality(agentId);
     } catch (error) {
       console.error('[ProfilePanel] Failed to load profile:', error);
       this.showError('Failed to load profile. Please try again.');

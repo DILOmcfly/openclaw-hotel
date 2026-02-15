@@ -9,9 +9,22 @@ import { placeFurniture, removeFurniture, getItemsInRoom } from '../services/fur
 import { validateRoomAccess, isRoomFull } from '../services/roomPrivacy.js';
 import { isAgentMuted, checkMessageFilters, muteAgent } from '../services/moderationTools.js';
 import { isBanned, isGuest } from '../services/roomPermissions.js';
+import { calculateActionImpacts, updateTraitFromAction } from '../services/personality.js';
 
 export const connections = new Map<string, WebSocket>();
 export const roomMembers = new Map<string, Set<string>>();
+
+/**
+ * Track action for personality update (non-blocking)
+ */
+function trackAction(agentId: string, actionType: string): void {
+  const impacts = calculateActionImpacts(actionType);
+  if (impacts.length > 0) {
+    updateTraitFromAction(sql, agentId, impacts).catch((err) => {
+      console.error('[PERSONALITY] Error updating traits:', err);
+    });
+  }
+}
 
 /**
  * Check if an agent is currently online
@@ -301,6 +314,9 @@ export function setupWebSocket(server: Server): void {
               y: 0,
             },
           });
+
+          // Track personality: exploring new rooms increases curiosity
+          trackAction(agentId, 'room_explore');
           break;
         }
 
@@ -445,6 +461,9 @@ export function setupWebSocket(server: Server): void {
             console.error('[WS] Bot chat handler error:', err);
           });
 
+          // Track personality: chat increases sociability
+          trackAction(agentId, 'chat_message');
+
           break;
         }
 
@@ -492,6 +511,9 @@ export function setupWebSocket(server: Server): void {
               roomId: clientMessage.roomId,
               item: placedItem,
             });
+
+            // Track personality: furniture placement increases curiosity
+            trackAction(agentId, 'furniture_placed');
           } catch (error: any) {
             sendError(ws, 'PLACEMENT_FAILED', error.message || 'Failed to place furniture');
           }
@@ -659,6 +681,9 @@ export function setupWebSocket(server: Server): void {
             agentId,
             emote: clientMessage.emote,
           });
+
+          // Track personality: emotes increase volatility and sociability
+          trackAction(agentId, 'emote_used');
           break;
         }
 
@@ -754,6 +779,10 @@ export function setupWebSocket(server: Server): void {
 
             const otherAgentId = trade.initiatorId === agentId ? trade.targetId : trade.initiatorId;
 
+            // Track personality: completing trades increases generosity (both parties)
+            trackAction(agentId, 'trade_completed');
+            trackAction(otherAgentId, 'trade_completed');
+
             // Notify both parties
             const completedMsg: ServerMessage = {
               type: 'trade.completed',
@@ -844,6 +873,9 @@ export function setupWebSocket(server: Server): void {
             
             const game = createGame(clientMessage.roomId, clientMessage.gameType, agentId);
 
+            // Track personality: creating games increases competitiveness
+            trackAction(agentId, 'game_played');
+
             // Get creator name
             const [creator] = await sql`
               SELECT display_name FROM agents WHERE id = ${agentId}
@@ -926,6 +958,11 @@ export function setupWebSocket(server: Server): void {
 
             // If game completed, send result
             if (game.status === 'completed' && game.result) {
+              // Track personality: winning increases competitiveness
+              if (game.result.winnerId) {
+                trackAction(game.result.winnerId, 'game_won');
+              }
+
               for (const participantId of game.participants) {
                 const participantWs = connections.get(participantId);
                 if (participantWs && participantWs.readyState === WebSocket.OPEN) {
@@ -1038,6 +1075,11 @@ export function setupWebSocket(server: Server): void {
 
             // If game completed, send result
             if (game.status === 'completed' && game.result) {
+              // Track personality: winning increases competitiveness
+              if (game.result.winnerId) {
+                trackAction(game.result.winnerId, 'game_won');
+              }
+
               for (const participantId of game.participants) {
                 const participantWs = connections.get(participantId);
                 if (participantWs && participantWs.readyState === WebSocket.OPEN) {
@@ -1140,6 +1182,11 @@ export function setupWebSocket(server: Server): void {
 
             // If game completed, send result
             if (game.status === 'completed') {
+              // Track personality: winning increases competitiveness
+              if (game.winnerId && !game.isDraw) {
+                trackAction(game.winnerId, 'game_won');
+              }
+
               for (const playerId of [game.player1, game.player2]) {
                 const playerWs = connections.get(playerId);
                 if (playerWs && playerWs.readyState === WebSocket.OPEN) {
@@ -1229,10 +1276,17 @@ export function setupWebSocket(server: Server): void {
 
             // If game completed (bust), broadcast result
             if (game.status !== 'active') {
+              const winnerId = game.status === 'player_won' || game.status === 'dealer_bust' ? agentId : null;
+              
+              // Track personality: winning increases competitiveness
+              if (winnerId) {
+                trackAction(winnerId, 'game_won');
+              }
+
               broadcastToRoom(game.roomId, {
                 type: 'game.completed',
                 gameId: game.id,
-                winnerId: game.status === 'player_won' || game.status === 'dealer_bust' ? agentId : null,
+                winnerId,
                 result: {
                   blackjack: {
                     playerValue: getPlayerValue(game.id),
@@ -1271,6 +1325,11 @@ export function setupWebSocket(server: Server): void {
               : game.status === 'dealer_won' || game.status === 'player_bust'
               ? null
               : null; // push
+
+            // Track personality: winning increases competitiveness
+            if (winnerId) {
+              trackAction(winnerId, 'game_won');
+            }
 
             broadcastToRoom(game.roomId, {
               type: 'game.completed',
@@ -1342,6 +1401,10 @@ export function setupWebSocket(server: Server): void {
             await acceptFriendRequest(clientMessage.friendshipId, agentId, sql);
 
             const otherAgentId = friendship.requester_id === agentId ? friendship.addressee_id : friendship.requester_id;
+
+            // Track personality: adding friends increases sociability (both parties)
+            trackAction(agentId, 'friend_added');
+            trackAction(otherAgentId, 'friend_added');
 
             // Get names
             const [accepter] = await sql`

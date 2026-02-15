@@ -1,288 +1,305 @@
 import { describe, it, expect } from 'vitest';
 
+/**
+ * Crafting System Unit Tests
+ * Tests recipe management, crafting logic, and queue without database
+ */
+
 describe('Crafting System', () => {
-  describe('Recipe Listing', () => {
+  describe('Recipe Management', () => {
     it('should list all recipes', () => {
       const mockRecipes = [
-        { id: 'golden-chair', name: 'Golden Chair', resultItem: 'chair' },
-        { id: 'crystal-lamp', name: 'Crystal Lamp', resultItem: 'lamp' },
-        { id: 'royal-bed', name: 'Royal Bed', resultItem: 'bed' },
+        { id: 1, name: 'Wooden Chair', resultItemName: 'wooden_chair', resultRarity: 'common', craftTimeSeconds: 0 },
+        { id: 2, name: 'Gold Trophy', resultItemName: 'gold_trophy', resultRarity: 'rare', craftTimeSeconds: 0 },
       ];
 
-      expect(mockRecipes).toHaveLength(3);
-      expect(mockRecipes[0].name).toBe('Golden Chair');
-    });
-
-    it('should filter recipes by result item type', () => {
-      const mockRecipes = [
-        { id: 'golden-chair', name: 'Golden Chair', resultItem: 'chair' },
-        { id: 'crystal-lamp', name: 'Crystal Lamp', resultItem: 'lamp' },
-        { id: 'magic-mirror', name: 'Magic Mirror', resultItem: 'lamp' },
-      ];
-
-      const lampRecipes = mockRecipes.filter(r => r.resultItem === 'lamp');
-
-      expect(lampRecipes).toHaveLength(2);
-      expect(lampRecipes.map(r => r.name)).toEqual(['Crystal Lamp', 'Magic Mirror']);
+      expect(mockRecipes).toHaveLength(2);
+      expect(mockRecipes[0].name).toBe('Wooden Chair');
     });
 
     it('should find recipe by ID', () => {
       const mockRecipes = [
-        { id: 'golden-chair', name: 'Golden Chair', resultItem: 'chair' },
-        { id: 'crystal-lamp', name: 'Crystal Lamp', resultItem: 'lamp' },
+        { id: 1, name: 'Wooden Chair' },
+        { id: 2, name: 'Gold Trophy' },
       ];
 
-      const recipe = mockRecipes.find(r => r.id === 'crystal-lamp');
+      const findById = (id: number) => mockRecipes.find(r => r.id === id);
 
-      expect(recipe).toBeDefined();
-      expect(recipe?.name).toBe('Crystal Lamp');
+      expect(findById(1)?.name).toBe('Wooden Chair');
+      expect(findById(2)?.name).toBe('Gold Trophy');
+      expect(findById(999)).toBeUndefined();
     });
 
-    it('should return null for non-existent recipe', () => {
-      const mockRecipes = [
-        { id: 'golden-chair', name: 'Golden Chair', resultItem: 'chair' },
-      ];
+    it('should include ingredients with recipe', () => {
+      const mockRecipe = {
+        id: 1,
+        name: 'Wooden Chair',
+        ingredients: [
+          { itemName: 'wood_plank', quantity: 2 },
+        ],
+      };
 
-      const recipe = mockRecipes.find(r => r.id === 'non-existent');
+      expect(mockRecipe.ingredients).toHaveLength(1);
+      expect(mockRecipe.ingredients[0].quantity).toBe(2);
+    });
 
-      expect(recipe).toBeUndefined();
+    it('should handle multiple ingredients', () => {
+      const mockRecipe = {
+        id: 2,
+        name: 'Gold Trophy',
+        ingredients: [
+          { itemName: 'gold_bar', quantity: 3 },
+          { itemName: 'gem', quantity: 1 },
+        ],
+      };
+
+      expect(mockRecipe.ingredients).toHaveLength(2);
+      expect(mockRecipe.ingredients.find(i => i.itemName === 'gold_bar')?.quantity).toBe(3);
     });
   });
 
-  describe('Ingredient Checking', () => {
-    it('should check if agent has sufficient items', () => {
-      const recipe = {
-        ingredients: { chair: 3, table: 1 },
-      };
+  describe('Craft Time Calculation', () => {
+    it('should calculate completion time correctly', () => {
+      const startedAt = new Date('2024-01-15T12:00:00Z');
+      const craftTimeSeconds = 300;
+      
+      const completesAt = new Date(startedAt.getTime() + craftTimeSeconds * 1000);
 
-      const inventory = [
-        { itemDefId: 'chair', roomId: null },
-        { itemDefId: 'chair', roomId: null },
-        { itemDefId: 'chair', roomId: null },
-        { itemDefId: 'table', roomId: null },
-      ];
-
-      const chairCount = inventory.filter(i => i.itemDefId === 'chair' && i.roomId === null).length;
-      const tableCount = inventory.filter(i => i.itemDefId === 'table' && i.roomId === null).length;
-
-      const hasChairs = chairCount >= recipe.ingredients.chair;
-      const hasTables = tableCount >= recipe.ingredients.table;
-
-      expect(hasChairs).toBe(true);
-      expect(hasTables).toBe(true);
+      expect(completesAt.getTime() - startedAt.getTime()).toBe(300000); // 5 minutes
     });
 
-    it('should detect insufficient items', () => {
-      const recipe = {
-        ingredients: { chair: 3, table: 1 },
-      };
+    it('should handle instant crafts (0 seconds)', () => {
+      const startedAt = new Date('2024-01-15T12:00:00Z');
+      const craftTimeSeconds = 0;
+      
+      const completesAt = new Date(startedAt.getTime() + craftTimeSeconds * 1000);
 
-      const inventory = [
-        { itemDefId: 'chair', roomId: null },
-        { itemDefId: 'chair', roomId: null },
-      ];
-
-      const chairCount = inventory.filter(i => i.itemDefId === 'chair' && i.roomId === null).length;
-      const hasEnoughChairs = chairCount >= recipe.ingredients.chair;
-
-      expect(hasEnoughChairs).toBe(false);
+      expect(completesAt.getTime()).toBe(startedAt.getTime());
     });
 
-    it('should check if agent has sufficient coins', () => {
-      const recipe = {
-        ingredients: { chair: 3, coins: 100 },
-      };
+    it('should check if craft is ready', () => {
+      const now = new Date();
+      const past = new Date(now.getTime() - 1000); // 1 second ago
+      const future = new Date(now.getTime() + 1000); // 1 second from now
 
-      const agentBalance = { coins: 150 };
+      const isReady = (completesAt: Date) => now >= completesAt;
 
-      const hasCoins = agentBalance.coins >= (recipe.ingredients.coins || 0);
-
-      expect(hasCoins).toBe(true);
+      expect(isReady(past)).toBe(true);
+      expect(isReady(future)).toBe(false);
     });
 
-    it('should detect insufficient coins', () => {
-      const recipe = {
-        ingredients: { chair: 3, coins: 100 },
-      };
+    it('should calculate remaining time', () => {
+      const now = new Date();
+      const completesAt = new Date(now.getTime() + 5000); // 5 seconds from now
 
-      const agentBalance = { coins: 50 };
+      const remaining = Math.ceil((completesAt.getTime() - now.getTime()) / 1000);
 
-      const hasCoins = agentBalance.coins >= (recipe.ingredients.coins || 0);
-
-      expect(hasCoins).toBe(false);
-    });
-
-    it('should ignore items placed in rooms', () => {
-      const recipe = {
-        ingredients: { chair: 3 },
-      };
-
-      const inventory = [
-        { itemDefId: 'chair', roomId: null },
-        { itemDefId: 'chair', roomId: 'room-1' }, // Placed, should not count
-        { itemDefId: 'chair', roomId: null },
-        { itemDefId: 'chair', roomId: null },
-      ];
-
-      const availableChairs = inventory.filter(i => i.itemDefId === 'chair' && i.roomId === null).length;
-
-      expect(availableChairs).toBe(3);
+      expect(remaining).toBe(5);
     });
   });
 
-  describe('Crafting Logic', () => {
-    it('should consume correct number of items', () => {
-      const recipe = {
-        ingredients: { chair: 3, lamp: 2 },
+  describe('Craft Queue Management', () => {
+    it('should add craft to queue', () => {
+      type CraftEntry = {
+        id: number;
+        agentId: string;
+        recipeId: number;
+        completed: boolean;
       };
 
-      let inventory = [
-        { id: '1', itemDefId: 'chair', roomId: null },
-        { id: '2', itemDefId: 'chair', roomId: null },
-        { id: '3', itemDefId: 'chair', roomId: null },
-        { id: '4', itemDefId: 'lamp', roomId: null },
-        { id: '5', itemDefId: 'lamp', roomId: null },
+      const queue: CraftEntry[] = [];
+      const newCraft: CraftEntry = {
+        id: 1,
+        agentId: 'agent-123',
+        recipeId: 1,
+        completed: false,
+      };
+
+      queue.push(newCraft);
+
+      expect(queue).toHaveLength(1);
+      expect(queue[0].agentId).toBe('agent-123');
+      expect(queue[0].completed).toBe(false);
+    });
+
+    it('should filter queue by agent ID', () => {
+      const queue = [
+        { id: 1, agentId: 'agent-1', recipeId: 1 },
+        { id: 2, agentId: 'agent-2', recipeId: 2 },
+        { id: 3, agentId: 'agent-1', recipeId: 3 },
       ];
 
-      // Simulate consuming ingredients
-      const chairsToRemove = inventory
-        .filter(i => i.itemDefId === 'chair' && i.roomId === null)
-        .slice(0, recipe.ingredients.chair);
+      const agent1Queue = queue.filter(c => c.agentId === 'agent-1');
 
-      const lampsToRemove = inventory
-        .filter(i => i.itemDefId === 'lamp' && i.roomId === null)
-        .slice(0, recipe.ingredients.lamp);
-
-      const idsToRemove = [...chairsToRemove, ...lampsToRemove].map(i => i.id);
-
-      inventory = inventory.filter(i => !idsToRemove.includes(i.id));
-
-      expect(inventory).toHaveLength(0);
+      expect(agent1Queue).toHaveLength(2);
+      expect(agent1Queue.map(c => c.id)).toEqual([1, 3]);
     });
 
-    it('should deduct coins when crafting', () => {
-      const recipe = {
-        ingredients: { chair: 2, coins: 100 },
+    it('should mark craft as completed', () => {
+      const craft = {
+        id: 1,
+        agentId: 'agent-123',
+        recipeId: 1,
+        completed: false,
       };
 
-      let agentBalance = { coins: 200 };
+      const completeCraft = (c: typeof craft) => ({ ...c, completed: true });
+      const completed = completeCraft(craft);
 
-      // Simulate coin deduction
-      agentBalance.coins -= recipe.ingredients.coins || 0;
-
-      expect(agentBalance.coins).toBe(100);
+      expect(completed.completed).toBe(true);
+      expect(craft.completed).toBe(false); // Original unchanged
     });
 
-    it('should create result item with correct rarity', () => {
-      const recipe = {
-        resultItem: 'chair',
-        resultRarity: 'epic',
+    it('should prevent completing already completed craft', () => {
+      const craft = {
+        id: 1,
+        completed: true,
       };
 
-      const craftedItem = {
-        id: crypto.randomUUID(),
-        itemDefId: recipe.resultItem,
-        rarity: recipe.resultRarity,
-        category: 'crafted',
-        roomId: null,
-      };
+      const canComplete = (c: typeof craft) => !c.completed;
 
-      expect(craftedItem.itemDefId).toBe('chair');
-      expect(craftedItem.rarity).toBe('epic');
-      expect(craftedItem.category).toBe('crafted');
-      expect(craftedItem.roomId).toBeNull();
+      expect(canComplete(craft)).toBe(false);
+    });
+
+    it('should sort queue by start time (newest first)', () => {
+      const queue = [
+        { id: 1, startedAt: new Date('2024-01-15T10:00:00Z') },
+        { id: 2, startedAt: new Date('2024-01-15T12:00:00Z') },
+        { id: 3, startedAt: new Date('2024-01-15T11:00:00Z') },
+      ];
+
+      const sorted = [...queue].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+
+      expect(sorted.map(c => c.id)).toEqual([2, 3, 1]);
     });
   });
 
-  describe('Available Recipes', () => {
-    it('should list only craftable recipes', () => {
-      const allRecipes = [
-        { id: 'golden-chair', ingredients: { chair: 3, coins: 100 } },
-        { id: 'crystal-lamp', ingredients: { lamp: 2, table: 1 } },
-        { id: 'royal-bed', ingredients: { bed: 2, bookshelf: 1 } },
+  describe('Recipe Validation', () => {
+    it('should validate recipe exists before crafting', () => {
+      const recipes = [
+        { id: 1, name: 'Wooden Chair' },
+        { id: 2, name: 'Gold Trophy' },
       ];
 
-      const inventory = [
-        { itemDefId: 'chair', roomId: null },
-        { itemDefId: 'chair', roomId: null },
-        { itemDefId: 'chair', roomId: null },
-      ];
+      const recipeExists = (recipeId: number) => recipes.some(r => r.id === recipeId);
 
-      const balance = { coins: 150 };
-
-      const canCraft = (recipe: any) => {
-        for (const [item, count] of Object.entries(recipe.ingredients)) {
-          if (item === 'coins') {
-            if (balance.coins < (count as number)) return false;
-          } else {
-            const available = inventory.filter(i => i.itemDefId === item && i.roomId === null).length;
-            if (available < (count as number)) return false;
-          }
-        }
-        return true;
-      };
-
-      const available = allRecipes.filter(canCraft);
-
-      expect(available).toHaveLength(1);
-      expect(available[0].id).toBe('golden-chair');
+      expect(recipeExists(1)).toBe(true);
+      expect(recipeExists(999)).toBe(false);
     });
 
-    it('should return empty list when agent cannot craft anything', () => {
-      const allRecipes = [
-        { id: 'golden-chair', ingredients: { chair: 3, coins: 100 } },
-        { id: 'crystal-lamp', ingredients: { lamp: 2, table: 1 } },
-      ];
-
-      const inventory: any[] = [];
-      const balance = { coins: 0 };
-
-      const canCraft = (recipe: any) => {
-        for (const [item, count] of Object.entries(recipe.ingredients)) {
-          if (item === 'coins') {
-            if (balance.coins < (count as number)) return false;
-          } else {
-            const available = inventory.filter(i => i.itemDefId === item && i.roomId === null).length;
-            if (available < (count as number)) return false;
-          }
-        }
-        return true;
+    it('should reject invalid recipe ID', () => {
+      const validateRecipeId = (id: any): id is number => {
+        return typeof id === 'number' && !isNaN(id) && id > 0;
       };
 
-      const available = allRecipes.filter(canCraft);
+      expect(validateRecipeId(1)).toBe(true);
+      expect(validateRecipeId(NaN)).toBe(false);
+      expect(validateRecipeId('abc')).toBe(false);
+      expect(validateRecipeId(-1)).toBe(false);
+    });
+  });
 
-      expect(available).toHaveLength(0);
+  describe('Cancellation Logic', () => {
+    it('should allow cancelling pending craft', () => {
+      const craft = {
+        id: 1,
+        agentId: 'agent-123',
+        completed: false,
+      };
+
+      const canCancel = (c: typeof craft) => !c.completed;
+
+      expect(canCancel(craft)).toBe(true);
+    });
+
+    it('should prevent cancelling completed craft', () => {
+      const craft = {
+        id: 1,
+        agentId: 'agent-123',
+        completed: true,
+      };
+
+      const canCancel = (c: typeof craft) => !c.completed;
+
+      expect(canCancel(craft)).toBe(false);
+    });
+
+    it('should verify agent owns craft before cancelling', () => {
+      const craft = {
+        id: 1,
+        agentId: 'agent-123',
+      };
+
+      const canAgentCancel = (c: typeof craft, agentId: string) => c.agentId === agentId;
+
+      expect(canAgentCancel(craft, 'agent-123')).toBe(true);
+      expect(canAgentCancel(craft, 'agent-456')).toBe(false);
+    });
+  });
+
+  describe('Rarity System', () => {
+    it('should support different rarity levels', () => {
+      const rarities = ['common', 'uncommon', 'rare', 'epic', 'mythic'];
+
+      expect(rarities).toContain('common');
+      expect(rarities).toContain('mythic');
+      expect(rarities).toHaveLength(5);
+    });
+
+    it('should assign correct rarity to crafted items', () => {
+      const recipes = [
+        { name: 'Wooden Chair', resultRarity: 'common' },
+        { name: 'Gold Trophy', resultRarity: 'rare' },
+        { name: 'Mythic Throne', resultRarity: 'mythic' },
+      ];
+
+      const getRarity = (recipeName: string) => 
+        recipes.find(r => r.name === recipeName)?.resultRarity;
+
+      expect(getRarity('Wooden Chair')).toBe('common');
+      expect(getRarity('Mythic Throne')).toBe('mythic');
     });
   });
 
   describe('Edge Cases', () => {
-    it('should handle recipes with only coin cost', () => {
-      const recipe = {
-        ingredients: { coins: 500 },
-      };
+    it('should handle empty queue', () => {
+      const queue: any[] = [];
 
-      const balance = { coins: 600 };
-
-      const canCraft = balance.coins >= (recipe.ingredients.coins || 0);
-
-      expect(canCraft).toBe(true);
+      expect(queue).toHaveLength(0);
+      expect(queue.filter(c => c.completed === false)).toHaveLength(0);
     });
 
-    it('should handle recipes with only item cost (no coins)', () => {
-      const recipe = {
-        ingredients: { lamp: 3 },
-      };
-
-      const inventory = [
-        { itemDefId: 'lamp', roomId: null },
-        { itemDefId: 'lamp', roomId: null },
-        { itemDefId: 'lamp', roomId: null },
+    it('should handle concurrent crafts for same agent', () => {
+      const queue = [
+        { id: 1, agentId: 'agent-123', recipeId: 1, completed: false },
+        { id: 2, agentId: 'agent-123', recipeId: 2, completed: false },
+        { id: 3, agentId: 'agent-123', recipeId: 1, completed: true },
       ];
 
-      const lampCount = inventory.filter(i => i.itemDefId === 'lamp' && i.roomId === null).length;
-      const canCraft = lampCount >= recipe.ingredients.lamp;
+      const agentPending = queue.filter(c => c.agentId === 'agent-123' && !c.completed);
 
-      expect(canCraft).toBe(true);
+      expect(agentPending).toHaveLength(2);
+    });
+
+    it('should handle same recipe crafted multiple times', () => {
+      const queue = [
+        { id: 1, recipeId: 1 },
+        { id: 2, recipeId: 1 },
+        { id: 3, recipeId: 2 },
+      ];
+
+      const recipe1Crafts = queue.filter(c => c.recipeId === 1);
+
+      expect(recipe1Crafts).toHaveLength(2);
+    });
+
+    it('should respect queue limit', () => {
+      const mockQueue = Array.from({ length: 100 }, (_, i) => ({ id: i + 1 }));
+      const limit = 50;
+
+      const limited = mockQueue.slice(0, limit);
+
+      expect(limited).toHaveLength(50);
     });
   });
 });

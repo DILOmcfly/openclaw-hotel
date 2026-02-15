@@ -4772,3 +4772,96 @@
     font-size: 18px;
   }
 }
+
+/* ========================================
+   PERSONALITY SECTION
+   ======================================== */
+
+.personality-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+}
+
+.personality-archetype {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.archetype-label {
+  font-size: 12px;
+  color: #aaa;
+  margin-right: 8px;
+}
+
+.archetype-name {
+  font-size: 14px;
+  font-weight: bold;
+  color: #4ecdc4;
+  text-transform: uppercase;
+}
+
+#personality-radar {
+  display: block;
+  max-width: 100%;
+  image-rendering: pixelated;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.personality-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #ccc;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.legend-color.sociability {
+  background-color: #ff6b6b;
+}
+
+.legend-color.curiosity {
+  background-color: #4ecdc4;
+}
+
+.legend-color.competitiveness {
+  background-color: #ffd93d;
+}
+
+.legend-color.generosity {
+  background-color: #95e1d3;
+}
+
+.legend-color.volatility {
+  background-color: #c77dff;
+}
+
+@media (max-width: 768px) {
+  #personality-radar {
+    width: 250px;
+    height: 250px;
+  }
+  
+  .legend-item {
+    font-size: 9px;
+  }
+}

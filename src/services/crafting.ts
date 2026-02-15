@@ -1,239 +1,139 @@
 /**
- * Crafting Service - Agent item crafting system
+ * Crafting Service - Manages recipe crafting system
  */
 
-export type CraftingRecipe = {
-  id: string;
+export type Recipe = {
+  id: number;
   name: string;
-  resultItem: string;
+  resultItemName: string;
   resultRarity: string;
-  ingredients: Record<string, number>;
   craftTimeSeconds: number;
-  createdAt: string;
+  ingredients: RecipeIngredient[];
+};
+
+export type RecipeIngredient = {
+  itemName: string;
+  quantity: number;
+};
+
+export type CraftQueueEntry = {
+  id: number;
+  agentId: string;
+  recipeId: number;
+  recipeName?: string;
+  startedAt: Date;
+  completesAt: Date | null;
+  completed: boolean;
 };
 
 /**
- * Get all crafting recipes
+ * Get all available recipes
  */
-export async function getRecipes(sql: any): Promise<CraftingRecipe[]> {
-  const query = sql`
-    SELECT 
-      id,
-      name,
-      result_item AS "resultItem",
-      result_rarity AS "resultRarity",
-      ingredients,
-      craft_time_seconds AS "craftTimeSeconds",
-      created_at AS "createdAt"
-    FROM crafting_recipes
-    ORDER BY name ASC
+export async function getRecipes(sql: any): Promise<Recipe[]> {
+  const recipes = await sql`
+    SELECT id, name, result_item_name AS "resultItemName",
+           result_rarity AS "resultRarity", craft_time_seconds AS "craftTimeSeconds"
+    FROM recipes ORDER BY craft_time_seconds ASC, name ASC
   `;
 
-  const results = await query;
-  
-  return results.map((row: any) => ({
-    id: row.id,
-    name: row.name,
-    resultItem: row.resultItem,
-    resultRarity: row.resultRarity,
-    ingredients: row.ingredients,
-    craftTimeSeconds: row.craftTimeSeconds,
-    createdAt: row.createdAt,
-  }));
+  return Promise.all(
+    recipes.map(async (recipe: Recipe) => {
+      const ingredients = await sql`
+        SELECT item_name AS "itemName", quantity
+        FROM recipe_ingredients WHERE recipe_id = ${recipe.id}
+      `;
+      return { ...recipe, ingredients };
+    })
+  );
 }
 
 /**
  * Get recipe by ID
  */
-export async function getRecipeById(id: string, sql: any): Promise<CraftingRecipe | null> {
-  const query = sql`
-    SELECT 
-      id,
-      name,
-      result_item AS "resultItem",
-      result_rarity AS "resultRarity",
-      ingredients,
-      craft_time_seconds AS "craftTimeSeconds",
-      created_at AS "createdAt"
-    FROM crafting_recipes
-    WHERE id = ${sql.typed.text(id)}
+export async function getRecipeById(recipeId: number, sql: any): Promise<Recipe | null> {
+  const result = await sql`
+    SELECT id, name, result_item_name AS "resultItemName",
+           result_rarity AS "resultRarity", craft_time_seconds AS "craftTimeSeconds"
+    FROM recipes WHERE id = ${recipeId}
   `;
 
-  const results = await query;
-  
-  if (results.length === 0) {
-    return null;
-  }
+  if (result.length === 0) return null;
 
-  const row = results[0];
-  return {
-    id: row.id,
-    name: row.name,
-    resultItem: row.resultItem,
-    resultRarity: row.resultRarity,
-    ingredients: row.ingredients,
-    craftTimeSeconds: row.craftTimeSeconds,
-    createdAt: row.createdAt,
-  };
+  const ingredients = await sql`
+    SELECT item_name AS "itemName", quantity
+    FROM recipe_ingredients WHERE recipe_id = ${recipeId}
+  `;
+
+  return { ...result[0], ingredients };
 }
 
 /**
- * Check if agent can craft a recipe
+ * Start crafting an item
  */
-export async function canCraft(agentId: string, recipeId: string, sql: any): Promise<boolean> {
+export async function startCraft(agentId: string, recipeId: number, sql: any): Promise<CraftQueueEntry> {
   const recipe = await getRecipeById(recipeId, sql);
-  
-  if (!recipe) {
-    return false;
-  }
+  if (!recipe) throw new Error('Recipe not found');
 
-  // Check inventory for items
-  const itemIngredients = Object.entries(recipe.ingredients).filter(([key]) => key !== 'coins');
-  
-  for (const [itemType, requiredCount] of itemIngredients) {
-    const inventoryQuery = sql`
-      SELECT COUNT(*) AS count
-      FROM furniture
-      WHERE agent_id = ${sql.typed.uuid(agentId)}
-        AND item_def_id = ${sql.typed.text(itemType)}
-        AND room_id IS NULL
-    `;
+  const startedAt = new Date();
+  const completesAt = new Date(startedAt.getTime() + recipe.craftTimeSeconds * 1000);
 
-    const inventoryResults = await inventoryQuery;
-    const availableCount = Number(inventoryResults[0]?.count || 0);
+  const result = await sql`
+    INSERT INTO craft_queue (agent_id, recipe_id, started_at, completes_at, completed)
+    VALUES (${agentId}, ${recipeId}, ${startedAt}, ${completesAt}, false)
+    RETURNING id, agent_id AS "agentId", recipe_id AS "recipeId",
+              started_at AS "startedAt", completes_at AS "completesAt", completed
+  `;
 
-    if (availableCount < requiredCount) {
-      return false;
-    }
-  }
-
-  // Check coins if required
-  if (recipe.ingredients.coins) {
-    const balanceQuery = sql`
-      SELECT coins
-      FROM agent_balances
-      WHERE agent_id = ${sql.typed.text(agentId)}
-    `;
-
-    const balanceResults = await balanceQuery;
-    const currentCoins = Number(balanceResults[0]?.coins || 0);
-
-    if (currentCoins < recipe.ingredients.coins) {
-      return false;
-    }
-  }
-
-  return true;
+  return result[0];
 }
 
 /**
- * Craft an item (consumes ingredients, creates result)
+ * Complete a craft if time has elapsed
  */
-export async function craft(
-  agentId: string,
-  recipeId: string,
-  sql: any
-): Promise<{ success: boolean; itemId: string }> {
-  const recipe = await getRecipeById(recipeId, sql);
-
-  if (!recipe) {
-    throw new Error('Recipe not found');
-  }
-
-  const hasIngredients = await canCraft(agentId, recipeId, sql);
-
-  if (!hasIngredients) {
-    throw new Error('Insufficient ingredients');
-  }
-
-  // Consume item ingredients
-  const itemIngredients = Object.entries(recipe.ingredients).filter(([key]) => key !== 'coins');
-
-  for (const [itemType, requiredCount] of itemIngredients) {
-    const itemsQuery = sql`
-      SELECT id
-      FROM furniture
-      WHERE agent_id = ${sql.typed.uuid(agentId)}
-        AND item_def_id = ${sql.typed.text(itemType)}
-        AND room_id IS NULL
-      LIMIT ${sql.typed.int4(requiredCount)}
-    `;
-
-    const items = await itemsQuery;
-
-    for (const item of items) {
-      const deleteQuery = sql`
-        DELETE FROM furniture
-        WHERE id = ${sql.typed.uuid(item.id)}
-      `;
-
-      await deleteQuery;
-    }
-  }
-
-  // Consume coins if required
-  if (recipe.ingredients.coins) {
-    const deductCoinsQuery = sql`
-      UPDATE agent_balances
-      SET coins = coins - ${sql.typed.int4(recipe.ingredients.coins)}
-      WHERE agent_id = ${sql.typed.text(agentId)}
-    `;
-
-    await deductCoinsQuery;
-  }
-
-  // Create result item
-  const newItemId = crypto.randomUUID();
-
-  const createItemQuery = sql`
-    INSERT INTO furniture (id, agent_id, item_def_id, category, x, y, room_id, rarity)
-    VALUES (
-      ${sql.typed.uuid(newItemId)},
-      ${sql.typed.uuid(agentId)},
-      ${sql.typed.text(recipe.resultItem)},
-      'crafted',
-      NULL,
-      NULL,
-      NULL,
-      ${sql.typed.text(recipe.resultRarity)}
-    )
+export async function completeCraft(craftId: number, agentId: string, sql: any): Promise<{ success: boolean; message: string; item?: string }> {
+  const craft = await sql`
+    SELECT id, agent_id AS "agentId", recipe_id AS "recipeId",
+           started_at AS "startedAt", completes_at AS "completesAt", completed
+    FROM craft_queue WHERE id = ${craftId} AND agent_id = ${agentId}
   `;
 
-  await createItemQuery;
+  if (craft.length === 0) return { success: false, message: 'Craft not found' };
 
-  return {
-    success: true,
-    itemId: newItemId,
-  };
+  const entry = craft[0];
+  if (entry.completed) return { success: false, message: 'Craft already completed' };
+
+  const now = new Date();
+  if (entry.completesAt && now < new Date(entry.completesAt)) {
+    const remaining = Math.ceil((new Date(entry.completesAt).getTime() - now.getTime()) / 1000);
+    return { success: false, message: `Craft not ready. ${remaining}s remaining` };
+  }
+
+  await sql`UPDATE craft_queue SET completed = true WHERE id = ${craftId}`;
+
+  const recipe = await getRecipeById(entry.recipeId, sql);
+  return { success: true, message: 'Craft completed', item: recipe?.resultItemName };
 }
 
 /**
- * Get recipes by result item type
+ * Get agent's craft queue
  */
-export async function getRecipesByResult(itemType: string, sql: any): Promise<CraftingRecipe[]> {
-  const query = sql`
-    SELECT 
-      id,
-      name,
-      result_item AS "resultItem",
-      result_rarity AS "resultRarity",
-      ingredients,
-      craft_time_seconds AS "craftTimeSeconds",
-      created_at AS "createdAt"
-    FROM crafting_recipes
-    WHERE result_item = ${sql.typed.text(itemType)}
-    ORDER BY name ASC
+export async function getCraftQueue(agentId: string, sql: any): Promise<CraftQueueEntry[]> {
+  return sql`
+    SELECT cq.id, cq.agent_id AS "agentId", cq.recipe_id AS "recipeId", r.name AS "recipeName",
+           cq.started_at AS "startedAt", cq.completes_at AS "completesAt", cq.completed
+    FROM craft_queue cq JOIN recipes r ON cq.recipe_id = r.id
+    WHERE cq.agent_id = ${agentId} ORDER BY cq.started_at DESC LIMIT 50
   `;
+}
 
-  const results = await query;
-  
-  return results.map((row: any) => ({
-    id: row.id,
-    name: row.name,
-    resultItem: row.resultItem,
-    resultRarity: row.resultRarity,
-    ingredients: row.ingredients,
-    craftTimeSeconds: row.craftTimeSeconds,
-    createdAt: row.createdAt,
-  }));
+/**
+ * Cancel a pending craft
+ */
+export async function cancelCraft(craftId: number, agentId: string, sql: any): Promise<boolean> {
+  const result = await sql`
+    DELETE FROM craft_queue
+    WHERE id = ${craftId} AND agent_id = ${agentId} AND completed = false
+    RETURNING id
+  `;
+  return result.length > 0;
 }

@@ -398,6 +398,15 @@ router.post('/api/rooms', async (req, res) => {
       WHERE agent_id = ${agentId}::uuid
     `;
 
+    // Track personality: creating rooms increases curiosity
+    const { updateTraitFromAction, calculateActionImpacts } = await import('../services/personality.js');
+    const impacts = calculateActionImpacts('room_created');
+    if (impacts.length > 0) {
+      updateTraitFromAction(sql, agentId, impacts).catch((err) => {
+        console.error('[PERSONALITY] Error updating traits:', err);
+      });
+    }
+
     logger.info('Room created', {
       roomId: room.id,
       name: room.name,
