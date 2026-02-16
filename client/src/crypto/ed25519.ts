@@ -113,20 +113,31 @@ export function clearKeys(): void {
 /**
  * Token storage
  */
-export function saveToken(token: string, agentId: string): void {
-  localStorage.setItem(`${STORAGE_PREFIX}token`, token);
-  localStorage.setItem(`${STORAGE_PREFIX}agentId`, agentId);
+export interface StoredToken {
+  token: string;
+  agentId: string;
+  expiresAt?: string; // ISO8601 timestamp
 }
 
-export function loadToken(): { token: string; agentId: string } | null {
+export function saveToken(token: string, agentId: string, expiresAt?: string): void {
+  localStorage.setItem(`${STORAGE_PREFIX}token`, token);
+  localStorage.setItem(`${STORAGE_PREFIX}agentId`, agentId);
+  if (expiresAt) {
+    localStorage.setItem(`${STORAGE_PREFIX}expiresAt`, expiresAt);
+  }
+}
+
+export function loadToken(): StoredToken | null {
   const token = localStorage.getItem(`${STORAGE_PREFIX}token`);
-  const agentId = localStorage.setItem(`${STORAGE_PREFIX}agentId`);
+  const agentId = localStorage.getItem(`${STORAGE_PREFIX}agentId`);
+  const expiresAt = localStorage.getItem(`${STORAGE_PREFIX}expiresAt`);
   
   if (!token || !agentId) return null;
-  return { token, agentId };
+  return { token, agentId, expiresAt: expiresAt || undefined };
 }
 
 export function clearToken(): void {
   localStorage.removeItem(`${STORAGE_PREFIX}token`);
   localStorage.removeItem(`${STORAGE_PREFIX}agentId`);
+  localStorage.removeItem(`${STORAGE_PREFIX}expiresAt`);
 }

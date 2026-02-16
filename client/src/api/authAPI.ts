@@ -127,8 +127,8 @@ export async function login(): Promise<AuthResult> {
     const payload = JSON.parse(atob(token.split('.')[1]));
     const agentId = payload.agentId;
 
-    // Save token
-    saveToken(token, agentId);
+    // Save token with expiration
+    saveToken(token, agentId, expiresAt);
 
     console.log('[AuthAPI] Login successful:', { agentId, expiresAt });
 
@@ -177,14 +177,25 @@ export function getCurrentSession(): { agentId: string; token: string } | null {
 }
 
 /**
- * Check if user has valid session
+ * Check if user has valid session (with token expiration check)
  */
 export function isAuthenticated(): boolean {
   const session = loadToken();
   if (!session) return false;
 
-  // TODO: Check token expiration
-  // For now, assume token is valid if present
+  // Check token expiration
+  if (session.expiresAt) {
+    const expiresAtMs = new Date(session.expiresAt).getTime();
+    const nowMs = Date.now();
+    
+    if (nowMs >= expiresAtMs) {
+      // Token expired — clear it
+      console.warn('[AuthAPI] Token expired, clearing session');
+      clearToken();
+      return false;
+    }
+  }
+
   return true;
 }
 
