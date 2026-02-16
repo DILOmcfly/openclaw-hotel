@@ -20,14 +20,26 @@ function getQueryParam(value: any): string {
   return '';
 }
 
+// Helper to parse pagination params
+function getPaginationParams(query: any): { limit: number; offset: number } {
+  const limit = Math.min(parseInt(query.limit) || 50, 100); // Max 100
+  const offset = Math.max(parseInt(query.offset) || 0, 0); // Min 0
+  return { limit, offset };
+}
+
 /**
  * GET /api/admin/agents
  * List all agents with their roles
+ * Query params: ?limit=50&offset=0
  */
 router.get('/api/admin/agents', requireRole('moderator'), async (req, res) => {
   try {
-    // PERFORMANCE: Added LIMIT to prevent unbounded query
-    // TODO: Implement proper pagination with offset/cursor
+    const { limit, offset } = getPaginationParams(req.query);
+
+    // Get total count
+    const [{ count: total }] = await sql`SELECT COUNT(*)::int as count FROM agents`;
+
+    // Get paginated results
     const agents = await sql`
       SELECT 
         id, 
@@ -40,10 +52,19 @@ router.get('/api/admin/agents', requireRole('moderator'), async (req, res) => {
         trust_level
       FROM agents
       ORDER BY created_at DESC
-      LIMIT 1000
+      LIMIT ${limit}
+      OFFSET ${offset}
     `;
 
-    res.json({ agents });
+    res.json({
+      agents,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total
+      }
+    });
   } catch (error) {
     logger.error('Failed to fetch agents', { error });
     res.status(500).json({ error: 'Failed to fetch agents' });
@@ -185,11 +206,16 @@ router.post('/api/admin/agents/:id/ban', requireRole('moderator'), async (req, r
 /**
  * GET /api/admin/rooms
  * List all rooms with occupant count
+ * Query params: ?limit=50&offset=0
  */
 router.get('/api/admin/rooms', requireRole('moderator'), async (req, res) => {
   try {
-    // PERFORMANCE: Added LIMIT to prevent unbounded query with expensive JOINs
-    // TODO: Implement proper pagination
+    const { limit, offset } = getPaginationParams(req.query);
+
+    // Get total count
+    const [{ count: total }] = await sql`SELECT COUNT(*)::int as count FROM rooms`;
+
+    // Get paginated results
     const rooms = await sql`
       SELECT 
         r.id,
@@ -206,10 +232,19 @@ router.get('/api/admin/rooms', requireRole('moderator'), async (req, res) => {
       LEFT JOIN presence p ON r.id = p.room_id
       GROUP BY r.id, a.display_name
       ORDER BY r.created_at DESC
-      LIMIT 500
+      LIMIT ${limit}
+      OFFSET ${offset}
     `;
 
-    res.json({ rooms });
+    res.json({
+      rooms,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total
+      }
+    });
   } catch (error) {
     logger.error('Failed to fetch rooms', { error });
     res.status(500).json({ error: 'Failed to fetch rooms' });

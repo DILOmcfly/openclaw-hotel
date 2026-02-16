@@ -6,6 +6,13 @@ import { createGuild, joinGuild, leaveGuild, promoteToOfficer, demoteToMember, g
 
 const router = express.Router();
 
+// Helper to parse pagination params
+function getPaginationParams(query: any): { limit: number; offset: number } {
+  const limit = Math.min(parseInt(query.limit) || 50, 100); // Max 100
+  const offset = Math.max(parseInt(query.offset) || 0, 0); // Min 0
+  return { limit, offset };
+}
+
 router.post('/api/guilds', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -26,17 +33,31 @@ router.post('/api/guilds', async (req, res) => {
 
 router.get('/api/guilds', async (req, res) => {
   try {
-    // PERFORMANCE: Added LIMIT to prevent unbounded query
-    // TODO: Implement pagination with limit/offset query params
+    const { limit, offset } = getPaginationParams(req.query);
+
+    // Get total count
+    const [{ count: total }] = await sql<[{ count: number }]>`SELECT COUNT(*)::int as count FROM guilds`;
+
+    // Get paginated results
     const guilds = await sql<any[]>`
       SELECT id, name, description, tag, badge_icon AS "badgeIcon", 
              leader_id AS "leaderId", member_count AS "memberCount", 
              created_at AS "createdAt" 
       FROM guilds 
       ORDER BY member_count DESC, created_at DESC
-      LIMIT 200
+      LIMIT ${limit}
+      OFFSET ${offset}
     `;
-    res.json({ guilds });
+
+    res.json({
+      guilds,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total
+      }
+    });
   } catch (error: any) {
     logger.error('Failed to fetch guilds', { error });
     res.status(500).json({ error: 'Failed to fetch guilds' });
