@@ -514,7 +514,7 @@
     #helpButton {
       position: fixed;
       bottom: 20px;
-      left: 20px;
+      left: 390px; /* Adjusted to not overlap with chat feed (350px + 20px + 20px margin) */
       width: 48px;
       height: 48px;
       background: rgba(0, 212, 170, 0.2);
@@ -536,6 +536,150 @@
       background: rgba(0, 212, 170, 0.3);
       transform: scale(1.1);
       box-shadow: 0 6px 16px rgba(0, 212, 170, 0.4);
+    }
+
+    /* Live Chat Feed Overlay */
+    #liveChatFeed {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      width: 350px;
+      height: 250px;
+      background: rgba(10, 10, 15, 0.85);
+      border: 2px solid #00D4AA;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      z-index: 1000;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+    }
+
+    #liveChatFeed.minimized {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    #liveChatFeed.minimized .chat-feed-header,
+    #liveChatFeed.minimized .chat-feed-messages {
+      display: none;
+    }
+
+    #liveChatFeed.minimized .chat-feed-icon {
+      display: flex !important;
+    }
+
+    .chat-feed-icon {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      font-size: 28px;
+      cursor: pointer;
+    }
+
+    .chat-feed-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 15px;
+      background: rgba(0, 212, 170, 0.15);
+      border-bottom: 1px solid rgba(0, 212, 170, 0.3);
+      border-radius: 10px 10px 0 0;
+    }
+
+    .chat-feed-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #00D4AA;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chat-feed-minimize {
+      background: transparent;
+      border: none;
+      color: #00D4AA;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .chat-feed-minimize:hover {
+      background: rgba(0, 212, 170, 0.2);
+    }
+
+    .chat-feed-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .chat-feed-messages::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat-feed-messages::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+    }
+
+    .chat-feed-messages::-webkit-scrollbar-thumb {
+      background: rgba(0, 212, 170, 0.4);
+      border-radius: 3px;
+    }
+
+    .chat-feed-messages::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 212, 170, 0.6);
+    }
+
+    .chat-feed-message {
+      font-size: 13px;
+      line-height: 1.4;
+      color: #ddd;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .chat-feed-message:last-child {
+      border-bottom: none;
+    }
+
+    .chat-feed-agent-name {
+      color: #00D4AA;
+      font-weight: bold;
+      margin-right: 4px;
+    }
+
+    .chat-feed-timestamp {
+      color: #666;
+      font-size: 10px;
+      margin-top: 2px;
+      display: block;
+    }
+
+    .chat-feed-system {
+      font-style: italic;
+      color: #888;
+      border-left: 3px solid rgba(0, 212, 170, 0.3);
+      padding-left: 8px;
     }
 
     /* Agent Info Panel */
@@ -783,7 +927,8 @@
       }
 
       #helpButton {
-        bottom: 80px; /* Above mobile toggle button */
+        left: 10px; /* Reset to left side on mobile */
+        bottom: 180px; /* Above chat feed and mobile toggle button */
       }
 
       /* Mobile agent info panel - bottom sheet */
@@ -799,6 +944,22 @@
 
       #agentInfoPanel.active {
         transform: translateY(0);
+      }
+
+      /* Mobile chat feed */
+      #liveChatFeed {
+        width: calc(100% - 20px);
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        height: 150px;
+      }
+
+      #liveChatFeed.minimized {
+        width: 48px;
+        height: 48px;
+        left: 10px;
+        bottom: 80px; /* Above mobile toggle button */
       }
     }
   </style>
@@ -949,6 +1110,19 @@
     </div>
   </div>
 
+  <!-- Live Chat Feed Overlay -->
+  <div id="liveChatFeed" style="display: none;">
+    <div class="chat-feed-icon" onclick="toggleChatFeed()">💬</div>
+    <div class="chat-feed-header">
+      <div class="chat-feed-title">
+        <span>💬</span>
+        <span>Live Chat</span>
+      </div>
+      <button class="chat-feed-minimize" onclick="toggleChatFeed()" title="Minimize">−</button>
+    </div>
+    <div class="chat-feed-messages" id="chatFeedMessages"></div>
+  </div>
+
   <script>
     // ============================================================
     // OpenClaw Hotel — Spectator Client (PixiJS WebGL)
@@ -963,6 +1137,8 @@
     let ws = null;
     let agents = new Map(); // agentId -> { name, x, y, targetX, targetY, direction, sprite, graphics, bubble }
     let chatMessages = [];
+    let chatFeedMessages = [];
+    const MAX_CHAT_FEED_MESSAGES = 50;
 
     // Mobile & Performance
     const isMobile = navigator.maxTouchPoints > 0;
@@ -1794,6 +1970,11 @@
         // Clear chat
         document.getElementById('chatMessages').innerHTML = '';
         document.getElementById('agentList').innerHTML = '<h4>Agents in Room</h4>';
+        document.getElementById('chatFeedMessages').innerHTML = '';
+        chatFeedMessages = [];
+
+        // Show live chat feed
+        document.getElementById('liveChatFeed').style.display = 'flex';
 
         addChatMessage('System', `You are now spectating "${roomName}"`, true);
 
@@ -1859,6 +2040,9 @@
       // Trigger fade-out transition
       roomView.classList.remove('fade-in');
       roomView.classList.add('fade-out');
+      
+      // Hide live chat feed
+      document.getElementById('liveChatFeed').style.display = 'none';
       
       // Wait for transition to complete (400ms)
       setTimeout(() => {
@@ -2054,6 +2238,43 @@
       while (container.children.length > 100) {
         container.removeChild(container.firstChild);
       }
+
+      // Also add to live chat feed
+      addChatFeedMessage(sender, text, isSystem);
+    }
+
+    function addChatFeedMessage(sender, text, isSystem = false) {
+      const container = document.getElementById('chatFeedMessages');
+      if (!container) return;
+
+      const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+      const div = document.createElement('div');
+      div.className = 'chat-feed-message' + (isSystem ? ' chat-feed-system' : '');
+      div.innerHTML = `
+        <div>
+          <span class="chat-feed-agent-name">[${escapeHtml(sender)}]:</span>
+          <span>${escapeHtml(text)}</span>
+        </div>
+        <span class="chat-feed-timestamp">${time}</span>
+      `;
+      
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+
+      // Keep only last 50 messages
+      chatFeedMessages.push({ sender, text, time, isSystem });
+      if (chatFeedMessages.length > MAX_CHAT_FEED_MESSAGES) {
+        chatFeedMessages.shift();
+        if (container.firstChild) {
+          container.removeChild(container.firstChild);
+        }
+      }
+    }
+
+    function toggleChatFeed() {
+      const feed = document.getElementById('liveChatFeed');
+      feed.classList.toggle('minimized');
     }
 
     function escapeHtml(text) {
