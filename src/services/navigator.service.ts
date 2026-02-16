@@ -196,18 +196,21 @@ export async function getTags(): Promise<string[]> {
 
 /**
  * Add tags to a room (owner only)
+ * OPTIMIZED: Batch insert instead of loop
  */
 export async function addRoomTags(roomId: string, tags: string[]): Promise<void> {
-  const uniqueTags = [...new Set(tags.map(t => t.toLowerCase().trim()))];
-  for (const tag of uniqueTags) {
-    if (tag.length > 0 && tag.length <= 32) {
-      await sql`
-        INSERT INTO room_tags (room_id, tag) 
-        VALUES (${roomId}, ${tag}) 
-        ON CONFLICT DO NOTHING
-      `;
-    }
-  }
+  const uniqueTags = [...new Set(tags.map(t => t.toLowerCase().trim()))]
+    .filter(tag => tag.length > 0 && tag.length <= 32);
+  
+  if (uniqueTags.length === 0) return;
+
+  // Batch insert with single query
+  await sql`
+    INSERT INTO room_tags (room_id, tag)
+    SELECT ${roomId}, tag
+    FROM unnest(${sql.array(uniqueTags)}) AS tag
+    ON CONFLICT DO NOTHING
+  `;
 }
 
 /**

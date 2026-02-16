@@ -28,23 +28,32 @@ export type CraftQueueEntry = {
 
 /**
  * Get all available recipes
+ * OPTIMIZED: Single JOIN query instead of N+1 pattern
  */
 export async function getRecipes(sql: any): Promise<Recipe[]> {
-  const recipes = await sql`
-    SELECT id, name, result_item_name AS "resultItemName",
-           result_rarity AS "resultRarity", craft_time_seconds AS "craftTimeSeconds"
-    FROM recipes ORDER BY craft_time_seconds ASC, name ASC
+  const result = await sql`
+    SELECT 
+      r.id, r.name, 
+      r.result_item_name AS "resultItemName",
+      r.result_rarity AS "resultRarity", 
+      r.craft_time_seconds AS "craftTimeSeconds",
+      COALESCE(
+        json_agg(
+          json_build_object('itemName', ri.item_name, 'quantity', ri.quantity)
+          ORDER BY ri.item_name
+        ) FILTER (WHERE ri.item_name IS NOT NULL),
+        '[]'
+      ) AS ingredients
+    FROM recipes r
+    LEFT JOIN recipe_ingredients ri ON r.id = ri.recipe_id
+    GROUP BY r.id, r.name, r.result_item_name, r.result_rarity, r.craft_time_seconds
+    ORDER BY r.craft_time_seconds ASC, r.name ASC
   `;
 
-  return Promise.all(
-    recipes.map(async (recipe: Recipe) => {
-      const ingredients = await sql`
-        SELECT item_name AS "itemName", quantity
-        FROM recipe_ingredients WHERE recipe_id = ${recipe.id}
-      `;
-      return { ...recipe, ingredients };
-    })
-  );
+  return result.map((row: any) => ({
+    ...row,
+    ingredients: row.ingredients
+  }));
 }
 
 /**

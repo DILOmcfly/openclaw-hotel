@@ -123,22 +123,38 @@ export async function getRoomLeaderboards(roomId: number, sql: any): Promise<Lea
   return result;
 }
 
-/** Get all leaderboards where an agent has a score */
+/** Get all leaderboards where an agent has a score
+ * OPTIMIZED: Compute ranks in single query using window function instead of N+1 pattern
+ */
 export async function getAgentScores(agentId: string, sql: any): Promise<Array<Leaderboard & { score: number; rank: number }>> {
   const result = await sql`
-    SELECT l.id, l.room_id AS "roomId", l.name, l.metric, l.sort_order AS "sortOrder",
-           l.max_entries AS "maxEntries", l.reset_period AS "resetPeriod",
-           l.last_reset AS "lastReset", l.created_by AS "createdBy", l.created_at AS "createdAt",
-           e.score
+    WITH ranked_entries AS (
+      SELECT 
+        e.leaderboard_id,
+        e.agent_id,
+        e.score,
+        e.updated_at,
+        l.sort_order,
+        ROW_NUMBER() OVER (
+          PARTITION BY e.leaderboard_id 
+          ORDER BY 
+            CASE WHEN l.sort_order = 'desc' THEN e.score END DESC,
+            CASE WHEN l.sort_order = 'asc' THEN e.score END ASC
+        ) as rank
+      FROM leaderboard_entries e
+      JOIN room_leaderboards l ON l.id = e.leaderboard_id
+    )
+    SELECT 
+      l.id, l.room_id AS "roomId", l.name, l.metric, l.sort_order AS "sortOrder",
+      l.max_entries AS "maxEntries", l.reset_period AS "resetPeriod",
+      l.last_reset AS "lastReset", l.created_by AS "createdBy", l.created_at AS "createdAt",
+      re.score,
+      re.rank::int
     FROM room_leaderboards l
-    JOIN leaderboard_entries e ON e.leaderboard_id = l.id
-    WHERE e.agent_id = ${agentId}
-    ORDER BY e.updated_at DESC
+    JOIN ranked_entries re ON re.leaderboard_id = l.id
+    WHERE re.agent_id = ${agentId}
+    ORDER BY re.updated_at DESC
   `;
 
-  const withRanks = await Promise.all(result.map(async (entry: any) => {
-    const rankInfo = await getAgentRank(entry.id, agentId, sql);
-    return { ...entry, rank: rankInfo?.rank || 0 };
-  }));
-  return withRanks;
+  return result;
 }
