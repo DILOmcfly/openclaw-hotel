@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 import { describe, it, expect } from 'vitest';
 
 /**

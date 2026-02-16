@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { retryBrowserAction, retryNavigate, retryClick, retryScreenshot } from '../../../tools/browser-retry-wrapper.mjs';
 

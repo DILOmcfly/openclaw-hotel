@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PoolClient } from 'pg';
 import {

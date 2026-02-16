@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 /**
  * Reflection Service Tests (Unit - No DB Required)
  */

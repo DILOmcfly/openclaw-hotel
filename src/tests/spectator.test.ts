@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 import { describe, it, expect, beforeEach } from 'vitest';
 import { getSpectatorCount, spectatorsByRoom } from '../ws/spectator.js';
 import { roomMembers } from '../ws/handler.js';
