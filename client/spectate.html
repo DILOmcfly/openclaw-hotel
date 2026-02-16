@@ -1256,6 +1256,66 @@
       transform: translateX(0);
     }
 
+    /* Connection Status Indicator */
+    .connection-indicator {
+      position: fixed;
+      top: 24px;
+      left: 20px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      z-index: 1002;
+      transition: all 0.3s ease;
+      box-shadow: 0 0 0 0 rgba(0, 212, 170, 0.7);
+    }
+
+    .connection-indicator.connected {
+      background: #00D4AA;
+      animation: pulse-green 2s infinite;
+    }
+
+    .connection-indicator.connecting {
+      background: #FFA500;
+      animation: pulse-orange 1s infinite;
+    }
+
+    .connection-indicator.reconnecting {
+      background: #FFA500;
+      animation: blink 0.5s infinite;
+    }
+
+    .connection-indicator.disconnected {
+      background: #FF4444;
+      box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.7);
+    }
+
+    @keyframes pulse-green {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(0, 212, 170, 0.7);
+      }
+      50% {
+        box-shadow: 0 0 0 8px rgba(0, 212, 170, 0);
+      }
+    }
+
+    @keyframes pulse-orange {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(255, 165, 0, 0.7);
+      }
+      50% {
+        box-shadow: 0 0 0 8px rgba(255, 165, 0, 0);
+      }
+    }
+
+    @keyframes blink {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.3;
+      }
+    }
+
     /* Theme Toggle */
     #themeToggle {
       position: fixed;
@@ -1744,6 +1804,9 @@
 
   <!-- FPS Counter -->
   <div id="fpsCounter">FPS: 0</div>
+
+  <!-- Connection Status Indicator -->
+  <div id="connectionIndicator" class="connection-indicator disconnected" title="Disconnected"></div>
 
   <!-- Theme Toggle -->
   <button id="themeToggle" onclick="toggleTheme()" title="Toggle dark/light mode">
@@ -2902,15 +2965,50 @@
       }, 400);
     }
 
-    // ===== WEBSOCKET =====
+    // ===== WEBSOCKET WITH RESILIENCE =====
+    let reconnectDelay = 1000; // Start at 1s
+    const MAX_RECONNECT_DELAY = 30000; // Cap at 30s
+    let pingInterval = null;
+    let reconnectTimeout = null;
+
     function connectWS(roomId) {
-      if (ws) ws.close();
+      if (ws) {
+        clearInterval(pingInterval);
+        ws.close();
+      }
+
+      updateConnectionStatus('connecting');
 
       ws = new WebSocket(WS_URL + '/ws/spectate?roomId=' + roomId);
 
       ws.onopen = () => {
         console.log('[WS] Connected to room:', roomId);
         addChatMessage('System', '🔗 Connected to room', true);
+        updateConnectionStatus('connected');
+        
+        // Reset reconnect delay on successful connection
+        reconnectDelay = 1000;
+        
+        // Start ping/pong heartbeat (every 30s)
+        clearInterval(pingInterval);
+        pingInterval = setInterval(() => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.send(JSON.stringify({ type: 'ping' }));
+            } catch (err) {
+              console.error('[WS] Ping failed:', err);
+            }
+          }
+        }, 30000);
+        
+        // Request full state sync after reconnection
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(JSON.stringify({ type: 'requestState' }));
+          } catch (err) {
+            console.error('[WS] State sync request failed:', err);
+          }
+        }
       };
 
       ws.onmessage = (event) => {
@@ -2924,25 +3022,73 @@
 
       ws.onclose = (event) => {
         console.log('[WS] Disconnected', event.code, event.reason);
-        addChatMessage('System', '🔌 Disconnected from room', true);
+        clearInterval(pingInterval);
+        updateConnectionStatus('disconnected');
         
-        if (event.code === 1006) {
-          // Abnormal closure
-          showError('Connection lost. Reconnecting in 3 seconds...', 3000);
+        // Don't show "Disconnected" message on clean closes (user navigated away)
+        if (event.code !== 1000) {
+          addChatMessage('System', '🔌 Connection lost', true);
         }
         
-        if (currentRoomId) {
-          setTimeout(() => {
-            if (currentRoomId) connectWS(currentRoomId);
-          }, 3000);
+        // Reconnect with exponential backoff
+        if (currentRoomId && event.code !== 1000) {
+          const delay = Math.min(reconnectDelay, MAX_RECONNECT_DELAY);
+          const seconds = Math.round(delay / 1000);
+          
+          if (event.code === 1006) {
+            showError(`Server unavailable. Reconnecting in ${seconds}s...`, delay);
+          } else {
+            showError(`Connection lost. Reconnecting in ${seconds}s...`, delay);
+          }
+          
+          updateConnectionStatus('reconnecting', seconds);
+          
+          clearTimeout(reconnectTimeout);
+          reconnectTimeout = setTimeout(() => {
+            if (currentRoomId) {
+              connectWS(currentRoomId);
+              // Increase delay for next attempt (exponential backoff)
+              reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
+            }
+          }, delay);
         }
       };
 
       ws.onerror = (err) => {
         console.error('[WS] Error:', err);
-        showError('WebSocket connection error. Check your network connection.');
+        updateConnectionStatus('error');
+        showError('WebSocket error. Check your network connection.');
         addChatMessage('System', '⚠️ Connection error', true);
       };
+    }
+
+    function updateConnectionStatus(status, reconnectSeconds = null) {
+      const indicator = document.getElementById('connectionIndicator');
+      if (!indicator) return;
+      
+      indicator.className = 'connection-indicator';
+      
+      switch (status) {
+        case 'connected':
+          indicator.classList.add('connected');
+          indicator.title = 'Connected to server';
+          break;
+        case 'connecting':
+          indicator.classList.add('connecting');
+          indicator.title = 'Connecting...';
+          break;
+        case 'reconnecting':
+          indicator.classList.add('reconnecting');
+          indicator.title = reconnectSeconds 
+            ? `Reconnecting in ${reconnectSeconds}s...` 
+            : 'Reconnecting...';
+          break;
+        case 'disconnected':
+        case 'error':
+          indicator.classList.add('disconnected');
+          indicator.title = 'Disconnected from server';
+          break;
+      }
     }
 
     function handleWSMessage(msg) {

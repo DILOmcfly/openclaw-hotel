@@ -252,6 +252,25 @@ export function setupSpectatorWebSocket(server: Server): void {
             type: 'pong',
             serverTime: new Date().toISOString(),
           });
+        } else if (msg.type === 'requestState') {
+          // Send current room state to spectator
+          const agents = roomMembers.get(roomId);
+          if (agents) {
+            const agentList = Array.from(agents.entries()).map(([agentId, data]) => ({
+              id: agentId,
+              displayName: (data as any).displayName || 'Agent',
+              x: (data as any).x || 0,
+              y: (data as any).y || 0,
+              direction: (data as any).direction || 0,
+            }));
+            
+            sendToSpectator(ws, {
+              type: 'room.state',
+              roomId,
+              agents: agentList,
+              spectatorCount: getSpectatorCount(roomId),
+            } as any);
+          }
         } else if (msg.type === 'spectator.setUsername') {
           // Set spectator username (sanitize)
           const username = sanitizeUsername(msg.username);
