@@ -538,6 +538,168 @@
       box-shadow: 0 6px 16px rgba(0, 212, 170, 0.4);
     }
 
+    /* Agent Info Panel */
+    #agentInfoPanel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 300px;
+      height: 100%;
+      background: #1a1a2e;
+      border-left: 2px solid #00D4AA;
+      z-index: 1000;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      overflow-y: auto;
+      box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+    }
+
+    #agentInfoPanel.active {
+      transform: translateX(0);
+    }
+
+    .agent-info-header {
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.3);
+      border-bottom: 1px solid rgba(0, 212, 170, 0.3);
+      position: relative;
+    }
+
+    .agent-info-close {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: transparent;
+      border: none;
+      color: #00D4AA;
+      font-size: 28px;
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .agent-info-close:hover {
+      background: rgba(0, 212, 170, 0.2);
+    }
+
+    .agent-info-name {
+      font-size: 24px;
+      font-weight: bold;
+      color: #00D4AA;
+      margin-bottom: 8px;
+      padding-right: 40px;
+    }
+
+    .agent-info-mood {
+      font-size: 18px;
+      color: #ddd;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .agent-info-section {
+      padding: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .agent-info-section h3 {
+      font-size: 14px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+
+    .agent-info-bio {
+      color: #ddd;
+      font-size: 14px;
+      line-height: 1.6;
+      font-style: italic;
+    }
+
+    .personality-trait {
+      margin-bottom: 12px;
+    }
+
+    .trait-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: #aaa;
+      margin-bottom: 4px;
+    }
+
+    .trait-bar {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .trait-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00D4AA, #00f5c4);
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+
+    .relationship-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: #ddd;
+    }
+
+    .relationship-emoji {
+      font-size: 16px;
+    }
+
+    .activity-item {
+      padding: 8px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: #ddd;
+    }
+
+    .activity-time {
+      color: #888;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .loading-spinner-small {
+      width: 30px;
+      height: 30px;
+      border: 3px solid rgba(0, 212, 170, 0.2);
+      border-top-color: #00D4AA;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin: 20px auto;
+    }
+
+    .error-message {
+      color: #ff6b6b;
+      font-size: 13px;
+      padding: 12px;
+      background: rgba(255, 107, 107, 0.1);
+      border-radius: 6px;
+      border-left: 3px solid #ff6b6b;
+    }
+
     /* Mobile Responsive */
     @media (max-width: 768px) {
       .room-toolbar {
@@ -623,6 +785,21 @@
       #helpButton {
         bottom: 80px; /* Above mobile toggle button */
       }
+
+      /* Mobile agent info panel - bottom sheet */
+      #agentInfoPanel {
+        width: 100%;
+        height: 70vh;
+        top: auto;
+        bottom: 0;
+        border-left: none;
+        border-top: 2px solid #00D4AA;
+        transform: translateY(100%);
+      }
+
+      #agentInfoPanel.active {
+        transform: translateY(0);
+      }
     }
   </style>
 </head>
@@ -679,6 +856,44 @@
 
   <!-- Help Button -->
   <button id="helpButton" onclick="showOnboarding()" title="Show help">?</button>
+
+  <!-- Agent Info Panel -->
+  <div id="agentInfoPanel">
+    <div class="agent-info-header">
+      <button class="agent-info-close" onclick="closeAgentInfo()">×</button>
+      <div class="agent-info-name" id="agentInfoName">Agent Name</div>
+      <div class="agent-info-mood" id="agentInfoMood">
+        <span id="moodEmoji">😊</span>
+        <span id="moodText">Happy</span>
+      </div>
+    </div>
+
+    <div class="agent-info-section">
+      <h3>Personality (OCEAN)</h3>
+      <div id="personalityTraits">
+        <div class="loading-spinner-small"></div>
+      </div>
+    </div>
+
+    <div class="agent-info-section">
+      <h3>Bio</h3>
+      <div class="agent-info-bio" id="agentInfoBio">Loading...</div>
+    </div>
+
+    <div class="agent-info-section">
+      <h3>Relationships</h3>
+      <div id="agentRelationships">
+        <div class="loading-spinner-small"></div>
+      </div>
+    </div>
+
+    <div class="agent-info-section">
+      <h3>Recent Activity</h3>
+      <div id="agentActivity">
+        <div class="loading-spinner-small"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- Room Selector Screen -->
   <div id="roomSelector">

@@ -1,11 +1,11 @@
-import Redis from 'ioredis';
+import Redis, { Redis as RedisType } from 'ioredis';
 
 /**
  * Redis client for session storage and caching
  * Uses connection pooling for production scalability
  */
 class RedisClient {
-  private client: Redis;
+  private client: RedisType;
   private isConnected: boolean = false;
 
   constructor() {
@@ -25,7 +25,7 @@ class RedisClient {
       console.log('[Redis] Connected to Redis server');
     });
 
-    this.client.on('error', (err) => {
+    this.client.on('error', (err: Error) => {
       console.error('[Redis] Connection error:', err.message);
       this.isConnected = false;
     });
@@ -124,7 +124,7 @@ class RedisClient {
   /**
    * Get raw Redis client (for advanced operations)
    */
-  getClient(): Redis {
+  getClient(): RedisType {
     return this.client;
   }
 }

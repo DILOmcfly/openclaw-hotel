@@ -177,15 +177,15 @@ export async function getPollResults(pollId: string, sql: Sql): Promise<PollResu
     votes: voteCounts.get(index) || 0,
   }));
 
-  const totalVotes = options.reduce((sum, opt) => sum + opt.votes, 0);
+  const totalVotes = options.reduce((sum: number, opt: any) => sum + opt.votes, 0);
   
   // Determine winner (highest vote count, null if tie or no votes)
   let winner: number | null = null;
   if (totalVotes > 0) {
-    const maxVotes = Math.max(...options.map(o => o.votes));
+    const maxVotes = Math.max(...options.map((o: any) => o.votes));
     const winners = options
-      .map((opt, idx) => ({ idx, votes: opt.votes }))
-      .filter(o => o.votes === maxVotes);
+      .map((opt: any, idx: number) => ({ idx, votes: opt.votes }))
+      .filter((o: any) => o.votes === maxVotes);
     
     // Only set winner if there's a clear winner (no tie)
     if (winners.length === 1) {
