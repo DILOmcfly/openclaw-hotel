@@ -1018,6 +1018,163 @@
       border-left: 3px solid #ff6b6b;
     }
 
+    /* Feedback Widget */
+    #feedbackButton {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(0, 212, 170, 0.2);
+      border: 2px solid #00D4AA;
+      border-radius: 50%;
+      width: 56px;
+      height: 56px;
+      color: #00D4AA;
+      font-size: 24px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    #feedbackButton:hover {
+      background: rgba(0, 212, 170, 0.3);
+      transform: scale(1.1);
+      box-shadow: 0 6px 16px rgba(0, 212, 170, 0.4);
+    }
+
+    #feedbackModal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(10, 10, 15, 0.95);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10002;
+      padding: 20px;
+    }
+
+    #feedbackModal.active {
+      display: flex;
+    }
+
+    .feedback-content {
+      max-width: 500px;
+      width: 100%;
+      background: #1a1a2e;
+      border: 2px solid #00D4AA;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 20px 60px rgba(0, 212, 170, 0.3);
+    }
+
+    .feedback-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .feedback-header h2 {
+      font-size: 24px;
+      color: #00D4AA;
+      margin: 0;
+    }
+
+    .feedback-close {
+      background: transparent;
+      border: none;
+      color: #00D4AA;
+      font-size: 28px;
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .feedback-close:hover {
+      background: rgba(0, 212, 170, 0.2);
+    }
+
+    .feedback-textarea {
+      width: 100%;
+      min-height: 120px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(0, 212, 170, 0.3);
+      border-radius: 8px;
+      padding: 12px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+      margin-bottom: 15px;
+    }
+
+    .feedback-textarea:focus {
+      outline: none;
+      border-color: #00D4AA;
+      background: rgba(0, 212, 170, 0.08);
+    }
+
+    .feedback-submit {
+      background: #00D4AA;
+      color: #0a0a0f;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+    }
+
+    .feedback-submit:hover {
+      background: #00f5c4;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 212, 170, 0.4);
+    }
+
+    .feedback-submit:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .success-toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      max-width: 400px;
+      background: rgba(0, 212, 170, 0.95);
+      color: #0a0a0f;
+      padding: 16px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 10000;
+      opacity: 0;
+      transform: translateX(400px);
+      transition: all 0.3s ease;
+      font-weight: bold;
+    }
+
+    .success-toast.show {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
     /* Mobile Responsive */
     @media (max-width: 768px) {
       .room-toolbar {
@@ -1167,6 +1324,22 @@
         height: 48px;
         left: 10px;
         bottom: 80px; /* Above mobile toggle button */
+      }
+
+      /* Mobile feedback button */
+      #feedbackButton {
+        width: 48px;
+        height: 48px;
+        bottom: 80px;
+        right: 10px;
+      }
+
+      .feedback-content {
+        padding: 20px;
+      }
+
+      .feedback-header h2 {
+        font-size: 20px;
       }
     }
   </style>
@@ -1340,6 +1513,32 @@
       <button class="chat-feed-minimize" onclick="toggleChatFeed()" title="Minimize">−</button>
     </div>
     <div class="chat-feed-messages" id="chatFeedMessages"></div>
+  </div>
+
+  <!-- Feedback Widget -->
+  <button id="feedbackButton" onclick="openFeedbackModal()" title="Send feedback">💬</button>
+
+  <!-- Feedback Modal -->
+  <div id="feedbackModal">
+    <div class="feedback-content">
+      <div class="feedback-header">
+        <h2>💬 Feedback</h2>
+        <button class="feedback-close" onclick="closeFeedbackModal()">×</button>
+      </div>
+      <textarea 
+        id="feedbackTextarea" 
+        class="feedback-textarea" 
+        placeholder="Share your thoughts, report issues, or suggest improvements..."
+        maxlength="1000"
+      ></textarea>
+      <button class="feedback-submit" onclick="submitFeedback()">Send Feedback</button>
+    </div>
+  </div>
+
+  <!-- Success Toast -->
+  <div class="success-toast" id="successToast">
+    <span style="font-size: 24px;">🙏</span>
+    <div>Thanks for your feedback!</div>
   </div>
 
   <script>
@@ -2938,6 +3137,94 @@
         }, 800);
       }
     }
+
+    // ===== FEEDBACK WIDGET =====
+    function openFeedbackModal() {
+      document.getElementById('feedbackModal').classList.add('active');
+      document.getElementById('feedbackTextarea').focus();
+    }
+
+    function closeFeedbackModal() {
+      document.getElementById('feedbackModal').classList.remove('active');
+      document.getElementById('feedbackTextarea').value = '';
+    }
+
+    async function submitFeedback() {
+      const textarea = document.getElementById('feedbackTextarea');
+      const feedback = textarea.value.trim();
+      
+      if (!feedback) {
+        showError('Please enter some feedback');
+        return;
+      }
+
+      const submitBtn = document.querySelector('.feedback-submit');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending...';
+
+      try {
+        const response = await fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            feedback,
+            room: currentRoomName || 'Room Selector',
+            roomId: currentRoomId || null,
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString(),
+            path: window.location.pathname,
+            referrer: document.referrer || null,
+          }),
+        });
+
+        if (response.ok) {
+          closeFeedbackModal();
+          showSuccessToast();
+        } else {
+          showError('Failed to send feedback. Please try again.');
+        }
+      } catch (error) {
+        console.error('Feedback error:', error);
+        showError('Network error. Please check your connection.');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Send Feedback';
+      }
+    }
+
+    function showSuccessToast() {
+      const toast = document.getElementById('successToast');
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3000);
+    }
+
+    // ===== ANALYTICS =====
+    async function trackPageview() {
+      try {
+        await fetch('/api/analytics/pageview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            path: window.location.pathname,
+            referrer: document.referrer || null,
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString(),
+            viewport: {
+              width: window.innerWidth,
+              height: window.innerHeight,
+            },
+          }),
+        });
+      } catch (error) {
+        console.error('Analytics error:', error);
+        // Silently fail - don't disrupt user experience
+      }
+    }
+
+    // Track pageview on load
+    trackPageview();
 
     // ===== INIT =====
     document.getElementById('backBtn').addEventListener('click', leaveRoom);

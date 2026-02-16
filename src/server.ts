@@ -1,6 +1,8 @@
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
+import { appendFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import express from 'express';
 
 // Prevent uncaught errors from crashing the server
@@ -178,6 +180,74 @@ app.get('/metrics', (_req, res) => {
 
 app.get('/metrics/history', (_req, res) => {
   res.json(getHistoricalMetrics());
+});
+
+// Feedback endpoint
+app.post('/api/feedback', async (req, res) => {
+  try {
+    const { feedback, room, roomId, userAgent, timestamp, path, referrer } = req.body;
+
+    if (!feedback || typeof feedback !== 'string') {
+      return res.status(400).json({ error: 'Invalid feedback' });
+    }
+
+    // Ensure data directory exists
+    const dataDir = join(import.meta.dirname, '..', 'data');
+    if (!existsSync(dataDir)) {
+      await mkdir(dataDir, { recursive: true });
+    }
+
+    // Append feedback to JSONL file
+    const feedbackPath = join(dataDir, 'feedback.jsonl');
+    const feedbackEntry = JSON.stringify({
+      feedback: feedback.substring(0, 1000), // Limit length
+      room: room || 'unknown',
+      roomId: roomId || null,
+      userAgent: userAgent || 'unknown',
+      timestamp: timestamp || new Date().toISOString(),
+      path: path || '/spectate',
+      referrer: referrer || null,
+    }) + '\n';
+
+    await appendFile(feedbackPath, feedbackEntry, 'utf8');
+    logger.info('Feedback received', { room, length: feedback.length });
+
+    res.json({ success: true, message: 'Feedback received' });
+  } catch (error) {
+    logger.error('Feedback error', { error });
+    res.status(500).json({ error: 'Failed to save feedback' });
+  }
+});
+
+// Analytics pageview endpoint
+app.post('/api/analytics/pageview', async (req, res) => {
+  try {
+    const { path, referrer, userAgent, timestamp, viewport } = req.body;
+
+    // Ensure data directory exists
+    const dataDir = join(import.meta.dirname, '..', 'data');
+    if (!existsSync(dataDir)) {
+      await mkdir(dataDir, { recursive: true });
+    }
+
+    // Append analytics to JSONL file
+    const analyticsPath = join(dataDir, 'analytics.jsonl');
+    const analyticsEntry = JSON.stringify({
+      path: path || '/spectate',
+      referrer: referrer || null,
+      userAgent: userAgent || 'unknown',
+      timestamp: timestamp || new Date().toISOString(),
+      viewport: viewport || null,
+    }) + '\n';
+
+    await appendFile(analyticsPath, analyticsEntry, 'utf8');
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Analytics error', { error });
+    // Don't fail the request - analytics should be non-blocking
+    res.json({ success: true });
+  }
 });
 
 // Serve static HTML pages
