@@ -26,10 +26,10 @@ router.put('/api/rooms/:roomId/safety/rating', requireAgent, async (req, res) =>
     const { roomId } = req.params;
     const { rating } = req.body;
     if (!rating) return res.status(400).json({ error: 'Rating is required' });
-    if (!await isRoomOwner(roomId, (req as any).agentId)) {
+    if (!await isRoomOwner(roomId as string, (req as any).agentId)) {
       return res.status(403).json({ error: 'Only room owners can set safety rating' });
     }
-    await setRating(roomId, rating as SafetyRating, sql);
+    await setRating(roomId as string, rating as SafetyRating, sql);
     res.json({ success: true, message: 'Room safety rating updated', roomId, rating });
   } catch (error: any) {
     console.error('[Room Safety] Set rating error:', error);
@@ -42,10 +42,10 @@ router.post('/api/rooms/:roomId/safety/warning', requireAgent, async (req, res) 
     const { roomId } = req.params;
     const { warning } = req.body;
     if (!warning) return res.status(400).json({ error: 'Warning is required' });
-    if (!await isRoomOwner(roomId, (req as any).agentId)) {
+    if (!await isRoomOwner(roomId as string, (req as any).agentId)) {
       return res.status(403).json({ error: 'Only room owners can add warnings' });
     }
-    await addWarning(roomId, warning, sql);
+    await addWarning(roomId as string, warning, sql);
     res.json({ success: true, message: 'Warning added', roomId, warning });
   } catch (error: any) {
     console.error('[Room Safety] Add warning error:', error);
@@ -58,10 +58,10 @@ router.delete('/api/rooms/:roomId/safety/warning', requireAgent, async (req, res
     const { roomId } = req.params;
     const { warning } = req.body;
     if (!warning) return res.status(400).json({ error: 'Warning is required' });
-    if (!await isRoomOwner(roomId, (req as any).agentId)) {
+    if (!await isRoomOwner(roomId as string, (req as any).agentId)) {
       return res.status(403).json({ error: 'Only room owners can remove warnings' });
     }
-    const removed = await removeWarning(roomId, warning, sql);
+    const removed = await removeWarning(roomId as string, warning, sql);
     if (!removed) return res.status(404).json({ error: 'Warning not found' });
     res.json({ success: true, message: 'Warning removed', roomId });
   } catch (error) {
@@ -72,7 +72,7 @@ router.delete('/api/rooms/:roomId/safety/warning', requireAgent, async (req, res
 
 router.put('/api/rooms/:roomId/safety/verify', requireRole('admin'), async (req, res) => {
   try {
-    await verifyRating(req.params.roomId, (req as any).agentId, sql);
+    await verifyRating(req.params.roomId as string, (req as any).agentId, sql);
     res.json({ success: true, message: 'Room safety rating verified', roomId: req.params.roomId });
   } catch (error) {
     console.error('[Room Safety] Verify error:', error);
@@ -82,7 +82,7 @@ router.put('/api/rooms/:roomId/safety/verify', requireRole('admin'), async (req,
 
 router.post('/api/rooms/:roomId/safety/report', requireAgent, async (req, res) => {
   try {
-    const reportsCount = await reportRoom(req.params.roomId, sql);
+    const reportsCount = await reportRoom(req.params.roomId as string, sql);
     res.json({ success: true, message: 'Room reported', roomId: req.params.roomId, reportsCount });
   } catch (error) {
     console.error('[Room Safety] Report error:', error);

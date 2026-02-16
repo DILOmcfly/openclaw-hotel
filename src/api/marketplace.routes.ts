@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import * as MarketplaceService from '../services/marketplace.js';
 import { validateToken } from '../services/auth.js';
 
@@ -46,7 +46,7 @@ router.get('/stats', async (req, res) => {
  * GET /api/marketplace/my-listings
  * Get current agent's active listings
  */
-router.get('/my-listings', validateToken, async (req, res) => {
+router.get('/my-listings', validateToken, async (req: Request, res: Response) => {
   try {
     const agentId = req.agent?.id;
     if (!agentId) {
@@ -85,7 +85,7 @@ router.get('/:id', async (req, res) => {
  * POST /api/marketplace/list
  * Create a new marketplace listing
  */
-router.post('/list', validateToken, async (req, res) => {
+router.post('/list', validateToken, async (req: Request, res: Response) => {
   try {
     const agentId = req.agent?.id;
     if (!agentId) {
@@ -120,7 +120,7 @@ router.post('/list', validateToken, async (req, res) => {
  * POST /api/marketplace/:id/buy
  * Buy a marketplace listing
  */
-router.post('/:id/buy', validateToken, async (req, res) => {
+router.post('/:id/buy', validateToken, async (req: Request, res: Response) => {
   try {
     const agentId = req.agent?.id;
     if (!agentId) {
@@ -145,7 +145,7 @@ router.post('/:id/buy', validateToken, async (req, res) => {
  * DELETE /api/marketplace/:id
  * Cancel a marketplace listing (seller only)
  */
-router.delete('/:id', validateToken, async (req, res) => {
+router.delete('/:id', validateToken, async (req: Request, res: Response) => {
   try {
     const agentId = req.agent?.id;
     if (!agentId) {
