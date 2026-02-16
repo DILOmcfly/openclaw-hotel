@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 /**
  * Integration Tests: Social/Friends Flow
  * 
@@ -12,19 +11,21 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupIntegrationTests, teardownIntegrationTests, getTestSql, isDatabaseAvailable } from './setup.js';
 import * as friendsService from '../../services/friends.js';
-import * as dmService from '../../services/directMessages.js';
+import { DirectMessageService } from '../../services/directMessages.js';
+import type { Sql } from 'postgres';
 
-let sql: ReturnType<typeof getTestSql>;
+let sql: Sql;
+let dmService: DirectMessageService;
 
 describe('Integration: Social/Friends Flow', () => {
-  beforeAll(async (ctx) => {
+  beforeAll(async () => {
     const dbAvailable = await isDatabaseAvailable();
     if (!dbAvailable) {
       console.log('⏭️  Skipping integration tests: PostgreSQL database not available');
-      ctx.skip();
       return;
     }
     sql = await setupIntegrationTests();
+    dmService = new DirectMessageService(sql);
   });
 
   afterAll(async () => {
@@ -67,14 +68,18 @@ describe('Integration: Social/Friends Flow', () => {
       expect(dbFriendship.status).toBe('pending');
 
       // Accept friend request (as addressee)
-      const accepted = await friendsService.acceptFriendRequest(
+      await friendsService.acceptFriendRequest(
         friendship.id,
         addresseeId,
         sql
       );
 
-      expect(accepted.status).toBe('accepted');
-      expect(accepted.acceptedAt).toBeInstanceOf(Date);
+      // Verify friendship was accepted
+      const [acceptedFriendship] = await sql<{ status: string; updated_at: Date }[]>`
+        SELECT status, updated_at FROM friendships WHERE id = ${friendship.id}
+      `;
+      expect(acceptedFriendship.status).toBe('accepted');
+      expect(acceptedFriendship.updated_at).toBeInstanceOf(Date);
 
       // Verify both agents see each other as friends
       const requesterFriends = await friendsService.getFriends(requesterId, sql);
@@ -82,8 +87,8 @@ describe('Integration: Social/Friends Flow', () => {
 
       expect(requesterFriends).toHaveLength(1);
       expect(addresseeFriends).toHaveLength(1);
-      expect(requesterFriends[0].friendId).toBe(addresseeId);
-      expect(addresseeFriends[0].friendId).toBe(requesterId);
+      expect(requesterFriends[0].agentId).toBe(addresseeId);
+      expect(addresseeFriends[0].agentId).toBe(requesterId);
     });
 
     it('should send direct messages between friends', async () => {
@@ -95,11 +100,10 @@ describe('Integration: Social/Friends Flow', () => {
       await friendsService.acceptFriendRequest(friendship.id, agent2, sql);
 
       // Send DM from agent1 to agent2
-      const message1 = await dmService.sendDirectMessage(
+      const message1 = await dmService.sendMessage(
         agent1,
         agent2,
-        'Hello friend!',
-        sql
+        'Hello friend!'
       );
 
       expect(message1).toBeDefined();
@@ -109,25 +113,24 @@ describe('Integration: Social/Friends Flow', () => {
       expect(message1.readAt).toBeNull();
 
       // Send reply from agent2
-      const message2 = await dmService.sendDirectMessage(
+      const message2 = await dmService.sendMessage(
         agent2,
         agent1,
-        'Hi there!',
-        sql
+        'Hi there!'
       );
 
       expect(message2.senderId).toBe(agent2);
       expect(message2.recipientId).toBe(agent1);
 
       // Get conversation for agent1
-      const conversation = await dmService.getConversation(agent1, agent2, sql);
+      const conversation = await dmService.getConversation(agent1, agent2);
 
       expect(conversation).toHaveLength(2);
       expect(conversation[0].content).toBe('Hello friend!');
       expect(conversation[1].content).toBe('Hi there!');
 
-      // Mark message as read
-      await dmService.markAsRead(message1.id, agent2, sql);
+      // Mark messages as read (agent2 reads messages from agent1)
+      await dmService.markAsRead(agent2, agent1);
 
       const [updatedMessage] = await sql`
         SELECT read_at FROM direct_messages WHERE id = ${message1.id}
@@ -147,13 +150,17 @@ describe('Integration: Social/Friends Flow', () => {
       );
 
       // Reject (as addressee)
-      const rejected = await friendsService.rejectFriendRequest(
+      await friendsService.rejectFriendRequest(
         friendship.id,
         addresseeId,
         sql
       );
 
-      expect(rejected.status).toBe('rejected');
+      // Verify friendship was rejected
+      const [rejectedFriendship] = await sql<{ status: string }[]>`
+        SELECT status FROM friendships WHERE id = ${friendship.id}
+      `;
+      expect(rejectedFriendship.status).toBe('rejected');
 
       // Verify neither agent sees the other as friend
       const requesterFriends = await friendsService.getFriends(requesterId, sql);
@@ -213,7 +220,7 @@ describe('Integration: Social/Friends Flow', () => {
 
       // Try to send DM without friendship
       await expect(
-        dmService.sendDirectMessage(agent1, agent2, 'Unauthorized message', sql)
+        dmService.sendMessage(agent1, agent2, 'Unauthorized message')
       ).rejects.toThrow(/not friends/i);
     });
 

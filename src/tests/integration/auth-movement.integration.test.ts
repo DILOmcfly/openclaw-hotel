@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 /**
  * Integration Tests: Auth & Movement Flow
  * 
@@ -16,15 +15,15 @@ import * as agentAuthService from '../../services/agentAuth.js';
 import * as authService from '../../services/auth.js';
 import * as roomsService from '../../services/rooms.js';
 import { nanoid } from 'nanoid';
+import type { Sql } from 'postgres';
 
-let sql: ReturnType<typeof getTestSql>;
+let sql: Sql;
 
 describe('Integration: Auth & Movement Flow', () => {
-  beforeAll(async (ctx) => {
+  beforeAll(async () => {
     const dbAvailable = await isDatabaseAvailable();
     if (!dbAvailable) {
       console.log('⏭️  Skipping integration tests: PostgreSQL database not available');
-      ctx.skip();
       return;
     }
     sql = await setupIntegrationTests();

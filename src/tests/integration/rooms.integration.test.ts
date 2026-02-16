@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 /**
  * Integration Tests: Rooms Flow
  * 
@@ -11,18 +10,18 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import type { Sql } from 'postgres';
 import { setupIntegrationTests, teardownIntegrationTests, getTestSql, isDatabaseAvailable } from './setup.js';
 import * as roomsService from '../../services/rooms.js';
 import { nanoid } from 'nanoid';
 
-let sql: ReturnType<typeof getTestSql>;
+let sql: Sql;
 
 describe('Integration: Rooms Flow', () => {
-  beforeAll(async (ctx) => {
+  beforeAll(async () => {
     const dbAvailable = await isDatabaseAvailable();
     if (!dbAvailable) {
       console.log('⏭️  Skipping integration tests: PostgreSQL database not available');
-      ctx.skip();
       return;
     }
     sql = await setupIntegrationTests();

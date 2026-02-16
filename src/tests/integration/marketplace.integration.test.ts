@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 /**
  * Integration Tests: Marketplace Flow
  * 
@@ -9,18 +8,18 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import type { Sql } from 'postgres';
 import { setupIntegrationTests, teardownIntegrationTests, getTestSql, isDatabaseAvailable } from './setup.js';
 import * as marketplaceService from '../../services/marketplace.js';
 import * as economyService from '../../services/economy.js';
 
-let sql: ReturnType<typeof getTestSql>;
+let sql: Sql;
 
 describe('Integration: Marketplace Flow', () => {
-  beforeAll(async (ctx) => {
+  beforeAll(async () => {
     const dbAvailable = await isDatabaseAvailable();
     if (!dbAvailable) {
       console.log('⏭️  Skipping integration tests: PostgreSQL database not available');
-      ctx.skip();
       return;
     }
     sql = await setupIntegrationTests();

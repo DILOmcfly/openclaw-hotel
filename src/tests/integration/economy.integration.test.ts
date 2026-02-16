@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 /**
  * Integration Tests: Economy & Inventory Flow
  * 
@@ -16,15 +15,15 @@ import * as economyService from '../../services/economy.js';
 import * as inventoryService from '../../services/inventory.js';
 import * as shopService from '../../services/roomShops.js';
 import { nanoid } from 'nanoid';
+import type { Sql } from 'postgres';
 
-let sql: ReturnType<typeof getTestSql>;
+let sql: Sql;
 
 describe('Integration: Economy & Inventory Flow', () => {
-  beforeAll(async (ctx) => {
+  beforeAll(async () => {
     const dbAvailable = await isDatabaseAvailable();
     if (!dbAvailable) {
       console.log('⏭️  Skipping integration tests: PostgreSQL database not available');
-      ctx.skip();
       return;
     }
     sql = await setupIntegrationTests();

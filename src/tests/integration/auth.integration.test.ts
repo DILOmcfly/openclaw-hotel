@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 /**
  * Integration Tests: Authentication Flow
  * 
@@ -10,19 +9,19 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import type { Sql } from 'postgres';
 import { setupIntegrationTests, teardownIntegrationTests, getTestSql, isDatabaseAvailable } from './setup.js';
 import * as agentAuthService from '../../services/agentAuth.js';
 import * as authService from '../../services/auth.js';
 import { nanoid } from 'nanoid';
 
-let sql: ReturnType<typeof getTestSql>;
+let sql: Sql;
 
 describe('Integration: Authentication Flow', () => {
-  beforeAll(async (ctx) => {
+  beforeAll(async () => {
     const dbAvailable = await isDatabaseAvailable();
     if (!dbAvailable) {
       console.log('⏭️  Skipping integration tests: PostgreSQL database not available');
-      ctx.skip();
       return;
     }
     sql = await setupIntegrationTests();
