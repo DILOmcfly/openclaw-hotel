@@ -12,6 +12,7 @@ export interface ConversationContext {
   nearbyAgents: string[];
   recentMessages: Array<{ sender: string; message: string; timestamp: Date }>;
   agentMood?: string;
+  recentMemories?: Array<{ type: string; content: string; importance: number }>;
 }
 
 export interface AgentConversationConfig {
@@ -59,7 +60,7 @@ function buildConversationPrompt(
   personality: Personality,
   context: ConversationContext
 ): string {
-  const { currentRoom, nearbyAgents, recentMessages, agentMood } = context;
+  const { currentRoom, nearbyAgents, recentMessages, agentMood, recentMemories } = context;
 
   // Format recent chat history
   const chatHistory = recentMessages.length > 0
@@ -71,6 +72,11 @@ function buildConversationPrompt(
     ? nearbyAgents.join(', ')
     : 'No one nearby';
 
+  // Format recent memories
+  const memoriesText = recentMemories && recentMemories.length > 0
+    ? recentMemories.map(m => `- [${m.type}] ${m.content}`).join('\n')
+    : 'No significant memories.';
+
   return `You are ${personality.name}, an AI agent in OpenClaw Hotel.
 
 PERSONALITY TRAITS:
@@ -80,6 +86,9 @@ CURRENT SITUATION:
 - Location: ${currentRoom}
 - Nearby agents: ${nearbyList}
 - Your mood: ${agentMood || 'neutral'}
+
+RECENT MEMORIES:
+${memoriesText}
 
 RECENT CONVERSATION:
 ${chatHistory}

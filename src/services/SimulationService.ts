@@ -18,7 +18,7 @@ import {
   type BehaviorAction,
   type Event,
 } from './personalityEngine.js';
-import { addMemory } from './agentMemory.js';
+import { addMemory, getRecentMemories } from './agentMemory.js';
 import { checkAndGenerateReflections } from './reflectionService.js';
 import { updateRelationship } from './socialDynamics.js';
 
@@ -221,6 +221,7 @@ async function getNearbyAgents(agentId: string, roomId: string, sql: any): Promi
 
 /**
  * Generate a chat message based on personality (LLM-powered or fallback)
+ * Enhanced with personality mood and memory context
  */
 async function generateChatMessage(
   agentId: string,
@@ -230,6 +231,24 @@ async function generateChatMessage(
 ): Promise<{ message: string; source: 'llm' | 'fallback' }> {
   const config = getConversationConfig();
 
+  // Get personality profile for mood
+  const profile = getOrCreateProfile(agentId);
+  const moodString = `${profile.mood.current_mood} (energy: ${profile.mood.energy}, social_need: ${profile.mood.social_need})`;
+
+  // Get recent memories (last 5) for context
+  let recentMemories: Array<{ type: string; content: string; importance: number }> = [];
+  try {
+    const memories = await getRecentMemories(agentId, 5, sql);
+    recentMemories = memories.map(m => ({
+      type: m.type,
+      content: m.content,
+      importance: m.importance,
+    }));
+  } catch (error) {
+    console.error(`[Simulation] Failed to fetch memories for ${agentId}:`, error);
+    // Continue without memories (graceful degradation)
+  }
+
   // Build context for LLM
   const nearbyAgents = await getNearbyAgents(agentId, roomId, sql);
   const recentMessages = await getRecentRoomMessages(roomId, sql);
@@ -238,7 +257,8 @@ async function generateChatMessage(
     currentRoom: roomId,
     nearbyAgents,
     recentMessages,
-    agentMood: 'neutral', // Could be enhanced with mood tracking
+    agentMood: moodString, // Enhanced with detailed mood state
+    recentMemories, // Include recent memories for context-aware messages
   };
 
   // Generate message (LLM or fallback)
