@@ -35,7 +35,7 @@ export type SimulationMetrics = {
   actionsPerTick: number[];
 };
 
-type AgentAction = 'move' | 'chat' | 'emote' | 'idle';
+type AgentAction = 'move' | 'chat' | 'emote' | 'idle' | 'wander' | 'follow' | 'dance' | 'useFurniture' | 'playGame' | 'tradeItem' | 'emoteReact';
 
 const DEFAULT_CONFIG: SimulationConfig = {
   enabled: true,
@@ -135,6 +135,176 @@ function getTimeSinceLastAction(agentId: string): number {
 
 function recordAction(agentId: string): void {
   lastActionTimes.set(agentId, new Date());
+}
+
+/**
+ * Find nearby furniture in the same room (within 2 tiles)
+ */
+async function findNearbyFurniture(agentId: string, roomId: string, sql: any): Promise<Array<{ id: string; x: number; y: number; itemDefId: string }>> {
+  try {
+    const agentPos = await sql`
+      SELECT x, y
+      FROM presence
+      WHERE agent_id = ${agentId}::uuid AND room_id = ${roomId}::uuid
+    `;
+    
+    if (!agentPos || agentPos.length === 0) return [];
+    
+    const { x: agentX, y: agentY } = agentPos[0];
+    
+    const furniture = await sql`
+      SELECT id::text, x, y, item_def_id::text AS "itemDefId"
+      FROM furniture
+      WHERE room_id = ${roomId}::uuid
+        AND abs(x - ${agentX}) <= 2
+        AND abs(y - ${agentY}) <= 2
+      LIMIT 5
+    `;
+    
+    return furniture;
+  } catch (error) {
+    console.error(`[Simulation] Failed to find nearby furniture:`, error);
+    return [];
+  }
+}
+
+/**
+ * Find nearby agents in the same room (within 3 tiles)
+ */
+async function findNearbyAgents(agentId: string, roomId: string, sql: any): Promise<Array<{ agentId: string; x: number; y: number }>> {
+  try {
+    const agentPos = await sql`
+      SELECT x, y
+      FROM presence
+      WHERE agent_id = ${agentId}::uuid AND room_id = ${roomId}::uuid
+    `;
+    
+    if (!agentPos || agentPos.length === 0) return [];
+    
+    const { x: agentX, y: agentY } = agentPos[0];
+    
+    const nearbyAgents = await sql`
+      SELECT agent_id::text AS "agentId", x, y
+      FROM presence
+      WHERE room_id = ${roomId}::uuid
+        AND agent_id != ${agentId}::uuid
+        AND abs(x - ${agentX}) <= 3
+        AND abs(y - ${agentY}) <= 3
+      LIMIT 5
+    `;
+    
+    return nearbyAgents;
+  } catch (error) {
+    console.error(`[Simulation] Failed to find nearby agents:`, error);
+    return [];
+  }
+}
+
+/**
+ * Get room theme for context-aware behaviors
+ */
+async function getRoomTheme(roomId: string, sql: any): Promise<string | null> {
+  try {
+    const room = await sql`
+      SELECT theme
+      FROM rooms
+      WHERE id = ${roomId}::uuid
+    `;
+    
+    return room && room.length > 0 ? room[0].theme : null;
+  } catch (error) {
+    console.error(`[Simulation] Failed to get room theme:`, error);
+    return null;
+  }
+}
+
+/**
+ * Decide behavior using probability-based system with context awareness
+ * Probabilities: idle (5%), wander (40%), follow (10%), dance (5%), 
+ *                useFurniture (15%), playGame (10%), tradeItem (10%), emoteReact (5%)
+ */
+async function decideBehaviorProbabilistic(
+  agentId: string,
+  roomId: string,
+  sql: any
+): Promise<{ action: AgentAction; reason: string; context?: any }> {
+  // Get context
+  const nearbyFurniture = await findNearbyFurniture(agentId, roomId, sql);
+  const nearbyAgents = await findNearbyAgents(agentId, roomId, sql);
+  const roomTheme = await getRoomTheme(roomId, sql);
+
+  // Probability distribution (must sum to 100%)
+  const rand = Math.random() * 100;
+  
+  if (rand < 5) {
+    // 5% idle
+    return { action: 'idle', reason: 'Taking a break' };
+  } else if (rand < 45) {
+    // 40% wander
+    return { action: 'wander', reason: 'Exploring the room' };
+  } else if (rand < 55) {
+    // 10% follow
+    if (nearbyAgents.length > 0) {
+      const target = nearbyAgents[Math.floor(Math.random() * nearbyAgents.length)];
+      return { 
+        action: 'follow', 
+        reason: 'Following another agent',
+        context: { targetAgent: target }
+      };
+    }
+    // Fallback to wander if no agents nearby
+    return { action: 'wander', reason: 'Looking for someone to follow' };
+  } else if (rand < 60) {
+    // 5% dance
+    return { action: 'dance', reason: 'Feeling the music' };
+  } else if (rand < 75) {
+    // 15% useFurniture
+    if (nearbyFurniture.length > 0) {
+      const furniture = nearbyFurniture[Math.floor(Math.random() * nearbyFurniture.length)];
+      return { 
+        action: 'useFurniture', 
+        reason: 'Interacting with furniture',
+        context: { furniture }
+      };
+    }
+    // Fallback to wander if no furniture nearby
+    return { action: 'wander', reason: 'Looking for furniture to use' };
+  } else if (rand < 85) {
+    // 10% playGame
+    if (nearbyAgents.length > 0) {
+      const opponent = nearbyAgents[Math.floor(Math.random() * nearbyAgents.length)];
+      return { 
+        action: 'playGame', 
+        reason: 'Inviting to play a game',
+        context: { opponent }
+      };
+    }
+    // Fallback to idle if no agents nearby
+    return { action: 'idle', reason: 'No one to play with' };
+  } else if (rand < 95) {
+    // 10% tradeItem
+    if (nearbyAgents.length > 0) {
+      const tradingPartner = nearbyAgents[Math.floor(Math.random() * nearbyAgents.length)];
+      return { 
+        action: 'tradeItem', 
+        reason: 'Offering a trade',
+        context: { tradingPartner }
+      };
+    }
+    // Fallback to idle if no agents nearby
+    return { action: 'idle', reason: 'No one to trade with' };
+  } else {
+    // 5% emoteReact
+    if (nearbyAgents.length > 0) {
+      return { 
+        action: 'emoteReact', 
+        reason: 'Reacting to nearby agents',
+        context: { nearbyAgents }
+      };
+    }
+    // Fallback to emote even if alone
+    return { action: 'emote', reason: 'Expressing emotion' };
+  }
 }
 
 /**
@@ -291,7 +461,8 @@ async function executeAction(
   action: AgentAction,
   personality: Personality,
   sql: any,
-  broadcast: (roomId: string, event: any) => void
+  broadcast: (roomId: string, event: any) => void,
+  context?: any
 ): Promise<boolean> {
   try {
     switch (action) {
@@ -431,6 +602,243 @@ async function executeAction(
         return true;
       }
 
+      case 'wander': {
+        // Random movement similar to 'move' but explicitly wandering
+        const x = Math.floor(Math.random() * 20);
+        const y = Math.floor(Math.random() * 20);
+
+        await sql`
+          UPDATE presence
+          SET x = ${x}, y = ${y}
+          WHERE agent_id = ${agentId}::uuid AND room_id = ${roomId}::uuid
+        `;
+
+        broadcast(roomId, {
+          type: 'move',
+          agentId,
+          x,
+          y,
+          rotation: 0,
+        });
+
+        try {
+          await addMemory(
+            agentId,
+            {
+              type: 'observation',
+              content: `Wandered to position (${x}, ${y}) in room ${roomId}`,
+              importance: 2,
+              relatedAgentIds: [],
+            },
+            sql
+          );
+        } catch (error) {
+          console.error(`[Simulation] Failed to add wander memory:`, error);
+        }
+
+        return true;
+      }
+
+      case 'follow': {
+        // Follow another agent (move towards their position)
+        if (!context?.targetAgent) return false;
+
+        const targetX = context.targetAgent.x;
+        const targetY = context.targetAgent.y;
+
+        await sql`
+          UPDATE presence
+          SET x = ${targetX}, y = ${targetY}
+          WHERE agent_id = ${agentId}::uuid AND room_id = ${roomId}::uuid
+        `;
+
+        broadcast(roomId, {
+          type: 'move',
+          agentId,
+          x: targetX,
+          y: targetY,
+          rotation: 0,
+        });
+
+        try {
+          await addMemory(
+            agentId,
+            {
+              type: 'observation',
+              content: `Followed agent ${context.targetAgent.agentId} to (${targetX}, ${targetY})`,
+              importance: 5,
+              relatedAgentIds: [context.targetAgent.agentId],
+            },
+            sql
+          );
+        } catch (error) {
+          console.error(`[Simulation] Failed to add follow memory:`, error);
+        }
+
+        return true;
+      }
+
+      case 'dance': {
+        // Perform dance emote
+        broadcast(roomId, {
+          type: 'emote',
+          agentId,
+          emote: 'dance',
+        });
+
+        try {
+          await addMemory(
+            agentId,
+            {
+              type: 'observation',
+              content: `Danced in room ${roomId}`,
+              importance: 4,
+              relatedAgentIds: [],
+            },
+            sql
+          );
+        } catch (error) {
+          console.error(`[Simulation] Failed to add dance memory:`, error);
+        }
+
+        return true;
+      }
+
+      case 'useFurniture': {
+        // Interact with nearby furniture
+        if (!context?.furniture) return false;
+
+        const furniture = context.furniture;
+
+        // Move to furniture position
+        await sql`
+          UPDATE presence
+          SET x = ${furniture.x}, y = ${furniture.y}
+          WHERE agent_id = ${agentId}::uuid AND room_id = ${roomId}::uuid
+        `;
+
+        // Broadcast furniture interaction
+        broadcast(roomId, {
+          type: 'furniture_use',
+          agentId,
+          furnitureId: furniture.id,
+          action: 'sit', // Could be 'sit', 'use', etc.
+        });
+
+        try {
+          await addMemory(
+            agentId,
+            {
+              type: 'observation',
+              content: `Used furniture ${furniture.itemDefId} at (${furniture.x}, ${furniture.y})`,
+              importance: 6,
+              relatedAgentIds: [],
+            },
+            sql
+          );
+        } catch (error) {
+          console.error(`[Simulation] Failed to add furniture memory:`, error);
+        }
+
+        return true;
+      }
+
+      case 'playGame': {
+        // Invite another agent to play a mini-game
+        if (!context?.opponent) return false;
+
+        const opponent = context.opponent;
+        const games = ['tictactoe', 'dice', 'coinflip'];
+        const gameType = games[Math.floor(Math.random() * games.length)];
+
+        // Broadcast game invitation
+        broadcast(roomId, {
+          type: 'game_invite',
+          agentId,
+          opponentId: opponent.agentId,
+          gameType,
+        });
+
+        try {
+          await addMemory(
+            agentId,
+            {
+              type: 'conversation',
+              content: `Invited ${opponent.agentId} to play ${gameType}`,
+              importance: 7,
+              relatedAgentIds: [opponent.agentId],
+            },
+            sql
+          );
+        } catch (error) {
+          console.error(`[Simulation] Failed to add game memory:`, error);
+        }
+
+        return true;
+      }
+
+      case 'tradeItem': {
+        // Offer trade to nearby agent
+        if (!context?.tradingPartner) return false;
+
+        const partner = context.tradingPartner;
+
+        // Broadcast trade offer
+        broadcast(roomId, {
+          type: 'trade_offer',
+          agentId,
+          partnerId: partner.agentId,
+          item: 'random_item', // Could be more sophisticated
+        });
+
+        try {
+          await addMemory(
+            agentId,
+            {
+              type: 'conversation',
+              content: `Offered trade to ${partner.agentId}`,
+              importance: 6,
+              relatedAgentIds: [partner.agentId],
+            },
+            sql
+          );
+        } catch (error) {
+          console.error(`[Simulation] Failed to add trade memory:`, error);
+        }
+
+        return true;
+      }
+
+      case 'emoteReact': {
+        // React to nearby agents with emotes
+        const reactions = ['wave', 'clap', 'laugh', 'nod', 'thumbsup'];
+        const emote = reactions[Math.floor(Math.random() * reactions.length)];
+
+        broadcast(roomId, {
+          type: 'emote',
+          agentId,
+          emote,
+        });
+
+        try {
+          const nearbyIds = context?.nearbyAgents?.map((a: any) => a.agentId) || [];
+          await addMemory(
+            agentId,
+            {
+              type: 'observation',
+              content: `Reacted with ${emote} to nearby agents`,
+              importance: 5,
+              relatedAgentIds: nearbyIds,
+            },
+            sql
+          );
+        } catch (error) {
+          console.error(`[Simulation] Failed to add reaction memory:`, error);
+        }
+
+        return true;
+      }
+
       case 'idle':
       default:
         return false;
@@ -466,14 +874,14 @@ export async function tick(
 
     const personality = getAgentPersonality(agentId);
     
-    // Use personality engine for behavior decision
-    const { action, reason } = await selectActionWithPersonality(agentId, roomId, sql);
+    // Use probabilistic behavior decision system
+    const { action, reason, context } = await decideBehaviorProbabilistic(agentId, roomId, sql);
     
     // Get current profile for mood display
     const profile = getOrCreateProfile(agentId);
     const moodEmoji = getMoodEmoji(profile.mood.current_mood);
 
-    const success = await executeAction(agentId, roomId, action, personality, sql, broadcast);
+    const success = await executeAction(agentId, roomId, action, personality, sql, broadcast, context);
     if (success) {
       actionsExecuted++;
       recordAction(agentId);
