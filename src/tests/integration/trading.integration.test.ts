@@ -10,14 +10,20 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { setupIntegrationTests, teardownIntegrationTests, getTestSql } from './setup.js';
+import { setupIntegrationTests, teardownIntegrationTests, getTestSql, isDatabaseAvailable } from './setup.js';
 import * as tradingService from '../../services/trading.js';
 import { nanoid } from 'nanoid';
 
 let sql: ReturnType<typeof getTestSql>;
 
 describe('Integration: Trading Flow', () => {
-  beforeAll(async () => {
+  beforeAll(async (ctx) => {
+    const dbAvailable = await isDatabaseAvailable();
+    if (!dbAvailable) {
+      console.log('⏭️  Skipping integration tests: PostgreSQL database not available');
+      ctx.skip();
+      return;
+    }
     sql = await setupIntegrationTests();
   });
 

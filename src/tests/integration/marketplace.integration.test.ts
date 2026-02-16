@@ -8,14 +8,20 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { setupIntegrationTests, teardownIntegrationTests, getTestSql } from './setup.js';
+import { setupIntegrationTests, teardownIntegrationTests, getTestSql, isDatabaseAvailable } from './setup.js';
 import * as marketplaceService from '../../services/marketplace.js';
 import * as economyService from '../../services/economy.js';
 
 let sql: ReturnType<typeof getTestSql>;
 
 describe('Integration: Marketplace Flow', () => {
-  beforeAll(async () => {
+  beforeAll(async (ctx) => {
+    const dbAvailable = await isDatabaseAvailable();
+    if (!dbAvailable) {
+      console.log('⏭️  Skipping integration tests: PostgreSQL database not available');
+      ctx.skip();
+      return;
+    }
     sql = await setupIntegrationTests();
   });
 

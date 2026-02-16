@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { setupIntegrationTests, teardownIntegrationTests, getTestSql } from './setup.js';
+import { setupIntegrationTests, teardownIntegrationTests, getTestSql, isDatabaseAvailable } from './setup.js';
 import * as agentAuthService from '../../services/agentAuth.js';
 import * as authService from '../../services/auth.js';
 import * as roomsService from '../../services/rooms.js';
@@ -19,7 +19,13 @@ import { nanoid } from 'nanoid';
 let sql: ReturnType<typeof getTestSql>;
 
 describe('Integration: Auth & Movement Flow', () => {
-  beforeAll(async () => {
+  beforeAll(async (ctx) => {
+    const dbAvailable = await isDatabaseAvailable();
+    if (!dbAvailable) {
+      console.log('⏭️  Skipping integration tests: PostgreSQL database not available');
+      ctx.skip();
+      return;
+    }
     sql = await setupIntegrationTests();
   });
 

@@ -9,14 +9,20 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { setupIntegrationTests, teardownIntegrationTests, getTestSql } from './setup.js';
+import { setupIntegrationTests, teardownIntegrationTests, getTestSql, isDatabaseAvailable } from './setup.js';
 import * as friendsService from '../../services/friends.js';
 import * as dmService from '../../services/directMessages.js';
 
 let sql: ReturnType<typeof getTestSql>;
 
 describe('Integration: Social/Friends Flow', () => {
-  beforeAll(async () => {
+  beforeAll(async (ctx) => {
+    const dbAvailable = await isDatabaseAvailable();
+    if (!dbAvailable) {
+      console.log('⏭️  Skipping integration tests: PostgreSQL database not available');
+      ctx.skip();
+      return;
+    }
     sql = await setupIntegrationTests();
   });
 

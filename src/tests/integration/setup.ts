@@ -289,3 +289,27 @@ export async function teardownIntegrationTests() {
  * Get test SQL connection (for use in tests)
  */
 export { getTestConnection as getTestSql };
+
+/**
+ * Check if database is available (for skipping integration tests)
+ */
+export async function isDatabaseAvailable(): Promise<boolean> {
+  try {
+    const sql = postgres({
+      host: TEST_DB_HOST,
+      port: TEST_DB_PORT,
+      database: 'postgres',
+      username: TEST_DB_USER,
+      password: TEST_DB_PASSWORD,
+      max: 1,
+      connect_timeout: 2, // 2 second timeout
+    });
+
+    // Try a simple query
+    await sql`SELECT 1`;
+    await sql.end();
+    return true;
+  } catch (error) {
+    return false;
+  }
+}

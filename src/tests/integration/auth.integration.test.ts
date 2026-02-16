@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { setupIntegrationTests, teardownIntegrationTests, getTestSql } from './setup.js';
+import { setupIntegrationTests, teardownIntegrationTests, getTestSql, isDatabaseAvailable } from './setup.js';
 import * as agentAuthService from '../../services/agentAuth.js';
 import * as authService from '../../services/auth.js';
 import { nanoid } from 'nanoid';
@@ -17,7 +17,13 @@ import { nanoid } from 'nanoid';
 let sql: ReturnType<typeof getTestSql>;
 
 describe('Integration: Authentication Flow', () => {
-  beforeAll(async () => {
+  beforeAll(async (ctx) => {
+    const dbAvailable = await isDatabaseAvailable();
+    if (!dbAvailable) {
+      console.log('⏭️  Skipping integration tests: PostgreSQL database not available');
+      ctx.skip();
+      return;
+    }
     sql = await setupIntegrationTests();
   });
 

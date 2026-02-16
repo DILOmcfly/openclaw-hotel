@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { setupIntegrationTests, teardownIntegrationTests, getTestSql } from './setup.js';
+import { setupIntegrationTests, teardownIntegrationTests, getTestSql, isDatabaseAvailable } from './setup.js';
 import * as economyService from '../../services/economy.js';
 import * as inventoryService from '../../services/inventory.js';
 import * as shopService from '../../services/roomShops.js';
@@ -19,7 +19,13 @@ import { nanoid } from 'nanoid';
 let sql: ReturnType<typeof getTestSql>;
 
 describe('Integration: Economy & Inventory Flow', () => {
-  beforeAll(async () => {
+  beforeAll(async (ctx) => {
+    const dbAvailable = await isDatabaseAvailable();
+    if (!dbAvailable) {
+      console.log('⏭️  Skipping integration tests: PostgreSQL database not available');
+      ctx.skip();
+      return;
+    }
     sql = await setupIntegrationTests();
   });
 
