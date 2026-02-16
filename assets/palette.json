@@ -1,0 +1,266 @@
+{
+  "name": "OpenClaw Hotel Master Palette",
+  "version": "1.0.0",
+  "created": "2026-02-16",
+  "description": "Habbo-style isometric pixel art palette. Flat colors only, no gradients.",
+  "totalColors": 32,
+  "categories": {
+    "skinTones": {
+      "description": "Character skin tones and highlights",
+      "colors": [
+        {
+          "name": "Skin Light",
+          "hex": "#FFD9B3",
+          "rgb": [255, 217, 179],
+          "usage": "Base skin tone"
+        },
+        {
+          "name": "Skin Medium",
+          "hex": "#D4A574",
+          "rgb": [212, 165, 116],
+          "usage": "Darker skin tone"
+        },
+        {
+          "name": "Skin Dark",
+          "hex": "#8B6F47",
+          "rgb": [139, 111, 71],
+          "usage": "Shadow/outline on skin"
+        },
+        {
+          "name": "Skin Highlight",
+          "hex": "#FFF4E6",
+          "rgb": [255, 244, 230],
+          "usage": "Brightest highlight"
+        },
+        {
+          "name": "Skin Blush",
+          "hex": "#FFB4A3",
+          "rgb": [255, 180, 163],
+          "usage": "Cheeks, warmth"
+        },
+        {
+          "name": "Skin Outline",
+          "hex": "#6B4423",
+          "rgb": [107, 68, 35],
+          "usage": "Skin edges"
+        }
+      ]
+    },
+    "woodTones": {
+      "description": "Furniture wood materials",
+      "colors": [
+        {
+          "name": "Wood Light",
+          "hex": "#D4A574",
+          "rgb": [212, 165, 116],
+          "usage": "Light oak, birch"
+        },
+        {
+          "name": "Wood Medium",
+          "hex": "#8B6F47",
+          "rgb": [139, 111, 71],
+          "usage": "Standard furniture"
+        },
+        {
+          "name": "Wood Dark",
+          "hex": "#5C4033",
+          "rgb": [92, 64, 51],
+          "usage": "Mahogany, walnut"
+        },
+        {
+          "name": "Wood Highlight",
+          "hex": "#E6C9A8",
+          "rgb": [230, 201, 168],
+          "usage": "Top surfaces"
+        },
+        {
+          "name": "Wood Shadow",
+          "hex": "#3D2817",
+          "rgb": [61, 40, 23],
+          "usage": "Under furniture"
+        }
+      ]
+    },
+    "metal": {
+      "description": "Metal and industrial materials",
+      "colors": [
+        {
+          "name": "Metal Base",
+          "hex": "#C0C0C0",
+          "rgb": [192, 192, 192],
+          "usage": "Steel, chrome"
+        },
+        {
+          "name": "Metal Highlight",
+          "hex": "#E8E8E8",
+          "rgb": [232, 232, 232],
+          "usage": "Reflections"
+        },
+        {
+          "name": "Metal Shadow",
+          "hex": "#808080",
+          "rgb": [128, 128, 128],
+          "usage": "Depth"
+        },
+        {
+          "name": "Metal Dark",
+          "hex": "#404040",
+          "rgb": [64, 64, 64],
+          "usage": "Edges, screws"
+        }
+      ]
+    },
+    "fabric": {
+      "description": "Upholstery and textile colors",
+      "colors": [
+        {
+          "name": "Fabric Red",
+          "hex": "#D32F2F",
+          "rgb": [211, 47, 47],
+          "usage": "Chairs, sofas"
+        },
+        {
+          "name": "Fabric Blue",
+          "hex": "#1976D2",
+          "rgb": [25, 118, 210],
+          "usage": "Curtains, carpets"
+        },
+        {
+          "name": "Fabric Green",
+          "hex": "#388E3C",
+          "rgb": [56, 142, 60],
+          "usage": "Accent pieces"
+        },
+        {
+          "name": "Fabric Purple",
+          "hex": "#7B1FA2",
+          "rgb": [123, 31, 162],
+          "usage": "Luxury items"
+        },
+        {
+          "name": "Fabric Beige",
+          "hex": "#D7CCC8",
+          "rgb": [215, 204, 200],
+          "usage": "Neutral upholstery"
+        },
+        {
+          "name": "Fabric Shadow",
+          "hex": "#6D4C41",
+          "rgb": [109, 76, 65],
+          "usage": "Fabric depth"
+        }
+      ]
+    },
+    "nature": {
+      "description": "Plants and natural elements",
+      "colors": [
+        {
+          "name": "Leaf Green",
+          "hex": "#4CAF50",
+          "rgb": [76, 175, 80],
+          "usage": "Leaves"
+        },
+        {
+          "name": "Plant Dark",
+          "hex": "#2E7D32",
+          "rgb": [46, 125, 50],
+          "usage": "Shadows on plants"
+        },
+        {
+          "name": "Soil Brown",
+          "hex": "#795548",
+          "rgb": [121, 85, 72],
+          "usage": "Pots, dirt"
+        },
+        {
+          "name": "Plant Highlight",
+          "hex": "#81C784",
+          "rgb": [129, 199, 132],
+          "usage": "Top of leaves"
+        }
+      ]
+    },
+    "ui": {
+      "description": "System colors and base elements",
+      "colors": [
+        {
+          "name": "Black",
+          "hex": "#000000",
+          "rgb": [0, 0, 0],
+          "usage": "Outlines (CRITICAL)"
+        },
+        {
+          "name": "White",
+          "hex": "#FFFFFF",
+          "rgb": [255, 255, 255],
+          "usage": "Highlights, text"
+        },
+        {
+          "name": "Floor Neutral",
+          "hex": "#E0E0E0",
+          "rgb": [224, 224, 224],
+          "usage": "Base floor tiles"
+        },
+        {
+          "name": "Wall Base",
+          "hex": "#BDBDBD",
+          "rgb": [189, 189, 189],
+          "usage": "Standard walls"
+        },
+        {
+          "name": "Shadow",
+          "hex": "#424242",
+          "rgb": [66, 66, 66],
+          "usage": "Cast shadows"
+        },
+        {
+          "name": "Transparent",
+          "hex": "#00000000",
+          "rgb": [0, 0, 0, 0],
+          "usage": "Alpha channel"
+        },
+        {
+          "name": "UI Accent",
+          "hex": "#FF6F00",
+          "rgb": [255, 111, 0],
+          "usage": "Notifications, highlights"
+        }
+      ]
+    }
+  },
+  "paletteArray": [
+    "#FFD9B3", "#D4A574", "#8B6F47", "#FFF4E6", "#FFB4A3", "#6B4423",
+    "#D4A574", "#8B6F47", "#5C4033", "#E6C9A8", "#3D2817",
+    "#C0C0C0", "#E8E8E8", "#808080", "#404040",
+    "#D32F2F", "#1976D2", "#388E3C", "#7B1FA2", "#D7CCC8", "#6D4C41",
+    "#4CAF50", "#2E7D32", "#795548", "#81C784",
+    "#000000", "#FFFFFF", "#E0E0E0", "#BDBDBD", "#424242", "#00000000", "#FF6F00"
+  ],
+  "guidelines": {
+    "maxColorsPerSprite": 12,
+    "outlineColor": "#000000",
+    "outlineThickness": "1-2px",
+    "lightingDirection": "top-left (135°)",
+    "gradientsAllowed": false,
+    "maxShadesPerColor": 3,
+    "antiAliasing": false
+  },
+  "exportSettings": {
+    "format": "PNG",
+    "transparency": true,
+    "colorMode": "8-bit indexed",
+    "scalingMethod": "Nearest Neighbor"
+  },
+  "tools": {
+    "editors": [
+      "LibreSprite",
+      "Piskel",
+      "Aseprite"
+    ],
+    "paletteImport": {
+      "libresprite": "File > Import > Palette",
+      "aseprite": "Palette > Load Palette",
+      "gimp": "Windows > Dockable Dialogs > Palettes > Import"
+    }
+  }
+}
