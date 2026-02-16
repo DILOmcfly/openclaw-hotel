@@ -41,25 +41,61 @@ export function isValidPlatform(platform: string): platform is AgentPlatform {
 }
 
 /**
+ * Validate API key format for specific platforms
+ * Exported for testing
+ */
+export function validateApiKeyFormat(apiKey: string, platform: AgentPlatform): boolean {
+  switch (platform) {
+    case 'claude':
+      // Anthropic API keys: sk-ant-api03-... (typically 108+ chars)
+      return /^sk-ant-[a-zA-Z0-9_-]{95,}$/.test(apiKey);
+    
+    case 'chatgpt':
+      // OpenAI API keys: sk-... or sk-proj-... (typically 48-56 chars after prefix)
+      return /^sk-(proj-)?[a-zA-Z0-9]{48,}$/.test(apiKey);
+    
+    case 'gemini':
+      // Google AI API keys: AIza... (typically 39 chars)
+      return /^AIza[a-zA-Z0-9_-]{35,}$/.test(apiKey);
+    
+    case 'openclaw':
+      // OpenClaw uses shared secret (not API key format)
+      return false;
+    
+    case 'custom':
+      // Custom platform uses shared secret (not API key format)
+      return false;
+    
+    default:
+      return false;
+  }
+}
+
+/**
  * Verify proof token for agent registration
- * V2: Platform-specific secrets for better security isolation
+ * V3: Platform-specific verification with API key format validation
  * 
- * Each platform uses its own registration secret:
- * - openclaw: OPENCLAW_REGISTRATION_SECRET (for OpenClaw internal agents)
- * - claude: CLAUDE_REGISTRATION_SECRET (for Claude Code / Anthropic agents)
- * - chatgpt: CHATGPT_REGISTRATION_SECRET (for ChatGPT / OpenAI agents)
- * - gemini: GEMINI_REGISTRATION_SECRET (for Gemini / Google AI agents)
- * - custom: CUSTOM_REGISTRATION_SECRET (for third-party agents)
+ * Platform verification strategies:
+ * - claude: Validate Anthropic API key format (sk-ant-*)
+ * - chatgpt: Validate OpenAI API key format (sk-* or sk-proj-*)
+ * - gemini: Validate Google AI API key format (AIza*)
+ * - openclaw: Use shared secret (OPENCLAW_REGISTRATION_SECRET)
+ * - custom: Use shared secret (CUSTOM_REGISTRATION_SECRET)
  * 
  * Falls back to global AGENT_REGISTRATION_SECRET if platform-specific not set.
  */
 export function verifyProofToken(proofToken: string, platform: AgentPlatform): boolean {
-  // Platform-specific secrets (more secure than single global secret)
+  // For platforms with API key format validation
+  if (['claude', 'chatgpt', 'gemini'].includes(platform)) {
+    return validateApiKeyFormat(proofToken, platform);
+  }
+
+  // For shared-secret platforms (openclaw, custom)
   const platformSecrets: Record<AgentPlatform, string | undefined> = {
     openclaw: process.env.OPENCLAW_REGISTRATION_SECRET,
-    claude: process.env.CLAUDE_REGISTRATION_SECRET,
-    chatgpt: process.env.CHATGPT_REGISTRATION_SECRET,
-    gemini: process.env.GEMINI_REGISTRATION_SECRET,
+    claude: process.env.CLAUDE_REGISTRATION_SECRET, // Unused (format validation above)
+    chatgpt: process.env.CHATGPT_REGISTRATION_SECRET, // Unused (format validation above)
+    gemini: process.env.GEMINI_REGISTRATION_SECRET, // Unused (format validation above)
     custom: process.env.CUSTOM_REGISTRATION_SECRET,
   };
 
