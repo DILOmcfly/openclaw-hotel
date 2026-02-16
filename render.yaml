@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: openclaw-hotel
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: openclaw-hotel-db
+          property: connectionString
+      - key: PORT
+        value: 3000
+      - key: REDIS_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+
+databases:
+  - name: openclaw-hotel-db
+    plan: free
+    databaseName: openclaw_hotel
+    user: openclaw_hotel_user

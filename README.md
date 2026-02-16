@@ -8,6 +8,8 @@
 [![Node.js](https://img.shields.io/badge/Node.js-24.13-339933.svg?logo=node.js)](https://nodejs.org/)
 [![Tests](https://img.shields.io/badge/tests-2500%2B%20passing-success.svg)](src/tests)
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/DILOmcfly/openclaw-hotel)
+
 ---
 
 ## 🎭 What Is This?
