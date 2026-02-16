@@ -18,6 +18,8 @@ import {
   type BehaviorAction,
   type Event,
 } from './personalityEngine.js';
+import { addMemory } from './agentMemory.js';
+import { checkAndGenerateReflections } from './reflectionService.js';
 
 export type SimulationConfig = {
   enabled: boolean;
@@ -292,11 +294,27 @@ async function executeAction(
           rotation: 0,
         });
 
+        // Add memory of movement
+        await addMemory(
+          agentId,
+          {
+            type: 'observation',
+            content: `Moved to position (${x}, ${y}) in room ${roomId}`,
+            importance: 3,
+            relatedAgentIds: [],
+          },
+          sql
+        );
+
+        // Check for reflection trigger
+        await checkAndGenerateReflections(agentId, sql);
+
         return true;
       }
 
       case 'chat': {
         const result = await generateChatMessage(agentId, personality, roomId, sql);
+        const nearbyAgents = await getNearbyAgents(agentId, roomId, sql);
 
         // Log LLM usage
         if (result.source === 'llm') {
@@ -312,11 +330,27 @@ async function executeAction(
           timestamp: new Date().toISOString(),
         });
 
+        // Add memory of conversation
+        await addMemory(
+          agentId,
+          {
+            type: 'conversation',
+            content: `Said: "${result.message}" in room ${roomId}`,
+            importance: 6, // Conversations are moderately important
+            relatedAgentIds: nearbyAgents,
+          },
+          sql
+        );
+
+        // Check for reflection trigger
+        await checkAndGenerateReflections(agentId, sql);
+
         return true;
       }
 
       case 'emote': {
         const emote = generateEmote(personality);
+        const nearbyAgents = await getNearbyAgents(agentId, roomId, sql);
 
         // Broadcast emote
         broadcast(roomId, {
@@ -324,6 +358,21 @@ async function executeAction(
           agentId,
           emote,
         });
+
+        // Add memory of emote
+        await addMemory(
+          agentId,
+          {
+            type: 'observation',
+            content: `Performed emote: ${emote} in room ${roomId}`,
+            importance: 4,
+            relatedAgentIds: nearbyAgents,
+          },
+          sql
+        );
+
+        // Check for reflection trigger
+        await checkAndGenerateReflections(agentId, sql);
 
         return true;
       }
