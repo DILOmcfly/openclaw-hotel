@@ -141,7 +141,7 @@ router.get('/api/history/:id', validateToken, async (req, res) => {
       return;
     }
 
-    const transaction = await getTransactionById(id, sql);
+    const transaction = await getTransactionById(id as string, sql);
 
     if (!transaction) {
       res.status(404).json({ error: 'Transaction not found' });

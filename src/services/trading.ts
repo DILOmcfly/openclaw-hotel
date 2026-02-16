@@ -154,7 +154,7 @@ export async function updateTradeItems(
       const inventoryMap = new Map(inventoryRows.map((r: any) => [r.item_def_id, r.quantity]));
       
       for (const item of items) {
-        const availableQty = inventoryMap.get(item.itemDefId) || 0;
+        const availableQty = (inventoryMap.get(item.itemDefId) as number) || 0;
         if (availableQty < item.quantity) {
           throw new Error(`Insufficient quantity of ${item.itemDefId}`);
         }

@@ -207,7 +207,7 @@ router.put('/api/rooms/:roomId/privacy', validateToken, async (req, res) => {
     const { setRoomVisibility } = await import('../services/roomPrivacy.js');
     
     if (visibility) {
-      await setRoomVisibility(roomId, visibility, sql, password);
+      await setRoomVisibility(roomId as string, visibility as any, sql, password);
     }
 
     // Update max occupants if provided

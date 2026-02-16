@@ -149,7 +149,7 @@ export async function getAchievementProgress(agentId: string, sql: any): Promise
       achievement,
       progress: percentage,
       unlocked: unlockedMap.has(achievement.id),
-      unlockedAt: unlockedMap.get(achievement.id) ?? null,
+      unlockedAt: unlockedMap.get(achievement.id) as Date ?? null,
     });
   }
   

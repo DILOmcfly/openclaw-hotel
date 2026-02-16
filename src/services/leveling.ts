@@ -85,12 +85,12 @@ export async function addXP(agentId: string, xpToAdd: number, sql: any): Promise
 
     if (rewardResult.length > 0) {
       reward = rewardResult[0];
-      if (reward.rewardCoins > 0) {
+      if (reward && reward.rewardCoins > 0) {
         await sql`
           INSERT INTO agent_balances (agent_id, coins)
-          VALUES (${agentId}, ${reward.rewardCoins})
+          VALUES (${agentId}, ${reward!.rewardCoins})
           ON CONFLICT (agent_id) DO UPDATE SET
-            coins = agent_balances.coins + ${reward.rewardCoins}
+            coins = agent_balances.coins + ${reward!.rewardCoins}
         `;
       }
     }

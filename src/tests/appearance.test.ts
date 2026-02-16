@@ -9,7 +9,7 @@ describe('Appearance Service', () => {
       return Promise.resolve(returnValue);
     });
     // Add unsafe method for dynamic queries
-    mock.unsafe = vi.fn().mockResolvedValue(returnValue);
+    (mock as any).unsafe = vi.fn().mockResolvedValue(returnValue);
     return mock as any;
   };
 

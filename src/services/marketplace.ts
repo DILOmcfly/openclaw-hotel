@@ -1,4 +1,4 @@
-import { sql } from '../db';
+import { sql } from '../db/index.js';
 
 export interface MarketplaceListing {
   id: string;

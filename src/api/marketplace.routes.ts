@@ -128,7 +128,7 @@ router.post('/:id/buy', validateToken, async (req: Request, res: Response) => {
     }
 
     const { id } = req.params;
-    const result = await MarketplaceService.buyListing(id, agentId);
+    const result = await MarketplaceService.buyListing(id as string, agentId);
 
     if (!result.success) {
       return res.status(400).json({ error: result.error });
@@ -153,7 +153,7 @@ router.delete('/:id', validateToken, async (req: Request, res: Response) => {
     }
 
     const { id } = req.params;
-    const result = await MarketplaceService.cancelListing(id, agentId);
+    const result = await MarketplaceService.cancelListing(id as string, agentId);
 
     if (!result.success) {
       return res.status(400).json({ error: result.error });

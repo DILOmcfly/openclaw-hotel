@@ -150,7 +150,7 @@ export async function findMentor(sql: any): Promise<MentorStats[]> {
     ORDER BY ms.avg_rating DESC, ms.mentees_helped DESC
   `;
 
-  return result.map(r => ({
+  return result.map((r: any) => ({
     agentId: r.agentId,
     menteesHelped: r.menteesHelped,
     avgRating: r.avgRating,

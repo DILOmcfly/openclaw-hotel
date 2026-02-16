@@ -1,4 +1,6 @@
-import Redis, { Redis as RedisType } from 'ioredis';
+import IORedis from 'ioredis';
+const Redis = IORedis as any;
+type RedisType = any;
 
 /**
  * Redis client for session storage and caching
