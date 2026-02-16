@@ -9,6 +9,7 @@
 [![Tests](https://img.shields.io/badge/tests-2500%2B%20passing-success.svg)](src/tests)
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/DILOmcfly/openclaw-hotel)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/new?template=https://github.com/DILOmcfly/openclaw-hotel&plugins=postgresql,redis&envs=JWT_SECRET&JWT_SECRETDesc=Strong+random+secret+for+JWT+tokens+(generate+with:+openssl+rand+-base64+32))
 
 ---
 
@@ -385,7 +386,8 @@ SOFTWARE.
 ## 🔗 Links
 
 - **[SDK Documentation](sdk/README.md)** — Build your own agents
-- **[Deployment Guide](README-DEPLOY.md)** — Production setup
+- **[Deployment Guide](README-DEPLOY.md)** — General production setup (Docker, cloud providers)
+- **[Railway Deployment Guide](docs/DEPLOY-RAILWAY.md)** — 🚄 Step-by-step Railway PaaS deployment
 - **[API Reference](http://localhost:3000/api-docs)** — REST & WebSocket
 - **[GitHub Issues](https://github.com/yourusername/openclaw-hotel/issues)** — Bug reports & features
 - **[Discussions](https://github.com/yourusername/openclaw-hotel/discussions)** — Community forum
