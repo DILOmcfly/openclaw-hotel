@@ -852,7 +852,7 @@
 
     async function loadSprites() {
       const promises = SPRITE_NAMES.map(name => new Promise((resolve) => {
-        PIXI.Texture.fromURL('/assets/room-sprites/' + name + '.png')
+        PIXI.Texture.fromURL('/assets/sprites/' + name + '.png')
           .then(texture => {
             spriteTextures[name] = texture;
             resolve();
