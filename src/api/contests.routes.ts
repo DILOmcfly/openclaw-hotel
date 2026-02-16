@@ -63,9 +63,9 @@ router.get('/api/contests', async (req, res) => {
  */
 router.post('/api/contests/:id/enter', requireAgent, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { roomId } = req.body;
-    const agentId = (req as any).agentId;
+    const agentId = (req as any).agentId as string;
 
     if (!roomId) {
       res.status(400).json({ error: 'roomId is required' });
@@ -92,9 +92,9 @@ router.post('/api/contests/:id/enter', requireAgent, async (req, res) => {
  */
 router.post('/api/contests/:id/vote', requireAgent, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { roomId, score } = req.body;
-    const voterId = (req as any).agentId;
+    const voterId = (req as any).agentId as string;
 
     if (!roomId || score === undefined) {
       res.status(400).json({ error: 'roomId and score are required' });
@@ -136,7 +136,7 @@ router.get('/api/contests/:id/results', async (req, res) => {
  */
 router.put('/api/contests/:id/advance', requireRole('admin'), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const result = await advanceStatus(id, sql);
 
     if (!result.success) {

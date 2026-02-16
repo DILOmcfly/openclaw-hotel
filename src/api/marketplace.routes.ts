@@ -1,6 +1,6 @@
 import express from 'express';
-import * as MarketplaceService from '../services/marketplace';
-import { validateToken } from '../services/auth';
+import * as MarketplaceService from '../services/marketplace.js';
+import { validateToken } from '../services/auth.js';
 
 const router = express.Router();
 
@@ -48,7 +48,7 @@ router.get('/stats', async (req, res) => {
  */
 router.get('/my-listings', validateToken, async (req, res) => {
   try {
-    const agentId = req.agent?.agentId;
+    const agentId = req.agent?.id;
     if (!agentId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
@@ -87,7 +87,7 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/list', validateToken, async (req, res) => {
   try {
-    const agentId = req.agent?.agentId;
+    const agentId = req.agent?.id;
     if (!agentId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
@@ -122,7 +122,7 @@ router.post('/list', validateToken, async (req, res) => {
  */
 router.post('/:id/buy', validateToken, async (req, res) => {
   try {
-    const agentId = req.agent?.agentId;
+    const agentId = req.agent?.id;
     if (!agentId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
@@ -147,7 +147,7 @@ router.post('/:id/buy', validateToken, async (req, res) => {
  */
 router.delete('/:id', validateToken, async (req, res) => {
   try {
-    const agentId = req.agent?.agentId;
+    const agentId = req.agent?.id;
     if (!agentId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }

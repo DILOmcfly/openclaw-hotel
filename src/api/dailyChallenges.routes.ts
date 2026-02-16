@@ -65,8 +65,8 @@ router.get('/api/challenges', async (req, res) => {
  * Claim reward for completed challenge (requires auth)
  */
 router.post('/api/challenges/:id/claim', requireAgent, async (req, res) => {
-  const { id } = req.params;
-  const agentId = (req as any).agentId;
+  const id = req.params.id as string;
+  const agentId = (req as any).agentId as string;
 
   try {
     const result = await claimReward(agentId, id, sql);

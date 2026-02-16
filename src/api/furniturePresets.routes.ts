@@ -15,7 +15,7 @@ const router = Router();
 router.post('/api/rooms/:roomId/presets', validateToken, async (req, res) => {
   try {
     const agentId = res.locals.agentId;
-    const { roomId } = req.params;
+    const roomId = req.params.roomId as string;
     const { name, layout } = req.body;
 
     if (!agentId) {
@@ -29,7 +29,7 @@ router.post('/api/rooms/:roomId/presets', validateToken, async (req, res) => {
     }
 
     const roomResults = await sql`
-      SELECT created_by AS "createdBy" FROM rooms WHERE id = ${sql.typed.uuid(roomId)}
+      SELECT created_by AS "createdBy" FROM rooms WHERE id = ${roomId}
     `;
 
     if (roomResults.length === 0) {
@@ -60,7 +60,7 @@ router.post('/api/rooms/:roomId/presets', validateToken, async (req, res) => {
 router.get('/api/rooms/:roomId/presets', validateToken, async (req, res) => {
   try {
     const agentId = res.locals.agentId;
-    const { roomId } = req.params;
+    const roomId = req.params.roomId as string;
 
     if (!agentId) {
       res.status(401).json({ error: 'Unauthorized' });
@@ -81,7 +81,7 @@ router.get('/api/rooms/:roomId/presets', validateToken, async (req, res) => {
 router.post('/api/presets/:id/load', validateToken, async (req, res) => {
   try {
     const agentId = res.locals.agentId;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!agentId) {
       res.status(401).json({ error: 'Unauthorized' });
@@ -110,7 +110,7 @@ router.post('/api/presets/:id/load', validateToken, async (req, res) => {
 router.delete('/api/presets/:id', validateToken, async (req, res) => {
   try {
     const agentId = res.locals.agentId;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!agentId) {
       res.status(401).json({ error: 'Unauthorized' });
@@ -139,7 +139,7 @@ router.delete('/api/presets/:id', validateToken, async (req, res) => {
 router.put('/api/presets/:id/rename', validateToken, async (req, res) => {
   try {
     const agentId = res.locals.agentId;
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { name } = req.body;
 
     if (!agentId) {

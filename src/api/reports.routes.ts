@@ -107,9 +107,9 @@ router.get('/api/reports/pending/count', requireRole('moderator'), async (req, r
  */
 router.put('/api/reports/:id/resolve', requireRole('moderator'), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { status, note } = req.body;
-    const agentId = (req as any).agentId; // Set by requireRole middleware
+    const agentId = (req as any).agentId as string; // Set by requireRole middleware
 
     if (!status) {
       return res.status(400).json({ error: 'status is required' });

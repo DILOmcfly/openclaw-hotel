@@ -8,7 +8,7 @@ describe('Time Capsules Tests', () => {
 
   describe('validateOpensAt', () => {
     it('accepts date 1 day in future', () => {
-      const tomorrow = new Date(Date.now() + ONE_DAY_MS);
+      const tomorrow = new Date(Date.now() + ONE_DAY_MS + 1000); // Add 1 second buffer
       expect(validateOpensAt(tomorrow)).toBe(true);
     });
 

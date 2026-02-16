@@ -57,7 +57,8 @@ router.get('/api/agents/:agentId/lottery/tickets', async (req, res) => {
 
 router.post('/api/lottery/:id/draw', requireRole('admin'), async (req, res) => {
   try {
-    const result = await lotteryService.draw(parseInt(req.params.id, 10), sql);
+    const id = req.params.id as string;
+    const result = await lotteryService.draw(parseInt(id, 10), sql);
     res.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to draw lottery';

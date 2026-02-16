@@ -8,7 +8,7 @@
  * - Reflection Service (insight generation)
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as simulationService from '../services/SimulationService.js';
 import * as agentMemory from '../services/agentMemory.js';
 import * as personalityEngine from '../services/personalityEngine.js';
@@ -98,9 +98,11 @@ describe('SimulationService AI Integration', () => {
     mockSql = createMockSql();
     mockBroadcast = createMockBroadcast();
     simulationService.resetMetrics();
-    
-    // Clear rate limiting and accumulated importance
-    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    // Restore all mocks after each test to prevent interference
+    vi.restoreAllMocks();
   });
 
   it('should use personality engine to decide agent behavior', async () => {

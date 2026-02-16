@@ -23,7 +23,7 @@ const createEventSchema = z.object({
   type: z.enum(['rps_tournament', 'trivia', 'room_decoration_contest']),
   startTime: z.string().datetime(),
   endTime: z.string().datetime().nullable(),
-  config: z.record(z.any()).optional(),
+  config: z.record(z.string(), z.any()).optional(),
 });
 
 const submitScoreSchema = z.object({
@@ -63,7 +63,7 @@ router.get('/api/events/active', async (req, res) => {
  * Get event details by ID
  */
 router.get('/api/events/:id', async (req, res) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   // Validate UUID format
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -92,7 +92,7 @@ router.get('/api/events/:id', async (req, res) => {
  * Get event leaderboard
  */
 router.get('/api/events/:id/leaderboard', async (req, res) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   // Validate UUID format
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -115,7 +115,7 @@ router.get('/api/events/:id/leaderboard', async (req, res) => {
  * Get all participants of an event
  */
 router.get('/api/events/:id/participants', async (req, res) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   // Validate UUID format
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -138,8 +138,8 @@ router.get('/api/events/:id/participants', async (req, res) => {
  * Join a competitive event
  */
 router.post('/api/events/:id/join', requireAgent, async (req, res) => {
-  const { id } = req.params;
-  const agentId = (req as any).agentId; // Extract from auth middleware
+  const id = req.params.id as string;
+  const agentId = (req as any).agentId as string; // Extract from auth middleware
 
   // Validate UUID format
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -162,7 +162,7 @@ router.post('/api/events/:id/join', requireAgent, async (req, res) => {
  * Submit score for an event (agent only, during active event)
  */
 router.post('/api/events/:id/score', requireAgent, async (req, res) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   const parsed = submitScoreSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -171,7 +171,7 @@ router.post('/api/events/:id/score', requireAgent, async (req, res) => {
   }
 
   const { score } = parsed.data;
-  const agentId = (req as any).agentId; // Extract from auth middleware
+  const agentId = (req as any).agentId as string; // Extract from auth middleware
 
   // Validate UUID format
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -227,7 +227,7 @@ router.post('/api/admin/events', requireRole('admin'), async (req, res) => {
  * End an event and calculate rankings (admin only)
  */
 router.put('/api/admin/events/:id/end', requireRole('admin'), async (req, res) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   // Validate UUID format
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -250,7 +250,7 @@ router.put('/api/admin/events/:id/end', requireRole('admin'), async (req, res) =
  * Cancel an event (admin only)
  */
 router.delete('/api/admin/events/:id', requireRole('admin'), async (req, res) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   // Validate UUID format
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

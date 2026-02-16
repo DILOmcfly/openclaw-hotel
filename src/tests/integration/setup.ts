@@ -102,17 +102,15 @@ export async function runMigrations() {
       const filePath = join(migrationsDir, file);
       const migrationSql = await readFile(filePath, 'utf-8');
 
-      // Split by semicolons and execute each statement
-      const statements = migrationSql
-        .split(';')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-
-      for (const statement of statements) {
-        await sql.unsafe(statement);
+      // Execute the entire migration file as one statement
+      // This handles SQL functions with $$ delimiters correctly
+      try {
+        await sql.unsafe(migrationSql);
+        console.log(`  ✅ ${file}`);
+      } catch (error) {
+        console.error(`  ❌ ${file} failed:`, error);
+        throw error;
       }
-
-      console.log(`  ✅ ${file}`);
     }
 
     console.log(`✅ Migrations complete`);

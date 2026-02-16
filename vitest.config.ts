@@ -10,11 +10,7 @@ export default defineConfig({
     environment: 'node',
     // Run integration tests serially to avoid DB conflicts (Vitest 4+)
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        isolate: false // Run tests in same process to share DB connection
-      }
-    },
+    fileParallelism: false, // Run test files sequentially to avoid database conflicts
     testTimeout: 30000 // 30s for integration tests with DB setup
   }
 });

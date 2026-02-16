@@ -205,6 +205,61 @@ export const botDespawnMsgSchema = z.object({
 
 export type BotDespawnMsg = z.infer<typeof botDespawnMsgSchema>
 
+// Tic-Tac-Toe schemas
+export const gameTicTacToeCreateMsgSchema = z.object({
+  type: z.literal('game.tictactoe.create'),
+  roomId: z.string(),
+})
+
+export type GameTicTacToeCreateMsg = z.infer<typeof gameTicTacToeCreateMsgSchema>
+
+export const gameTicTacToeMoveMsgSchema = z.object({
+  type: z.literal('game.tictactoe.move'),
+  gameId: z.string(),
+  cell: z.number(),
+})
+
+export type GameTicTacToeMoveMsg = z.infer<typeof gameTicTacToeMoveMsgSchema>
+
+// Connect Four schemas
+export const gameConnectFourCreateMsgSchema = z.object({
+  type: z.literal('game.connectfour.create'),
+  roomId: z.string(),
+  opponentId: z.string(),
+})
+
+export type GameConnectFourCreateMsg = z.infer<typeof gameConnectFourCreateMsgSchema>
+
+export const gameConnectFourDropMsgSchema = z.object({
+  type: z.literal('game.connectfour.drop'),
+  gameId: z.string(),
+  column: z.number(),
+})
+
+export type GameConnectFourDropMsg = z.infer<typeof gameConnectFourDropMsgSchema>
+
+// Blackjack schemas
+export const gameBlackjackCreateMsgSchema = z.object({
+  type: z.literal('game.blackjack.create'),
+  roomId: z.string(),
+})
+
+export type GameBlackjackCreateMsg = z.infer<typeof gameBlackjackCreateMsgSchema>
+
+export const gameBlackjackHitMsgSchema = z.object({
+  type: z.literal('game.blackjack.hit'),
+  gameId: z.string(),
+})
+
+export type GameBlackjackHitMsg = z.infer<typeof gameBlackjackHitMsgSchema>
+
+export const gameBlackjackStandMsgSchema = z.object({
+  type: z.literal('game.blackjack.stand'),
+  gameId: z.string(),
+})
+
+export type GameBlackjackStandMsg = z.infer<typeof gameBlackjackStandMsgSchema>
+
 export const clientMessageSchema = z.discriminatedUnion('type', [
   roomJoinMsgSchema,
   roomLeaveMsgSchema,
@@ -229,6 +284,13 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   gameJoinMsgSchema,
   gameMoveMsgSchema,
   gameEndMsgSchema,
+  gameTicTacToeCreateMsgSchema,
+  gameTicTacToeMoveMsgSchema,
+  gameConnectFourCreateMsgSchema,
+  gameConnectFourDropMsgSchema,
+  gameBlackjackCreateMsgSchema,
+  gameBlackjackHitMsgSchema,
+  gameBlackjackStandMsgSchema,
   botSpawnMsgSchema,
   botDespawnMsgSchema,
 ])
@@ -463,6 +525,7 @@ export type GameCompletedMsg = {
   type: 'game.completed'
   gameId: string
   winnerId: string | null
+  isDraw?: boolean
   result: any
 }
 
@@ -510,6 +573,77 @@ export type SpectatorCountMsg = {
   count: number
 }
 
+export type AgentTeleportMsg = {
+  type: 'agent.teleport'
+  roomId: string
+  agentId: string
+  x: number
+  y: number
+}
+
+export type FurnitureToggleMsg = {
+  type: 'furniture.toggle'
+  roomId: string
+  itemId: string
+  state: string
+}
+
+export type CoinsReceivedMsg = {
+  type: 'coins.received'
+  amount: number
+  source: string
+}
+
+export type GameTicTacToeUpdatedMsg = {
+  type: 'game.tictactoe.updated'
+  gameId: string
+  board: string[]
+  currentTurn: string
+  status: string
+}
+
+export type GameConnectFourCreatedMsg = {
+  type: 'game.connectfour.created'
+  gameId: string
+  player1: string
+  player2: string
+  player1Name: string
+  player2Name: string
+  currentTurn: string
+  board: number[][]
+  status: string
+}
+
+export type GameConnectFourUpdatedMsg = {
+  type: 'game.connectfour.updated'
+  gameId: string
+  board: number[][]
+  currentTurn: string
+  status: string
+  column: number
+  playerId: string
+}
+
+export type GameBlackjackCreatedMsg = {
+  type: 'game.blackjack.created'
+  gameId: string
+  playerHand: string[]
+  dealerHand: string[]
+  playerValue: number
+  dealerValue: number
+  status: string
+}
+
+export type GameBlackjackUpdatedMsg = {
+  type: 'game.blackjack.updated'
+  gameId: string
+  playerHand: string[]
+  dealerHand: string[]
+  playerValue: number
+  dealerValue: number
+  status: string
+}
+
 export type ServerMessage =
   | ConnectedMsg
   | RoomJoinedMsg
@@ -546,6 +680,14 @@ export type ServerMessage =
   | AgentAppearanceMsg
   | SpectatorConnectedMsg
   | SpectatorCountMsg
+  | AgentTeleportMsg
+  | FurnitureToggleMsg
+  | CoinsReceivedMsg
+  | GameTicTacToeUpdatedMsg
+  | GameConnectFourCreatedMsg
+  | GameConnectFourUpdatedMsg
+  | GameBlackjackCreatedMsg
+  | GameBlackjackUpdatedMsg
   | MarketplaceNewListingMsg
   | MarketplaceSoldMsg
 

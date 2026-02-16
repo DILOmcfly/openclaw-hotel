@@ -18,7 +18,8 @@ router.get('/api/badges', async (_req, res) => {
 
 router.post('/api/agents/:agentId/badges/:badgeId/award', validateToken, async (req, res) => {
   try {
-    const { agentId, badgeId } = req.params;
+    const agentId = req.params.agentId as string;
+    const badgeId = req.params.badgeId as string;
     
     // Verify the authenticated agent matches the target agent
     if (req.agent?.id !== agentId) {
@@ -38,7 +39,7 @@ router.post('/api/agents/:agentId/badges/:badgeId/award', validateToken, async (
 
 router.get('/api/agents/:agentId/badges', async (req, res) => {
   try {
-    const { agentId } = req.params;
+    const agentId = req.params.agentId as string;
     const badges = await badgesService.getAgentBadges(agentId, sql);
     res.json(badges);
   } catch (error) {
@@ -49,7 +50,8 @@ router.get('/api/agents/:agentId/badges', async (req, res) => {
 
 router.put('/api/agents/:agentId/badges/:badgeId/equip', validateToken, async (req, res) => {
   try {
-    const { agentId, badgeId } = req.params;
+    const agentId = req.params.agentId as string;
+    const badgeId = req.params.badgeId as string;
     
     // Verify the authenticated agent matches the target agent
     if (req.agent?.id !== agentId) {
@@ -69,7 +71,8 @@ router.put('/api/agents/:agentId/badges/:badgeId/equip', validateToken, async (r
 
 router.put('/api/agents/:agentId/badges/:badgeId/unequip', validateToken, async (req, res) => {
   try {
-    const { agentId, badgeId } = req.params;
+    const agentId = req.params.agentId as string;
+    const badgeId = req.params.badgeId as string;
     
     // Verify the authenticated agent matches the target agent
     if (req.agent?.id !== agentId) {

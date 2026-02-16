@@ -68,7 +68,7 @@ router.get('/count', validateToken, async (req, res) => {
 router.post('/sell/:itemId', validateToken, async (req, res) => {
   try {
     const agentId = res.locals.agentId;
-    const { itemId } = req.params;
+    const itemId = req.params.itemId as string;
 
     if (!agentId) {
       res.status(401).json({ error: 'Unauthorized' });

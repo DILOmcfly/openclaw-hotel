@@ -85,7 +85,7 @@ router.get('/api/pets', validateToken, async (req, res) => {
 router.put('/api/pets/:id/activate', validateToken, async (req, res) => {
   try {
     const agentId = res.locals.agentId;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!agentId) {
       res.status(401).json({ error: 'Unauthorized' });
@@ -124,7 +124,7 @@ router.put('/api/pets/:id/activate', validateToken, async (req, res) => {
 router.put('/api/pets/:id/deactivate', validateToken, async (req, res) => {
   try {
     const agentId = res.locals.agentId;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!agentId) {
       res.status(401).json({ error: 'Unauthorized' });
@@ -163,7 +163,7 @@ router.put('/api/pets/:id/deactivate', validateToken, async (req, res) => {
 router.post('/api/pets/:id/feed', validateToken, async (req, res) => {
   try {
     const agentId = res.locals.agentId;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!agentId) {
       res.status(401).json({ error: 'Unauthorized' });
@@ -207,7 +207,7 @@ router.post('/api/pets/:id/feed', validateToken, async (req, res) => {
 router.put('/api/pets/:id/rename', validateToken, async (req, res) => {
   try {
     const agentId = res.locals.agentId;
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { name } = req.body;
 
     if (!agentId) {
@@ -257,7 +257,7 @@ router.put('/api/pets/:id/rename', validateToken, async (req, res) => {
 router.delete('/api/pets/:id', validateToken, async (req, res) => {
   try {
     const agentId = res.locals.agentId;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!agentId) {
       res.status(401).json({ error: 'Unauthorized' });
