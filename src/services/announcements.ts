@@ -124,7 +124,20 @@ export async function deleteAnnouncement(
 /**
  * Get announcements for a room (pinned first, then by date)
  */
-export async function getAnnouncements(roomId: string, sql: Sql): Promise<Announcement[]> {
+export async function getAnnouncements(
+  roomId: string, 
+  sql: Sql,
+  limit: number = 50,
+  offset: number = 0
+): Promise<{ announcements: Announcement[]; total: number }> {
+  // Get total count
+  const [{ count }] = await sql<[{ count: number }]>`
+    SELECT COUNT(*)::int as count 
+    FROM room_announcements 
+    WHERE room_id = ${roomId}
+  `;
+
+  // Get paginated announcements
   const announcements = await sql<Announcement[]>`
     SELECT 
       id,
@@ -138,9 +151,11 @@ export async function getAnnouncements(roomId: string, sql: Sql): Promise<Announ
     FROM room_announcements
     WHERE room_id = ${roomId}
     ORDER BY pinned DESC, created_at DESC
+    LIMIT ${limit}
+    OFFSET ${offset}
   `;
 
-  return announcements;
+  return { announcements, total: count };
 }
 
 /**

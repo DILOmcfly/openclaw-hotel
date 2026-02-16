@@ -57,14 +57,25 @@ router.post('/api/rooms/:roomId/announcements', async (req, res) => {
 /**
  * GET /api/rooms/:roomId/announcements
  * Get all announcements for a room
+ * Query params: ?limit=50&offset=0
  */
 router.get('/api/rooms/:roomId/announcements', async (req, res) => {
   try {
     const { roomId } = req.params;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
 
-    const announcements = await getAnnouncements(roomId, sql);
+    const { announcements, total } = await getAnnouncements(roomId, sql, limit, offset);
 
-    res.json({ announcements });
+    res.json({ 
+      announcements,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total
+      }
+    });
   } catch (error: any) {
     logger.error('Failed to fetch announcements', { error });
     res.status(500).json({ error: 'Failed to fetch announcements' });

@@ -150,13 +150,26 @@ router.put('/api/trades/:id/cancel', async (req, res) => {
 /**
  * GET /api/trades/history
  * Get trade history for the authenticated agent
+ * Query params: ?limit=50&offset=0
  */
 router.get('/api/trades/history', async (req, res) => {
   const agentId = req.agent!.id;
 
   try {
-    const trades = await getTradeHistory(agentId, sql, 20);
-    res.json({ trades });
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
+    const { trades, total } = await getTradeHistory(agentId, sql, limit, offset);
+    
+    res.json({ 
+      trades,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total
+      }
+    });
   } catch (error: any) {
     console.error('[Trade API] History error:', error);
     res.status(500).json({ error: 'Failed to get trade history' });

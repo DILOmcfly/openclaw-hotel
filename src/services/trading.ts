@@ -334,14 +334,30 @@ export async function cancelTrade(tradeId: string, cancellingAgentId: string, sq
 /**
  * Get trade history for an agent
  */
-export async function getTradeHistory(agentId: string, sql: Sql, limit: number = 20): Promise<Trade[]> {
-  return await sql<Trade[]>`
+export async function getTradeHistory(
+  agentId: string, 
+  sql: Sql, 
+  limit: number = 50, 
+  offset: number = 0
+): Promise<{ trades: Trade[]; total: number }> {
+  // Get total count
+  const [{ count }] = await sql<[{ count: number }]>`
+    SELECT COUNT(*)::int as count
+    FROM trades
+    WHERE initiator_id = ${agentId} OR target_id = ${agentId}
+  `;
+
+  // Get paginated trades
+  const trades = await sql<Trade[]>`
     SELECT id, initiator_id AS "initiatorId", target_id AS "targetId", status, created_at AS "createdAt", completed_at AS "completedAt"
     FROM trades
     WHERE initiator_id = ${agentId} OR target_id = ${agentId}
     ORDER BY created_at DESC
     LIMIT ${limit}
+    OFFSET ${offset}
   `;
+
+  return { trades, total: count };
 }
 
 /**
