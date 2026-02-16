@@ -201,11 +201,13 @@ export async function generateAgentMessage(
 
   // Check if we can use LLM
   if (canMakeLLMCall(agentId, fullConfig)) {
+    // Record the attempt immediately (for rate limiting even if call fails)
+    recordLLMCall(agentId);
+    
     const prompt = buildConversationPrompt(personality, context);
     const llmMessage = await callGroqAPI(prompt, personality, fullConfig.apiKey!);
 
     if (llmMessage) {
-      recordLLMCall(agentId);
       return { message: llmMessage, source: 'llm' };
     }
   }
