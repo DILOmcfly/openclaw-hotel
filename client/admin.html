@@ -52,6 +52,13 @@
 
     <div class="grid">
       <section class="panel">
+        <h2>Live Spectator Stats</h2>
+        <div id="stats-agents" class="row">total agents online: loading...</div>
+        <div id="stats-spectators" class="row">total spectators: loading...</div>
+        <div id="stats-rooms" class="row">active rooms: loading...</div>
+      </section>
+
+      <section class="panel">
         <h2>Server Health</h2>
         <div id="health-status" class="row">status: loading...</div>
         <div id="health-uptime" class="row">uptime: loading...</div>
@@ -67,8 +74,8 @@
       </section>
 
       <section class="panel">
-        <h2>Room List</h2>
-        <div class="muted">Coming soon</div>
+        <h2>Room Breakdown</h2>
+        <div id="room-list" class="muted">Loading room data...</div>
       </section>
     </div>
 
@@ -81,6 +88,11 @@
       const metricsActiveRooms = document.getElementById('metrics-activeRooms');
       const metricsTotalMessages = document.getElementById('metrics-totalMessages');
       const metricsTotalConnections = document.getElementById('metrics-totalConnections');
+
+      const statsAgents = document.getElementById('stats-agents');
+      const statsSpectators = document.getElementById('stats-spectators');
+      const statsRooms = document.getElementById('stats-rooms');
+      const roomList = document.getElementById('room-list');
 
       async function refreshHealth() {
         try {
@@ -120,12 +132,66 @@
         }
       }
 
+      async function refreshSpectatorStats() {
+        try {
+          const response = await fetch('/api/spectate/stats');
+          if (!response.ok) {
+            throw new Error('Spectator stats request failed: ' + response.status);
+          }
+
+          const data = await response.json();
+          statsAgents.textContent = 'total agents online: ' + (data.totalAgents ?? 0);
+          statsSpectators.textContent = 'total spectators: ' + (data.totalSpectators ?? 0);
+          statsRooms.textContent = 'active rooms: ' + (data.activeRooms ?? 0);
+        } catch (error) {
+          statsAgents.textContent = 'total agents online: unavailable';
+          statsSpectators.textContent = 'total spectators: unavailable';
+          statsRooms.textContent = 'active rooms: unavailable';
+        }
+      }
+
+      async function refreshRoomBreakdown() {
+        try {
+          const response = await fetch('/api/spectate/rooms');
+          if (!response.ok) {
+            throw new Error('Rooms request failed: ' + response.status);
+          }
+
+          const rooms = await response.json();
+          
+          if (!rooms || rooms.length === 0) {
+            roomList.innerHTML = '<div class="muted">No active rooms</div>';
+            return;
+          }
+
+          let html = '';
+          rooms.forEach(room => {
+            const agentCount = room.agents ?? 0;
+            const spectatorCount = room.spectators ?? 0;
+            html += `<div class="row">
+              <strong>${room.roomId}</strong> — 
+              ${agentCount} agent${agentCount !== 1 ? 's' : ''}, 
+              ${spectatorCount} spectator${spectatorCount !== 1 ? 's' : ''}
+            </div>`;
+          });
+          
+          roomList.innerHTML = html;
+        } catch (error) {
+          roomList.innerHTML = '<div class="muted">Error loading room data</div>';
+        }
+      }
+
       async function refreshAll() {
-        await Promise.all([refreshHealth(), refreshMetrics()]);
+        await Promise.all([
+          refreshHealth(),
+          refreshMetrics(),
+          refreshSpectatorStats(),
+          refreshRoomBreakdown()
+        ]);
       }
 
       refreshAll();
-      setInterval(refreshAll, 5000);
+      setInterval(refreshAll, 10000);
     </script>
   </body>
 </html>
