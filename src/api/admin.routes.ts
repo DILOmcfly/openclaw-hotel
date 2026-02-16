@@ -4,6 +4,10 @@ import { requireRole, AdminRole } from '../middleware/admin.js';
 import { validateToken } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 import { banAgent as banAgentInMemory } from '../services/moderation.js';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 const router = express.Router();
 
@@ -331,6 +335,105 @@ router.get('/api/admin/logs', requireRole('moderator'), async (req, res) => {
   } catch (error) {
     logger.error('Failed to fetch moderation logs', { error });
     res.status(500).json({ error: 'Failed to fetch moderation logs' });
+  }
+});
+
+/**
+ * GET /api/admin/system-health
+ * Get comprehensive system health metrics
+ * Integrates: resource-monitor, rate-limiter, agent-monitor
+ */
+router.get('/api/admin/system-health', requireRole('moderator'), async (req, res) => {
+  try {
+    // Execute monitoring tools in parallel
+    const [resourceResult, rateLimitResult, agentMonitorResult] = await Promise.allSettled([
+      execAsync('node tools/resource-monitor/index.mjs --json', { 
+        cwd: '/Users/diegomcfly/clawd',
+        timeout: 5000 
+      }),
+      execAsync('node tools/rate-limiter/index.mjs --action status --json', { 
+        cwd: '/Users/diegomcfly/clawd',
+        timeout: 5000 
+      }),
+      execAsync('node tools/agent-monitor/index.mjs --check all --json', { 
+        cwd: '/Users/diegomcfly/clawd',
+        timeout: 5000 
+      })
+    ]);
+
+    // Parse results (handle failures gracefully)
+    const resourceData = resourceResult.status === 'fulfilled' 
+      ? JSON.parse(resourceResult.value.stdout)
+      : { error: 'Resource monitor failed' };
+
+    const rateLimitData = rateLimitResult.status === 'fulfilled'
+      ? JSON.parse(rateLimitResult.value.stdout)
+      : { error: 'Rate limiter failed' };
+
+    const agentMonitorData = agentMonitorResult.status === 'fulfilled'
+      ? JSON.parse(agentMonitorResult.value.stdout)
+      : { error: 'Agent monitor failed' };
+
+    // Calculate health status
+    const ramPercent = parseFloat(resourceData.memory?.usedPercent || 0);
+    const chromeCount = resourceData.chrome?.count || 0;
+    const braveQuotaUsed = rateLimitData.brave?.quotaUsed || 0;
+
+    const alerts: Array<{ level: string; message: string; action?: string }> = [];
+
+    // Resource alerts
+    if (ramPercent > 90) {
+      alerts.push({ 
+        level: 'CRITICAL', 
+        message: `RAM critically high (${ramPercent.toFixed(1)}%)`,
+        action: 'Kill Chrome or heavy processes immediately'
+      });
+    } else if (ramPercent > 70) {
+      alerts.push({ 
+        level: 'WARNING', 
+        message: `RAM high (${ramPercent.toFixed(1)}%)`,
+        action: 'Monitor resource usage'
+      });
+    }
+
+    if (chromeCount > 20) {
+      alerts.push({
+        level: 'WARNING',
+        message: `${chromeCount} Chrome processes running`,
+        action: 'Consider closing unused browser instances'
+      });
+    }
+
+    // API quota alerts
+    if (braveQuotaUsed > 90) {
+      alerts.push({
+        level: 'CRITICAL',
+        message: `Brave Search quota critically high (${braveQuotaUsed}%)`,
+        action: 'Avoid web searches, use cached results'
+      });
+    } else if (braveQuotaUsed > 80) {
+      alerts.push({
+        level: 'WARNING',
+        message: `Brave Search quota high (${braveQuotaUsed}%)`,
+        action: 'Limit web search usage'
+      });
+    }
+
+    // Combine all data
+    const healthData = {
+      timestamp: new Date().toISOString(),
+      resources: resourceData,
+      rateLimits: rateLimitData,
+      agentMonitor: agentMonitorData,
+      alerts,
+      overallStatus: alerts.some(a => a.level === 'CRITICAL') ? 'CRITICAL' : 
+                     alerts.some(a => a.level === 'WARNING') ? 'WARNING' : 'OK'
+    };
+
+    res.json(healthData);
+  } catch (error) {
+    logger.error('Failed to fetch system health', { error });
+    res.status(500).json({ error: 'Failed to fetch system health' });
   }
 });
 

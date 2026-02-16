@@ -116,6 +116,26 @@
         <div id="economy-giniIndex" class="row">gini index: loading...</div>
       </section>
 
+      <section class="panel">
+        <h2>System Resources</h2>
+        <div id="resource-ram" class="row">RAM: loading...</div>
+        <div id="resource-cpu" class="row">CPU: loading...</div>
+        <div id="resource-chrome" class="row">Chrome: loading...</div>
+        <div id="resource-node" class="row">Node: loading...</div>
+      </section>
+
+      <section class="panel">
+        <h2>API Quota Usage</h2>
+        <div id="quota-brave" class="row">Brave Search: loading...</div>
+        <div id="quota-anthropic" class="row">Anthropic: loading...</div>
+        <div id="quota-status" class="row">Status: loading...</div>
+      </section>
+
+      <section class="panel wide">
+        <h2>System Alerts</h2>
+        <div id="system-alerts" class="muted">Loading alerts...</div>
+      </section>
+
       <section class="panel wide">
         <h2>Simulation Activity (Last 100 Ticks)</h2>
         <div class="chart-container">
@@ -153,6 +173,17 @@
       const economyTotalTransactions = document.getElementById('economy-totalTransactions');
       const economyAvgBalance = document.getElementById('economy-avgBalance');
       const economyGiniIndex = document.getElementById('economy-giniIndex');
+
+      const resourceRam = document.getElementById('resource-ram');
+      const resourceCpu = document.getElementById('resource-cpu');
+      const resourceChrome = document.getElementById('resource-chrome');
+      const resourceNode = document.getElementById('resource-node');
+
+      const quotaBrave = document.getElementById('quota-brave');
+      const quotaAnthropic = document.getElementById('quota-anthropic');
+      const quotaStatus = document.getElementById('quota-status');
+
+      const systemAlerts = document.getElementById('system-alerts');
 
       // Chart.js initialization
       const ctx = document.getElementById('activityChart').getContext('2d');
