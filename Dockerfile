@@ -27,7 +27,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install production dependencies + tsx (needed for migrations)
-RUN npm ci --production && npm install -g tsx
+RUN npm ci --omit=dev && npm install -g tsx
 
 # Copy built files from build stage
 COPY --from=build /app/dist ./dist/
