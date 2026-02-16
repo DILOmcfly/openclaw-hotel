@@ -292,12 +292,16 @@ router.delete('/api/admin/rooms/:id', requireRole('admin'), async (req, res) => 
 /**
  * GET /api/admin/logs
  * Get moderation logs
+ * Query params: ?limit=50&offset=0
  */
 router.get('/api/admin/logs', requireRole('moderator'), async (req, res) => {
   try {
-    const limit = Math.min(parseInt(getQueryParam(req.query.limit)) || 50, 200);
-    const offset = parseInt(getQueryParam(req.query.offset)) || 0;
+    const { limit, offset } = getPaginationParams(req.query);
 
+    // Get total count
+    const [{ count: total }] = await sql`SELECT COUNT(*)::int as count FROM moderation_log`;
+
+    // Get paginated results
     const logs = await sql`
       SELECT 
         ml.id,
@@ -315,7 +319,15 @@ router.get('/api/admin/logs', requireRole('moderator'), async (req, res) => {
       OFFSET ${offset}
     `;
 
-    res.json({ logs, limit, offset });
+    res.json({
+      logs,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total
+      }
+    });
   } catch (error) {
     logger.error('Failed to fetch moderation logs', { error });
     res.status(500).json({ error: 'Failed to fetch moderation logs' });

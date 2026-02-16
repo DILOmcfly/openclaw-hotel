@@ -114,25 +114,42 @@ export async function getTopViewed(limit: number, sql: any): Promise<AgentProfil
   `;
 }
 
-export async function searchProfiles(query: string, sql: any): Promise<AgentProfile[]> {
+export async function searchProfiles(query: string, limit: number, offset: number, sql: any): Promise<AgentProfile[]> {
   return await sql`
     SELECT agent_id AS "agentId", display_name AS "displayName", bio, avatar_url AS "avatarUrl",
            banner_color AS "bannerColor", accent_color AS "accentColor", theme,
            profile_views AS "profileViews", show_online_status AS "showOnlineStatus",
            show_activity AS "showActivity", updated_at AS "updatedAt"
     FROM agent_profiles WHERE display_name ILIKE ${`%${query}%`}
-    ORDER BY profile_views DESC LIMIT 20
+    ORDER BY profile_views DESC LIMIT ${limit} OFFSET ${offset}
   `;
 }
 
-export async function getOnlineProfiles(sql: any): Promise<AgentProfile[]> {
+export async function getSearchCount(query: string, sql: any): Promise<number> {
+  const [{ count }] = await sql`
+    SELECT COUNT(*)::int as count
+    FROM agent_profiles WHERE display_name ILIKE ${`%${query}%`}
+  `;
+  return count;
+}
+
+export async function getOnlineProfiles(limit: number, offset: number, sql: any): Promise<AgentProfile[]> {
   return await sql`
     SELECT agent_id AS "agentId", display_name AS "displayName", bio, avatar_url AS "avatarUrl",
            banner_color AS "bannerColor", accent_color AS "accentColor", theme,
            profile_views AS "profileViews", show_online_status AS "showOnlineStatus",
            show_activity AS "showActivity", updated_at AS "updatedAt"
-    FROM agent_profiles WHERE show_online_status = true ORDER BY updated_at DESC
+    FROM agent_profiles WHERE show_online_status = true 
+    ORDER BY updated_at DESC LIMIT ${limit} OFFSET ${offset}
   `;
+}
+
+export async function getOnlineCount(sql: any): Promise<number> {
+  const [{ count }] = await sql`
+    SELECT COUNT(*)::int as count
+    FROM agent_profiles WHERE show_online_status = true
+  `;
+  return count;
 }
 
 export async function getProfileStats(agentId: string, sql: any): Promise<ProfileStats> {

@@ -283,7 +283,7 @@ describe('Trade History Service', () => {
         { counterpart_id: 'agent-3' },
       ]);
 
-      const result = await getTradePartners('agent-1', sql);
+      const result = await getTradePartners('agent-1', 50, 0, sql);
 
       expect(result).toEqual(['agent-2', 'agent-3']);
     });
@@ -291,7 +291,7 @@ describe('Trade History Service', () => {
     it('should return empty array when no partners', async () => {
       const sql = createMockSql([]);
 
-      const result = await getTradePartners('agent-1', sql);
+      const result = await getTradePartners('agent-1', 50, 0, sql);
 
       expect(result).toEqual([]);
     });

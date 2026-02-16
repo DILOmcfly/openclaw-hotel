@@ -172,6 +172,8 @@ export async function getTotalCoinsSpent(
  */
 export async function getTradePartners(
   agentId: string,
+  limit: number,
+  offset: number,
   sql: any
 ): Promise<string[]> {
   const query = sql`
@@ -180,8 +182,28 @@ export async function getTradePartners(
     WHERE agent_id = ${sql.typed.uuid(agentId)}
       AND counterpart_id IS NOT NULL
     ORDER BY counterpart_id
+    LIMIT ${sql.typed.integer(limit)}
+    OFFSET ${sql.typed.integer(offset)}
   `;
 
   const results = await query;
   return results.map((row: any) => row.counterpart_id);
+}
+
+/**
+ * Get total count of unique trade partners for an agent
+ */
+export async function getTradePartnersCount(
+  agentId: string,
+  sql: any
+): Promise<number> {
+  const query = sql`
+    SELECT COUNT(DISTINCT counterpart_id)::int as count
+    FROM trade_history
+    WHERE agent_id = ${sql.typed.uuid(agentId)}
+      AND counterpart_id IS NOT NULL
+  `;
+
+  const [result] = await query;
+  return result?.count || 0;
 }

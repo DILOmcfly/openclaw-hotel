@@ -5,6 +5,13 @@ import * as profilesService from '../services/agentProfiles.js';
 
 const router = express.Router();
 
+// Helper to parse pagination params
+function getPaginationParams(query: any): { limit: number; offset: number } {
+  const limit = Math.min(parseInt(query.limit) || 50, 100); // Max 100
+  const offset = Math.max(parseInt(query.offset) || 0, 0); // Min 0
+  return { limit, offset };
+}
+
 router.get('/api/agents/:agentId/profile', async (req, res) => {
   try {
     const { agentId } = req.params;
@@ -60,8 +67,24 @@ router.get('/api/profiles/search', async (req, res) => {
   try {
     const query = req.query.q as string;
     if (!query) return res.status(400).json({ error: 'Search query required' });
-    const profiles = await profilesService.searchProfiles(query, sql);
-    res.json({ profiles });
+    
+    const { limit, offset } = getPaginationParams(req.query);
+    
+    // Get total count and results
+    const [total, profiles] = await Promise.all([
+      profilesService.getSearchCount(query, sql),
+      profilesService.searchProfiles(query, limit, offset, sql)
+    ]);
+    
+    res.json({
+      profiles,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total
+      }
+    });
   } catch (error) {
     console.error('[Agent Profiles API] Error searching profiles:', error);
     res.status(500).json({ error: 'Failed to search profiles' });
@@ -70,8 +93,23 @@ router.get('/api/profiles/search', async (req, res) => {
 
 router.get('/api/profiles/online', async (req, res) => {
   try {
-    const profiles = await profilesService.getOnlineProfiles(sql);
-    res.json({ profiles });
+    const { limit, offset } = getPaginationParams(req.query);
+    
+    // Get total count and results
+    const [total, profiles] = await Promise.all([
+      profilesService.getOnlineCount(sql),
+      profilesService.getOnlineProfiles(limit, offset, sql)
+    ]);
+    
+    res.json({
+      profiles,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total
+      }
+    });
   } catch (error) {
     console.error('[Agent Profiles API] Error fetching online profiles:', error);
     res.status(500).json({ error: 'Failed to fetch online profiles' });

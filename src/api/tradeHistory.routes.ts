@@ -9,12 +9,20 @@ import {
   getTotalCoinsEarned,
   getTotalCoinsSpent,
   getTradePartners,
+  getTradePartnersCount,
   TransactionType,
 } from '../services/tradeHistory.js';
 import { validateToken } from '../middleware/auth.js';
 import { sql } from '../db/index.js';
 
 const router = Router();
+
+// Helper to parse pagination params
+function getPaginationParams(query: any): { limit: number; offset: number } {
+  const limit = Math.min(parseInt(query.limit) || 50, 100); // Max 100
+  const offset = Math.max(parseInt(query.offset) || 0, 0); // Min 0
+  return { limit, offset };
+}
 
 /**
  * GET /api/history
@@ -80,6 +88,7 @@ router.get('/api/history/stats', validateToken, async (req, res) => {
 /**
  * GET /api/history/partners
  * Get agent's trade partners
+ * Query params: ?limit=50&offset=0
  */
 router.get('/api/history/partners', validateToken, async (req, res) => {
   try {
@@ -90,9 +99,23 @@ router.get('/api/history/partners', validateToken, async (req, res) => {
       return;
     }
 
-    const partners = await getTradePartners(agentId, sql);
+    const { limit, offset } = getPaginationParams(req.query);
+    
+    // Get total count and results
+    const [total, partners] = await Promise.all([
+      getTradePartnersCount(agentId, sql),
+      getTradePartners(agentId, limit, offset, sql)
+    ]);
 
-    res.json({ partners });
+    res.json({
+      partners,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total
+      }
+    });
   } catch (error: any) {
     console.error('[Trade History API] Error fetching partners:', error);
     res.status(500).json({ error: 'Failed to fetch trade partners' });
