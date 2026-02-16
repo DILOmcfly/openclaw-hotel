@@ -8,6 +8,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "migrate": "tsx src/db/migrate.ts",
+    "seed": "tsx src/db/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run 'src/tests/integration/*.integration.test.ts'",

@@ -26,8 +26,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only
-RUN npm ci --production
+# Install production dependencies + tsx (needed for migrations)
+RUN npm ci --production && npm install -g tsx
 
 # Copy built files from build stage
 COPY --from=build /app/dist ./dist/
@@ -36,8 +36,15 @@ COPY --from=build /app/dist ./dist/
 COPY --from=build /app/client ./client/
 COPY --from=build /app/public ./public/
 
+# Copy migration scripts (needed for entrypoint)
+COPY --from=build /app/src/db ./src/db/
+
+# Copy entrypoint script
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
+
 # Expose port
 EXPOSE 3000
 
-# Start the server
-CMD ["node", "dist/server.js"]
+# Use entrypoint script (runs migrations + starts server)
+CMD ["./entrypoint.sh"]
