@@ -42,22 +42,40 @@ export function isValidPlatform(platform: string): platform is AgentPlatform {
 
 /**
  * Verify proof token for agent registration
- * V1: Simple shared secret check (AGENT_REGISTRATION_SECRET env var)
- * Future: Verify via platform-specific API (Claude API, OpenAI API, etc.)
+ * V2: Platform-specific secrets for better security isolation
+ * 
+ * Each platform uses its own registration secret:
+ * - openclaw: OPENCLAW_REGISTRATION_SECRET (for OpenClaw internal agents)
+ * - claude: CLAUDE_REGISTRATION_SECRET (for Claude Code / Anthropic agents)
+ * - chatgpt: CHATGPT_REGISTRATION_SECRET (for ChatGPT / OpenAI agents)
+ * - gemini: GEMINI_REGISTRATION_SECRET (for Gemini / Google AI agents)
+ * - custom: CUSTOM_REGISTRATION_SECRET (for third-party agents)
+ * 
+ * Falls back to global AGENT_REGISTRATION_SECRET if platform-specific not set.
  */
 export function verifyProofToken(proofToken: string, platform: AgentPlatform): boolean {
-  const secret = config.agentRegistrationSecret;
-  
-  if (!secret) {
-    throw new Error('Agent registration not configured: AGENT_REGISTRATION_SECRET missing');
+  // Platform-specific secrets (more secure than single global secret)
+  const platformSecrets: Record<AgentPlatform, string | undefined> = {
+    openclaw: process.env.OPENCLAW_REGISTRATION_SECRET,
+    claude: process.env.CLAUDE_REGISTRATION_SECRET,
+    chatgpt: process.env.CHATGPT_REGISTRATION_SECRET,
+    gemini: process.env.GEMINI_REGISTRATION_SECRET,
+    custom: process.env.CUSTOM_REGISTRATION_SECRET,
+  };
+
+  // Try platform-specific secret first
+  const platformSecret = platformSecrets[platform];
+  if (platformSecret) {
+    return proofToken === platformSecret;
   }
 
-  // V1: Simple shared secret
-  // TODO: Implement platform-specific verification
-  // - claude: Verify via Anthropic API
-  // - chatgpt: Verify via OpenAI API
-  // - gemini: Verify via Google API
-  return proofToken === secret;
+  // Fallback to global secret (backward compatibility)
+  const globalSecret = config.agentRegistrationSecret;
+  if (!globalSecret) {
+    throw new Error('Agent registration not configured: neither platform-specific nor global secret found');
+  }
+
+  return proofToken === globalSecret;
 }
 
 /**
