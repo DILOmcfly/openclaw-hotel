@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenClaw Admin Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
       :root {
         color-scheme: dark;
@@ -24,6 +25,7 @@
       .grid {
         display: grid;
         gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
       }
 
       .panel {
@@ -31,6 +33,10 @@
         border-radius: 8px;
         padding: 16px;
         background: rgba(255, 255, 255, 0.04);
+      }
+
+      .panel.wide {
+        grid-column: 1 / -1;
       }
 
       .panel h2 {
@@ -44,6 +50,27 @@
 
       .muted {
         color: rgba(255, 255, 255, 0.75);
+      }
+
+      .metric-highlight {
+        color: #00ff88;
+        font-weight: bold;
+      }
+
+      .metric-warning {
+        color: #ffaa00;
+      }
+
+      .chart-container {
+        position: relative;
+        height: 200px;
+        margin-top: 10px;
+      }
+
+      @media (max-width: 768px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
@@ -74,6 +101,29 @@
       </section>
 
       <section class="panel">
+        <h2>Simulation Metrics</h2>
+        <div id="simulation-totalTicks" class="row">total ticks: loading...</div>
+        <div id="simulation-totalActions" class="row">total actions: loading...</div>
+        <div id="simulation-lastTick" class="row">last tick: loading...</div>
+        <div id="simulation-actionsPerMin" class="row">actions/min: loading...</div>
+      </section>
+
+      <section class="panel">
+        <h2>Economy Stats</h2>
+        <div id="economy-totalCredits" class="row">total credits: loading...</div>
+        <div id="economy-totalTransactions" class="row">total transactions: loading...</div>
+        <div id="economy-avgBalance" class="row">avg balance: loading...</div>
+        <div id="economy-giniIndex" class="row">gini index: loading...</div>
+      </section>
+
+      <section class="panel wide">
+        <h2>Simulation Activity (Last 100 Ticks)</h2>
+        <div class="chart-container">
+          <canvas id="activityChart"></canvas>
+        </div>
+      </section>
+
+      <section class="panel wide">
         <h2>Room Breakdown</h2>
         <div id="room-list" class="muted">Loading room data...</div>
       </section>
@@ -93,6 +143,63 @@
       const statsSpectators = document.getElementById('stats-spectators');
       const statsRooms = document.getElementById('stats-rooms');
       const roomList = document.getElementById('room-list');
+
+      const simulationTotalTicks = document.getElementById('simulation-totalTicks');
+      const simulationTotalActions = document.getElementById('simulation-totalActions');
+      const simulationLastTick = document.getElementById('simulation-lastTick');
+      const simulationActionsPerMin = document.getElementById('simulation-actionsPerMin');
+
+      const economyTotalCredits = document.getElementById('economy-totalCredits');
+      const economyTotalTransactions = document.getElementById('economy-totalTransactions');
+      const economyAvgBalance = document.getElementById('economy-avgBalance');
+      const economyGiniIndex = document.getElementById('economy-giniIndex');
+
+      // Chart.js initialization
+      const ctx = document.getElementById('activityChart').getContext('2d');
+      let activityChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Actions per Tick',
+            data: [],
+            borderColor: '#00ff88',
+            backgroundColor: 'rgba(0, 255, 136, 0.1)',
+            borderWidth: 2,
+            tension: 0.4,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                color: '#fff'
+              },
+              grid: {
+                color: 'rgba(255, 255, 255, 0.1)'
+              }
+            },
+            x: {
+              ticks: {
+                color: '#fff',
+                maxTicksLimit: 10
+              },
+              grid: {
+                color: 'rgba(255, 255, 255, 0.1)'
+              }
+            }
+          }
+        }
+      });
 
       async function refreshHealth() {
         try {
@@ -150,6 +257,83 @@
         }
       }
 
+      async function refreshSimulationMetrics() {
+        try {
+          const response = await fetch('/api/simulation/metrics');
+          if (!response.ok) {
+            throw new Error('Simulation metrics request failed: ' + response.status);
+          }
+
+          const { success, data } = await response.json();
+          if (!success || !data) {
+            throw new Error('Invalid response format');
+          }
+
+          simulationTotalTicks.textContent = 'total ticks: ' + (data.totalTicks ?? 0);
+          simulationTotalActions.innerHTML = 'total actions: <span class="metric-highlight">' + (data.totalActions ?? 0) + '</span>';
+          
+          if (data.lastTickTime) {
+            const lastTick = new Date(data.lastTickTime);
+            const now = new Date();
+            const secondsAgo = Math.floor((now - lastTick) / 1000);
+            simulationLastTick.textContent = 'last tick: ' + secondsAgo + 's ago';
+          } else {
+            simulationLastTick.textContent = 'last tick: never';
+          }
+
+          // Calculate actions per minute from last 10 ticks
+          if (data.actionsPerTick && data.actionsPerTick.length > 0) {
+            const recentTicks = data.actionsPerTick.slice(-10);
+            const avgActions = recentTicks.reduce((sum, val) => sum + val, 0) / recentTicks.length;
+            const actionsPerMin = (avgActions * 60 / 60).toFixed(1); // Assuming 60s tick interval
+            simulationActionsPerMin.innerHTML = 'actions/min: <span class="metric-highlight">' + actionsPerMin + '</span>';
+
+            // Update chart
+            const labels = data.actionsPerTick.map((_, i) => 'T-' + (i + 1));
+            activityChart.data.labels = labels;
+            activityChart.data.datasets[0].data = data.actionsPerTick;
+            activityChart.update();
+          } else {
+            simulationActionsPerMin.textContent = 'actions/min: n/a';
+          }
+        } catch (error) {
+          simulationTotalTicks.textContent = 'total ticks: unavailable';
+          simulationTotalActions.textContent = 'total actions: unavailable';
+          simulationLastTick.textContent = 'last tick: unavailable';
+          simulationActionsPerMin.textContent = 'actions/min: unavailable';
+        }
+      }
+
+      async function refreshEconomyStats() {
+        try {
+          const response = await fetch('/api/economy/latest');
+          if (!response.ok) {
+            throw new Error('Economy stats request failed: ' + response.status);
+          }
+
+          const data = await response.json();
+          
+          economyTotalCredits.innerHTML = 'total credits: <span class="metric-highlight">' + 
+            (data.totalCredits ?? 0).toLocaleString() + '</span>';
+          economyTotalTransactions.textContent = 'total transactions: ' + 
+            (data.totalTransactions ?? 0).toLocaleString();
+          economyAvgBalance.textContent = 'avg balance: ' + 
+            (data.avgBalance ?? 0).toFixed(2);
+          
+          // Gini index color coding (0 = perfect equality, 1 = perfect inequality)
+          const gini = data.giniIndex ?? 0;
+          let giniClass = '';
+          if (gini > 0.6) giniClass = 'metric-warning';
+          economyGiniIndex.innerHTML = 'gini index: <span class="' + giniClass + '">' + 
+            gini.toFixed(3) + '</span>' + (gini > 0.6 ? ' ⚠️' : '');
+        } catch (error) {
+          economyTotalCredits.textContent = 'total credits: unavailable';
+          economyTotalTransactions.textContent = 'total transactions: unavailable';
+          economyAvgBalance.textContent = 'avg balance: unavailable';
+          economyGiniIndex.textContent = 'gini index: unavailable';
+        }
+      }
+
       async function refreshRoomBreakdown() {
         try {
           const response = await fetch('/api/spectate/rooms');
@@ -186,12 +370,14 @@
           refreshHealth(),
           refreshMetrics(),
           refreshSpectatorStats(),
+          refreshSimulationMetrics(),
+          refreshEconomyStats(),
           refreshRoomBreakdown()
         ]);
       }
 
       refreshAll();
-      setInterval(refreshAll, 10000);
+      setInterval(refreshAll, 5000); // Refresh every 5 seconds
     </script>
   </body>
 </html>
