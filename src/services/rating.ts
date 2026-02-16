@@ -1,5 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
-import type { PoolClient } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface RoomRating {
@@ -30,7 +28,7 @@ export async function submitRating(
   agentId: string,
   rating: number,
   reviewText: string | undefined,
-  sql: PoolClient
+  sql: any
 ): Promise<RoomRating> {
   // Validate rating
   if (rating < 1 || rating > 5) {
@@ -69,7 +67,7 @@ export async function submitRating(
  */
 export async function getRoomAverageRating(
   roomId: string,
-  sql: PoolClient
+  sql: any
 ): Promise<RoomAverageRating> {
   const result = await sql.query(
     `SELECT avg_rating, rating_count FROM rooms WHERE id = $1`,
@@ -94,7 +92,7 @@ export async function getRoomAverageRating(
 export async function getRoomReviews(
   roomId: string,
   limit = 20,
-  sql: PoolClient
+  sql: any
 ): Promise<RoomRatingWithAgent[]> {
   const result = await sql.query(
     `SELECT 
@@ -108,7 +106,7 @@ export async function getRoomReviews(
     [roomId, limit]
   );
   
-  return result.rows.map(row => ({
+  return result.rows.map((row: any) => ({
     id: row.id,
     roomId: row.room_id,
     agentId: row.agent_id,
@@ -125,7 +123,7 @@ export async function getRoomReviews(
 export async function getAgentRating(
   roomId: string,
   agentId: string,
-  sql: PoolClient
+  sql: any
 ): Promise<RoomRating | null> {
   const result = await sql.query(
     `SELECT id, room_id, agent_id, rating, review_text, created_at
@@ -154,7 +152,7 @@ export async function getAgentRating(
  */
 export async function deleteRating(
   ratingId: string,
-  sql: PoolClient
+  sql: any
 ): Promise<void> {
   await sql.query(`DELETE FROM room_ratings WHERE id = $1`, [ratingId]);
 }

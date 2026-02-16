@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 /** Emote Reactions Service - Manage agent reactions to content */
 
 export type EmoteReaction = {
@@ -85,8 +84,8 @@ export async function getReactions(
 
   return Object.entries(grouped).map(([emote, reactors]) => ({
     emote,
-    count: reactors.length,
-    reactors,
+    count: (reactors as string[]).length,
+    reactors: reactors as string[],
   }));
 }
 

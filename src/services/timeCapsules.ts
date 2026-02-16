@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 export type TimeCapsule = {
   id: number;
   creatorId: string;
@@ -103,7 +102,7 @@ export async function getRoomCapsules(roomId: number, sql: any): Promise<TimeCap
       opens_at AS "opensAt", opened, opened_at AS "openedAt", viewers, created_at AS "createdAt"
     FROM time_capsules WHERE room_id = ${roomId} ORDER BY opens_at ASC
   `;
-  return result.map(c => {
+  return result.map((c: any) => {
     const capsule = parseCapsule(c);
     if (!capsule.opened) capsule.message = '[Capsule not yet opened]';
     return capsule;
@@ -118,7 +117,7 @@ export async function getUpcoming(sql: any): Promise<TimeCapsule[]> {
     FROM time_capsules WHERE opened = false AND opens_at <= ${sevenDaysFromNow} AND opens_at > NOW()
     ORDER BY opens_at ASC
   `;
-  return result.map(c => ({ ...parseCapsule(c), message: '[Capsule not yet opened]' }));
+  return result.map((c: any) => ({ ...parseCapsule(c), message: '[Capsule not yet opened]' }));
 }
 
 export async function addViewer(capsuleId: number, agentId: string, sql: any): Promise<void> {
