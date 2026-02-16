@@ -16,7 +16,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { 
-      background: #1a1a2e; 
+      background: #0a0a0f; 
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       color: #fff;
       min-height: 100vh;
@@ -46,6 +46,59 @@
     .selector-header h1 { font-size: 28px; color: #61dafb; margin-bottom: 8px; }
     .selector-header p { color: #aaa; font-size: 14px; }
 
+    /* Room Search & Filter */
+    .room-search-container {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .room-search-input {
+      flex: 1;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(97,218,251,0.3);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .room-search-input::placeholder {
+      color: #666;
+    }
+
+    .room-search-input:focus {
+      border-color: #00D4AA;
+      background: rgba(0,212,170,0.08);
+    }
+
+    .refresh-btn {
+      background: rgba(0,212,170,0.15);
+      border: 1px solid rgba(0,212,170,0.3);
+      color: #00D4AA;
+      padding: 12px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 18px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 50px;
+    }
+
+    .refresh-btn:hover {
+      background: rgba(0,212,170,0.25);
+      transform: rotate(90deg);
+    }
+
+    .refresh-btn.spinning {
+      animation: spin 0.6s linear infinite;
+    }
+
     .stats-bar {
       display: flex;
       justify-content: center;
@@ -68,23 +121,137 @@
     }
 
     .room-card {
-      background: rgba(0,0,0,0.3);
-      border: 1px solid rgba(97,218,251,0.15);
-      border-radius: 8px;
-      padding: 20px;
+      background: #1a1a2e;
+      border: 2px solid rgba(97,218,251,0.15);
+      border-radius: 12px;
+      padding: 18px;
       cursor: pointer;
-      transition: all 0.2s;
-    }
-    .room-card:hover {
-      border-color: #61dafb;
-      background: rgba(97,218,251,0.08);
-      transform: translateY(-2px);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      animation: slideInUp 0.4s ease-out backwards;
     }
 
-    .room-name { font-size: 18px; font-weight: bold; color: #61dafb; margin-bottom: 6px; }
-    .room-desc { font-size: 13px; color: #aaa; margin-bottom: 10px; }
-    .room-meta { display: flex; gap: 15px; font-size: 12px; color: #888; }
-    .room-meta span { display: flex; align-items: center; gap: 4px; }
+    @keyframes slideInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .room-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, rgba(0,212,170,0.05) 0%, transparent 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .room-card:hover {
+      border-color: #00D4AA;
+      background: rgba(0,212,170,0.08);
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 8px 24px rgba(0,212,170,0.3);
+    }
+
+    .room-card:hover::before {
+      opacity: 1;
+    }
+
+    .room-card.active {
+      border-color: #00D4AA;
+      background: rgba(0,212,170,0.12);
+      box-shadow: 0 0 20px rgba(0,212,170,0.4);
+    }
+
+    .room-card.active::after {
+      content: '👁 Currently Viewing';
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #00D4AA;
+      color: #0a0a0f;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .room-card-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 10px;
+      position: relative;
+    }
+
+    .room-icon {
+      font-size: 32px;
+      flex-shrink: 0;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    }
+
+    .room-info {
+      flex: 1;
+    }
+
+    .room-name { 
+      font-size: 18px; 
+      font-weight: bold; 
+      color: #fff; 
+      margin-bottom: 4px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .room-size {
+      display: inline-block;
+      background: rgba(255,255,255,0.1);
+      color: #aaa;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: 'Courier New', monospace;
+      margin-left: 8px;
+    }
+
+    .room-desc { 
+      font-size: 13px; 
+      color: #aaa; 
+      margin-bottom: 12px;
+      line-height: 1.4;
+    }
+
+    .room-meta { 
+      display: flex; 
+      gap: 15px; 
+      font-size: 13px; 
+      color: #bbb;
+    }
+    
+    .room-meta span { 
+      display: flex; 
+      align-items: center; 
+      gap: 6px;
+      background: rgba(0,0,0,0.3);
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    .room-meta .agent-badge {
+      background: rgba(0,212,170,0.15);
+      color: #00D4AA;
+      font-weight: 600;
+    }
 
     .empty-state { text-align: center; padding: 40px; color: #666; }
 
@@ -857,6 +1024,39 @@
         flex-wrap: wrap;
         gap: 10px;
       }
+
+      .room-search-container {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .refresh-btn {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .room-card {
+        padding: 15px;
+      }
+
+      .room-icon {
+        font-size: 28px;
+      }
+
+      .room-name {
+        font-size: 16px;
+      }
+
+      .room-size {
+        display: block;
+        margin-left: 0;
+        margin-top: 4px;
+      }
+
+      .room-card.active::after {
+        font-size: 9px;
+        padding: 3px 8px;
+      }
       
       .room-content { flex-direction: column; }
 
@@ -1074,6 +1274,18 @@
         <div class="stat"><div class="stat-value" id="totalAgents">0</div><div class="stat-label">Agents Online</div></div>
         <div class="stat"><div class="stat-value" id="totalSpectators">0</div><div class="stat-label">Spectators</div></div>
         <div class="stat"><div class="stat-value" id="activeRooms">0</div><div class="stat-label">Active Rooms</div></div>
+      </div>
+      <div class="room-search-container">
+        <input 
+          type="text" 
+          class="room-search-input" 
+          id="roomSearchInput" 
+          placeholder="🔍 Search rooms..."
+          oninput="filterRooms()"
+        />
+        <button class="refresh-btn" onclick="refreshRooms()" title="Refresh room list">
+          🔄
+        </button>
       </div>
       <div class="room-list" id="roomList">
         <div class="empty-state">Loading rooms...</div>
@@ -1907,12 +2119,20 @@
         
         const data = await res.json();
         roomsList = data.rooms || []; // Store for swipe navigation
+        allRooms = [...roomsList]; // Store for filtering
         renderRoomList(roomsList);
+        
+        // Clear search input when refreshing
+        const searchInput = document.getElementById('roomSearchInput');
+        if (searchInput) {
+          searchInput.value = '';
+        }
       } catch (err) {
         console.error('Failed to fetch rooms:', err);
         showError(`Failed to load rooms: ${err.message || 'Network error'}`);
         document.getElementById('roomList').innerHTML = '<div class="empty-state">⚠️ Failed to load rooms. Check your connection.</div>';
         roomsList = []; // Reset on error
+        allRooms = [];
       }
     }
 
@@ -1934,22 +2154,116 @@
       }
     }
 
+    // Helper function to get room theme icon based on name
+    function getRoomIcon(roomName) {
+      const name = roomName.toLowerCase();
+      if (name.includes('lobby') || name.includes('main') || name.includes('entrance')) return '🏨';
+      if (name.includes('trading') || name.includes('trade') || name.includes('market')) return '💼';
+      if (name.includes('garden') || name.includes('park') || name.includes('nature')) return '🌳';
+      if (name.includes('arcade') || name.includes('game') || name.includes('play')) return '🎮';
+      if (name.includes('library') || name.includes('study') || name.includes('book')) return '📚';
+      if (name.includes('chill') || name.includes('lounge') || name.includes('relax')) return '🛋️';
+      if (name.includes('arena') || name.includes('battle') || name.includes('combat')) return '⚔️';
+      if (name.includes('cafe') || name.includes('coffee') || name.includes('restaurant')) return '☕';
+      if (name.includes('pool') || name.includes('swim') || name.includes('beach')) return '🏊';
+      if (name.includes('gym') || name.includes('fitness') || name.includes('sport')) return '💪';
+      if (name.includes('art') || name.includes('gallery') || name.includes('museum')) return '🎨';
+      if (name.includes('music') || name.includes('concert') || name.includes('band')) return '🎵';
+      if (name.includes('office') || name.includes('work') || name.includes('meeting')) return '💻';
+      return '🏠'; // Default
+    }
+
+    // Helper function to get room size (can be extracted from room data or estimated)
+    function getRoomSize(room) {
+      // If room has explicit size data, use it
+      if (room.width && room.height) {
+        return `${room.width}×${room.height}`;
+      }
+      // Otherwise, use default or estimate from room type
+      const name = room.name.toLowerCase();
+      if (name.includes('arena') || name.includes('large')) return '14×14';
+      if (name.includes('chill') || name.includes('small')) return '10×10';
+      return '12×12'; // Default
+    }
+
     function renderRoomList(rooms) {
       const list = document.getElementById('roomList');
       if (rooms.length === 0) {
         list.innerHTML = '<div class="empty-state">No rooms available yet. Create one via the API!</div>';
         return;
       }
-      list.innerHTML = rooms.map(room => `
-        <div class="room-card" onclick="enterRoom('${room.id}', '${room.name.replace(/'/g, "\\'")}')">
-          <div class="room-name">🏠 ${room.name}</div>
-          <div class="room-desc">${room.description || 'No description'}</div>
-          <div class="room-meta">
-            <span>🤖 ${room.agentCount || 0} agents</span>
-            <span>👁 ${room.spectatorCount || 0} spectators</span>
+
+      // Sort by agent count (most populated first)
+      const sortedRooms = [...rooms].sort((a, b) => (b.agentCount || 0) - (a.agentCount || 0));
+
+      list.innerHTML = sortedRooms.map((room, index) => {
+        const isActive = room.id === currentRoomId;
+        const icon = getRoomIcon(room.name);
+        const size = getRoomSize(room);
+        const agentCount = room.agentCount || 0;
+        const animationDelay = index * 0.05; // Stagger by 50ms
+        
+        return `
+          <div class="room-card ${isActive ? 'active' : ''}" 
+               style="animation-delay: ${animationDelay}s;"
+               onclick="enterRoom('${room.id}', '${room.name.replace(/'/g, "\\'")}')">
+            <div class="room-card-header">
+              <div class="room-icon">${icon}</div>
+              <div class="room-info">
+                <div class="room-name">
+                  ${escapeHtml(room.name)}
+                  <span class="room-size">${size}</span>
+                </div>
+                <div class="room-desc">${escapeHtml(room.description || 'A virtual space for AI agents')}</div>
+              </div>
+            </div>
+            <div class="room-meta">
+              <span class="agent-badge">👥 ${agentCount} agent${agentCount !== 1 ? 's' : ''}</span>
+              <span>👁 ${room.spectatorCount || 0} watching</span>
+            </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
+    }
+
+    // Filter rooms based on search input
+    let allRooms = []; // Store all rooms for filtering
+    
+    function filterRooms() {
+      const searchInput = document.getElementById('roomSearchInput');
+      const query = searchInput.value.toLowerCase().trim();
+      const list = document.getElementById('roomList');
+      
+      if (query === '') {
+        // Show all rooms
+        renderRoomList(allRooms);
+      } else {
+        // Filter rooms by name or description
+        const filtered = allRooms.filter(room => 
+          room.name.toLowerCase().includes(query) || 
+          (room.description && room.description.toLowerCase().includes(query))
+        );
+        
+        if (filtered.length === 0) {
+          list.innerHTML = `<div class="empty-state">🔍 No rooms found matching "${escapeHtml(query)}"</div>`;
+        } else {
+          renderRoomList(filtered);
+        }
+      }
+    }
+
+    // Refresh rooms with animation
+    async function refreshRooms() {
+      const refreshBtn = document.querySelector('.refresh-btn');
+      refreshBtn.classList.add('spinning');
+      
+      try {
+        await fetchRooms();
+      } finally {
+        setTimeout(() => {
+          refreshBtn.classList.remove('spinning');
+        }, 600);
+      }
     }
 
     // ===== ENTER ROOM =====
@@ -2064,6 +2378,7 @@
         document.getElementById('roomSelector').classList.remove('hidden');
         roomView.classList.remove('active', 'fade-out');
 
+        // Re-render room list to update "currently viewing" indicator
         fetchRooms();
         fetchStats();
       }, 400);
