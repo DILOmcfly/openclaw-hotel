@@ -178,6 +178,60 @@ router.post('/api/internal/simulate', async (_req, res) => {
       broadcastToSpectators(move.roomId, moveMsg);
     }
 
+    // 3.5. Room hopping - 10% chance per tick that ONE agent hops to a different room
+    const ROOM_UUIDS = [
+      '1243acc1-9c6f-4dd1-ae7b-c30c3a09a195', // The Lobby
+      'e74732bd-79ee-4ad1-ad20-69c66f03bed6', // Chill Lounge
+      '688bd264-9422-4f9a-80ec-c9b9142b7a4c', // The Arena
+    ];
+
+    if (Math.random() < 0.1 && agents.length > 0) {
+      // Pick one random agent to hop
+      const hopper = randomPick(agents);
+      const oldRoomId = hopper.room_id;
+
+      // Pick a different room
+      const availableRooms = ROOM_UUIDS.filter((id) => id !== oldRoomId);
+      const newRoomId = randomPick(availableRooms);
+
+      // Random position in new room (3-8 range)
+      const newX = randomInt(3, 8);
+      const newY = randomInt(3, 8);
+      const newRotation = randomInt(0, 7);
+
+      // Update presence table
+      await sql`
+        UPDATE presence
+        SET room_id = ${newRoomId}::uuid, x = ${newX}, y = ${newY}, rotation = ${newRotation}
+        WHERE agent_id = ${hopper.agent_id}::uuid
+      `;
+
+      // Broadcast agent.left to old room
+      broadcastToSpectators(oldRoomId, {
+        type: 'agent.left',
+        roomId: oldRoomId,
+        agentId: hopper.agent_id,
+      });
+
+      // Broadcast agent.joined to new room
+      const [agentInfo] = await sql<{ display_name: string; sprite_url: string }[]>`
+        SELECT display_name, sprite_url FROM agents WHERE id = ${hopper.agent_id}::uuid
+      `;
+
+      if (agentInfo) {
+        broadcastToSpectators(newRoomId, {
+          type: 'agent.joined',
+          roomId: newRoomId,
+          agentId: hopper.agent_id,
+          displayName: agentInfo.display_name,
+          spriteUrl: agentInfo.sprite_url,
+          x: newX,
+          y: newY,
+          rotation: newRotation,
+        });
+      }
+    }
+
     // 4. Pick 1-2 agents to chat
     const numChatters = Math.min(randomInt(1, 2), agents.length);
     const chatters = [];

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { retryBrowserAction, retryNavigate, retryClick, retryScreenshot } from '../../tools/browser-retry-wrapper.mjs';
+import { retryBrowserAction, retryNavigate, retryClick, retryScreenshot } from '../../../tools/browser-retry-wrapper.mjs';
 
 describe('Browser Retry Wrapper', () => {
   beforeEach(() => {
