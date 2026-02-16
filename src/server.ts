@@ -343,6 +343,38 @@ if (ROOM_HOPPING_ENABLED) {
   logger.info('Room hopping service started', { intervalMs: ROOM_HOPPING_INTERVAL_MS });
 }
 
+// Start continuous simulation service (agents act autonomously)
+import * as simulationService from './services/SimulationService.js';
+import { broadcastToRoom } from './ws/handler.js';
+const SIMULATION_ENABLED = process.env.SIMULATION_ENABLED !== 'false';
+const SIMULATION_INTERVAL_MS = parseInt(process.env.SIMULATION_INTERVAL_MS || '60000', 10); // Default: 60 seconds
+const SIMULATION_ACTION_PROBABILITY = parseFloat(process.env.SIMULATION_ACTION_PROBABILITY || '0.5'); // Default: 50%
+
+if (SIMULATION_ENABLED) {
+  simulationService.startLoop(
+    {
+      enabled: true,
+      tickIntervalMs: SIMULATION_INTERVAL_MS,
+      actionProbability: SIMULATION_ACTION_PROBABILITY,
+    },
+    sql,
+    broadcastToRoom
+  );
+  logger.info('Continuous simulation service started', {
+    intervalMs: SIMULATION_INTERVAL_MS,
+    actionProbability: SIMULATION_ACTION_PROBABILITY,
+  });
+}
+
+// Simulation metrics endpoint
+app.get('/api/simulation/metrics', (_req, res) => {
+  const metrics = simulationService.getMetrics();
+  res.json({
+    success: true,
+    data: metrics,
+  });
+});
+
 // Broadcast analytics summary every 60 seconds
 import { getAnalyticsSummary } from './services/analyticsService.js';
 import { broadcastToSpectators } from './ws/spectator.js';
