@@ -5,3 +5,4 @@ client/assets/kenney/furniture-kit.zip
 lib/scuti-renderer/
 backups/*.sql.gz
 backups/*.log
+client/assets/generated/
