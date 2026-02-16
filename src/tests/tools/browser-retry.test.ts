@@ -173,7 +173,7 @@ describe('Browser Retry Wrapper', () => {
 
     it('should fail if element not found in snapshot', async () => {
       const mockBrowser = vi.fn()
-        .mockResolvedValue('<html><div>No button here</div></html>');
+        .mockResolvedValue('<html><div>No matching element here</div></html>');
 
       await expect(
         retryClick('button', mockBrowser, { maxRetries: 2 })

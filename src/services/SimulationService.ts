@@ -20,6 +20,7 @@ import {
 } from './personalityEngine.js';
 import { addMemory } from './agentMemory.js';
 import { checkAndGenerateReflections } from './reflectionService.js';
+import { updateRelationship } from './socialDynamics.js';
 
 export type SimulationConfig = {
   enabled: boolean;
@@ -294,20 +295,28 @@ async function executeAction(
           rotation: 0,
         });
 
-        // Add memory of movement
-        await addMemory(
-          agentId,
-          {
-            type: 'observation',
-            content: `Moved to position (${x}, ${y}) in room ${roomId}`,
-            importance: 3,
-            relatedAgentIds: [],
-          },
-          sql
-        );
+        // Add memory of movement (graceful degradation)
+        try {
+          await addMemory(
+            agentId,
+            {
+              type: 'observation',
+              content: `Moved to position (${x}, ${y}) in room ${roomId}`,
+              importance: 3,
+              relatedAgentIds: [],
+            },
+            sql
+          );
+        } catch (error) {
+          console.error(`[Simulation] Failed to add movement memory for ${agentId}:`, error);
+        }
 
-        // Check for reflection trigger
-        await checkAndGenerateReflections(agentId, sql);
+        // Check for reflection trigger (graceful degradation)
+        try {
+          await checkAndGenerateReflections(agentId, sql);
+        } catch (error) {
+          console.error(`[Simulation] Failed to check reflections for ${agentId}:`, error);
+        }
 
         return true;
       }
@@ -330,20 +339,37 @@ async function executeAction(
           timestamp: new Date().toISOString(),
         });
 
-        // Add memory of conversation
-        await addMemory(
-          agentId,
-          {
-            type: 'conversation',
-            content: `Said: "${result.message}" in room ${roomId}`,
-            importance: 6, // Conversations are moderately important
-            relatedAgentIds: nearbyAgents,
-          },
-          sql
-        );
+        // Add memory of conversation (graceful degradation)
+        try {
+          await addMemory(
+            agentId,
+            {
+              type: 'conversation',
+              content: `Said: "${result.message}" in room ${roomId}`,
+              importance: 6, // Conversations are moderately important
+              relatedAgentIds: nearbyAgents,
+            },
+            sql
+          );
+        } catch (error) {
+          console.error(`[Simulation] Failed to add conversation memory for ${agentId}:`, error);
+        }
 
-        // Check for reflection trigger
-        await checkAndGenerateReflections(agentId, sql);
+        // Update social dynamics: strengthen relationships with nearby agents (graceful degradation)
+        try {
+          for (const targetAgent of nearbyAgents) {
+            await updateRelationship(agentId, targetAgent, 'chat', sql);
+          }
+        } catch (error) {
+          console.error(`[Simulation] Failed to update relationships for ${agentId}:`, error);
+        }
+
+        // Check for reflection trigger (graceful degradation)
+        try {
+          await checkAndGenerateReflections(agentId, sql);
+        } catch (error) {
+          console.error(`[Simulation] Failed to check reflections for ${agentId}:`, error);
+        }
 
         return true;
       }
@@ -359,20 +385,28 @@ async function executeAction(
           emote,
         });
 
-        // Add memory of emote
-        await addMemory(
-          agentId,
-          {
-            type: 'observation',
-            content: `Performed emote: ${emote} in room ${roomId}`,
-            importance: 4,
-            relatedAgentIds: nearbyAgents,
-          },
-          sql
-        );
+        // Add memory of emote (graceful degradation)
+        try {
+          await addMemory(
+            agentId,
+            {
+              type: 'observation',
+              content: `Performed emote: ${emote} in room ${roomId}`,
+              importance: 4,
+              relatedAgentIds: nearbyAgents,
+            },
+            sql
+          );
+        } catch (error) {
+          console.error(`[Simulation] Failed to add emote memory for ${agentId}:`, error);
+        }
 
-        // Check for reflection trigger
-        await checkAndGenerateReflections(agentId, sql);
+        // Check for reflection trigger (graceful degradation)
+        try {
+          await checkAndGenerateReflections(agentId, sql);
+        } catch (error) {
+          console.error(`[Simulation] Failed to check reflections for ${agentId}:`, error);
+        }
 
         return true;
       }
