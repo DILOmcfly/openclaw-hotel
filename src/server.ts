@@ -182,7 +182,7 @@ app.get('/metrics/history', (_req, res) => {
 
 // Serve static HTML pages
 app.get('/', (_req, res) => {
-  res.type('html').send(readFileSync(join(import.meta.dirname, '..', 'client', 'index.html'), 'utf8'));
+  res.type('html').send(readFileSync(join(import.meta.dirname, '..', 'client', 'landing.html'), 'utf8'));
 });
 
 app.get('/spectate', (_req, res) => {
