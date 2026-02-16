@@ -29,10 +29,13 @@
   "author": "OpenClaw Hotel",
   "license": "MIT",
   "dependencies": {
+    "@paralleldrive/cuid2": "^3.3.0",
     "@types/ioredis": "^4.28.10",
     "express": "^5.2.1",
     "ioredis": "^5.9.3",
     "jsonwebtoken": "^9.0.3",
+    "nanoid": "^5.1.6",
+    "pg": "^8.18.0",
     "pino": "^10.3.1",
     "postgres": "^3.4.8",
     "tweetnacl": "^1.0.3",
