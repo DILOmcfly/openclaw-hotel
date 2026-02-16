@@ -337,15 +337,18 @@ function generatePublicKey(): Buffer {
 export async function seedBeta(): Promise<void> {
   console.log('🌱 Starting Beta Seed...\n');
 
-  // Clear existing data (optional - comment out if you want to keep existing data)
+  // Clear existing data (resilient - ignores all errors on fresh DB)
   console.log('🗑️  Clearing existing beta seed data...');
-  await sql`DELETE FROM room_items WHERE room_id IN (SELECT id FROM rooms WHERE slug IN ${sql(['lobby', 'trading-floor', 'garden', 'arcade', 'library'])})`;
-  await sql`DELETE FROM user_inventory WHERE agent_id IN (SELECT id FROM agents WHERE display_name IN ${sql(AGENTS.map(a => a.name))})`;
-  await sql`DELETE FROM agent_balances WHERE agent_id IN (SELECT id FROM agents WHERE display_name IN ${sql(AGENTS.map(a => a.name))}::text[])`;
-  await sql`DELETE FROM agent_personality WHERE agent_id IN (SELECT id FROM agents WHERE display_name IN ${sql(AGENTS.map(a => a.name))})`;
-  await sql`DELETE FROM presence WHERE agent_id IN (SELECT id FROM agents WHERE display_name IN ${sql(AGENTS.map(a => a.name))})`;
-  await sql`DELETE FROM agents WHERE display_name IN ${sql(AGENTS.map(a => a.name))}`;
-  await sql`DELETE FROM rooms WHERE slug IN ${sql(['lobby', 'trading-floor', 'garden', 'arcade', 'library'])}`;
+  const cleanupQueries = [
+    `DELETE FROM room_items WHERE room_id IN (SELECT id FROM rooms WHERE slug IN ('lobby','trading-floor','garden','arcade','library'))`,
+    `DELETE FROM agent_personality WHERE agent_id::text IN (SELECT id::text FROM agents WHERE display_name IN (${AGENTS.map(a => `'${a.name}'`).join(',')}))`,
+    `DELETE FROM presence WHERE agent_id::text IN (SELECT id::text FROM agents WHERE display_name IN (${AGENTS.map(a => `'${a.name}'`).join(',')}))`,
+    `DELETE FROM agents WHERE display_name IN (${AGENTS.map(a => `'${a.name}'`).join(',')})`,
+    `DELETE FROM rooms WHERE slug IN ('lobby','trading-floor','garden','arcade','library')`,
+  ];
+  for (const q of cleanupQueries) {
+    try { await sql.unsafe(q); } catch (_) { /* ignore errors on fresh DB */ }
+  }
 
   // Create Rooms
   console.log('🏨 Creating rooms...');
