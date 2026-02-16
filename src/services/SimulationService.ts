@@ -7,6 +7,7 @@
 
 import { PERSONALITIES, type Personality } from '../ai/personalities.js';
 import * as presenceService from './presence.js';
+import { generateAgentMessage, getConversationConfig, type ConversationContext } from './agentConversation.js';
 
 export type SimulationConfig = {
   enabled: boolean;
@@ -100,28 +101,62 @@ function selectAction(personality: Personality): AgentAction {
 }
 
 /**
- * Generate a chat message based on personality
+ * Get recent chat messages in a room (for LLM context)
  */
-function generateChatMessage(personality: Personality): string {
-  const { topics, greetings } = personality;
-
-  // 30% chance to greet
-  if (Math.random() < 0.3) {
-    return greetings[Math.floor(Math.random() * greetings.length)];
+async function getRecentRoomMessages(roomId: string, sql: any, limit: number = 5): Promise<Array<{ sender: string; message: string; timestamp: Date }>> {
+  try {
+    // This is a simplified implementation - in production you'd query a messages table
+    // For now, return empty array (fallback to templates)
+    return [];
+  } catch (error) {
+    console.error(`[Simulation] Failed to get recent messages for room ${roomId}:`, error);
+    return [];
   }
+}
 
-  // Otherwise, talk about a topic
-  const topic = topics[Math.floor(Math.random() * topics.length)];
-  
-  const templates = [
-    `Anyone interested in ${topic}? 🤔`,
-    `Thinking about ${topic} today...`,
-    `${topic} is fascinating! ✨`,
-    `I wonder about ${topic}...`,
-    `${topic} — what are your thoughts?`,
-  ];
+/**
+ * Get nearby agents in the same room
+ */
+async function getNearbyAgents(agentId: string, roomId: string, sql: any): Promise<string[]> {
+  try {
+    const rows = await sql`
+      SELECT p.agent_id::text AS "agentId"
+      FROM presence p
+      WHERE p.room_id = ${roomId}::uuid
+        AND p.agent_id != ${agentId}::uuid
+      LIMIT 10
+    `;
+    return rows.map((r: any) => r.agentId);
+  } catch (error) {
+    console.error(`[Simulation] Failed to get nearby agents:`, error);
+    return [];
+  }
+}
 
-  return templates[Math.floor(Math.random() * templates.length)];
+/**
+ * Generate a chat message based on personality (LLM-powered or fallback)
+ */
+async function generateChatMessage(
+  agentId: string,
+  personality: Personality,
+  roomId: string,
+  sql: any
+): Promise<{ message: string; source: 'llm' | 'fallback' }> {
+  const config = getConversationConfig();
+
+  // Build context for LLM
+  const nearbyAgents = await getNearbyAgents(agentId, roomId, sql);
+  const recentMessages = await getRecentRoomMessages(roomId, sql);
+
+  const context: ConversationContext = {
+    currentRoom: roomId,
+    nearbyAgents,
+    recentMessages,
+    agentMood: 'neutral', // Could be enhanced with mood tracking
+  };
+
+  // Generate message (LLM or fallback)
+  return await generateAgentMessage(agentId, personality, context, config);
 }
 
 /**
@@ -178,14 +213,19 @@ async function executeAction(
       }
 
       case 'chat': {
-        const message = generateChatMessage(personality);
+        const result = await generateChatMessage(agentId, personality, roomId, sql);
+
+        // Log LLM usage
+        if (result.source === 'llm') {
+          console.log(`[Simulation] 🤖 LLM message from ${personality.name}: "${result.message}"`);
+        }
 
         // Broadcast chat
         broadcast(roomId, {
           type: 'chat',
           agentId,
           sender: personality.name,
-          message,
+          message: result.message,
           timestamp: new Date().toISOString(),
         });
 

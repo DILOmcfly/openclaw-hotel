@@ -1,68 +1,78 @@
 name: Deploy to Production
 
-# Manual deployment trigger
 on:
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Deployment environment'
-        required: true
-        default: 'production'
-        type: choice
-        options:
-          - production
-          - staging
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual deployment
 
 jobs:
   deploy:
+    name: Deploy Application
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
-
+    # Only deploy if CI passes
+    needs: []  # Add CI workflow dependency when ready
+    
     steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup SSH
-      uses: webfactory/ssh-agent@v0.9.0
-      with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-    - name: Add server to known hosts
-      run: |
-        mkdir -p ~/.ssh
-        ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-
-    - name: Deploy to server
-      env:
-        SERVER_HOST: ${{ secrets.SERVER_HOST }}
-        SERVER_USER: ${{ secrets.SERVER_USER }}
-        APP_DIR: ${{ secrets.APP_DIR || '/opt/openclaw-hotel' }}
-      run: |
-        ssh $SERVER_USER@$SERVER_HOST << 'ENDSSH'
-          cd ${{ env.APP_DIR }}
-          git pull origin main
-          docker compose build
-          docker compose up -d
-          docker compose exec -T backend npx prisma migrate deploy
-          cd client
-          npm ci
-          npm run build
-          sudo cp -r dist/* /var/www/openclaw-hotel/client/
-          sudo systemctl reload nginx
-        ENDSSH
-
-    - name: Health check
-      run: |
-        sleep 10
-        curl -f https://${{ secrets.SERVER_HOST }}/health || exit 1
-
-    - name: Notify deployment
-      if: success()
-      run: |
-        echo "Deployment to ${{ github.event.inputs.environment }} successful!"
-        # Add Slack/Discord/Telegram notification here if needed
-
-# Required secrets (set in GitHub repository settings):
-# - SSH_PRIVATE_KEY: Private key for SSH access to server
-# - SERVER_HOST: Server hostname or IP
-# - SERVER_USER: SSH user (e.g., root, ubuntu)
-# - APP_DIR: Application directory (optional, defaults to /opt/openclaw-hotel)
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # ---------------------------------------------
+      # Railway Deployment (Option 1)
+      # ---------------------------------------------
+      # Uncomment when ready to deploy to Railway:
+      # 
+      # - name: Deploy to Railway
+      #   uses: bervProject/railway-deploy@main
+      #   with:
+      #     railway_token: ${{ secrets.RAILWAY_TOKEN }}
+      #     service: openclaw-hotel
+      #
+      # Required secrets in GitHub repository settings:
+      # - RAILWAY_TOKEN: Railway API token from railway.app
+      #
+      # Required environment variables in Railway:
+      # - DATABASE_URL: PostgreSQL connection string
+      # - REDIS_URL: Redis connection string
+      # - JWT_SECRET: Secret for JWT signing
+      # - NODE_ENV: production
+      # - PORT: 8080 (or as configured)
+      
+      # ---------------------------------------------
+      # Fly.io Deployment (Option 2)
+      # ---------------------------------------------
+      # Uncomment when ready to deploy to Fly.io:
+      #
+      # - name: Setup flyctl
+      #   uses: superfly/flyctl-actions/setup-flyctl@master
+      #
+      # - name: Deploy to Fly.io
+      #   run: flyctl deploy --remote-only
+      #   env:
+      #     FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      #
+      # Required secrets in GitHub repository settings:
+      # - FLY_API_TOKEN: Fly.io API token from fly.io/user/personal_access_tokens
+      #
+      # Required secrets in Fly.io (set via `flyctl secrets set`):
+      # - DATABASE_URL: PostgreSQL connection string
+      # - REDIS_URL: Redis connection string  
+      # - JWT_SECRET: Secret for JWT signing
+      #
+      # fly.toml should be configured with:
+      # - app name
+      # - primary region
+      # - internal port (8080)
+      # - health checks
+      # - auto-stop/start machines config
+      
+      - name: Deployment Placeholder
+        run: |
+          echo "🚀 Deployment workflow is configured but not active"
+          echo "Uncomment Railway or Fly.io deployment steps above to enable"
+          echo ""
+          echo "Environment variables required:"
+          echo "  - DATABASE_URL"
+          echo "  - REDIS_URL"
+          echo "  - JWT_SECRET"
+          echo "  - NODE_ENV=production"
+          echo "  - PORT (platform-specific)"
