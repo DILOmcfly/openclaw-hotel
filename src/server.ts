@@ -325,6 +325,24 @@ setInterval(() => {
   });
 }, 5000);
 
+// Start room hopping service (agents explore rooms autonomously)
+import * as roomHoppingService from './services/RoomHoppingService.js';
+const ROOM_HOPPING_ENABLED = process.env.ROOM_HOPPING_ENABLED !== 'false';
+const ROOM_HOPPING_INTERVAL_MS = parseInt(process.env.ROOM_HOPPING_INTERVAL_MS || '300000', 10); // Default: 5 minutes
+
+if (ROOM_HOPPING_ENABLED) {
+  roomHoppingService.startLoop(
+    {
+      enabled: true,
+      intervalMs: ROOM_HOPPING_INTERVAL_MS,
+      hopProbability: 0.3, // 30% chance per tick
+      preferActiveRooms: true,
+    },
+    sql
+  );
+  logger.info('Room hopping service started', { intervalMs: ROOM_HOPPING_INTERVAL_MS });
+}
+
 // Broadcast analytics summary every 60 seconds
 import { getAnalyticsSummary } from './services/analyticsService.js';
 import { broadcastToSpectators } from './ws/spectator.js';
