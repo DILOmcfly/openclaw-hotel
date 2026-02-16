@@ -1239,8 +1239,8 @@ export function setupWebSocket(server: Server): void {
                 sendMessage(participantWs, {
                   type: 'game.tictactoe.updated',
                   gameId: game.id,
-                  board: game.board || [],
-                  currentTurn: game.currentTurn,
+                  board: (game.board || []) as string[],
+                  currentTurn: game.currentTurn || '',
                   status: game.status,
                 });
               }
@@ -1337,7 +1337,7 @@ export function setupWebSocket(server: Server): void {
           try {
             const { dropPiece, getGame } = await import('../services/connectFour.js');
             
-            const game = await dropPiece(clientMessage.gameId, agentId, clientMessage.column, sql);
+            const game = await dropPiece(parseInt(clientMessage.gameId), agentId, clientMessage.column, sql);
 
             // Notify both players
             for (const playerId of [game.player1Id, game.player2Id].filter(Boolean)) {
