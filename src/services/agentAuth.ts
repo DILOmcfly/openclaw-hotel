@@ -72,30 +72,128 @@ export function validateApiKeyFormat(apiKey: string, platform: AgentPlatform): b
 }
 
 /**
+ * Verify Claude agent via Anthropic API
+ * Makes a lightweight API call to validate the API key
+ */
+async function verifyClaudeAgent(apiKey: string): Promise<boolean> {
+  try {
+    // Lightweight check: list models (doesn't cost anything)
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'test' }]
+      }),
+      signal: AbortSignal.timeout(5000), // 5s timeout
+    });
+
+    // 200 = valid key, 401/403 = invalid key
+    return response.ok;
+  } catch (error) {
+    // Network error or timeout
+    console.error('Claude API verification failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Verify ChatGPT agent via OpenAI API
+ * Makes a lightweight API call to validate the API key
+ */
+async function verifyChatGPTAgent(apiKey: string): Promise<boolean> {
+  try {
+    // Lightweight check: list models (free endpoint)
+    const response = await fetch('https://api.openai.com/v1/models', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      signal: AbortSignal.timeout(5000), // 5s timeout
+    });
+
+    // 200 = valid key, 401 = invalid key
+    return response.ok;
+  } catch (error) {
+    // Network error or timeout
+    console.error('OpenAI API verification failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Verify Gemini agent via Google AI API
+ * Makes a lightweight API call to validate the API key
+ */
+async function verifyGeminiAgent(apiKey: string): Promise<boolean> {
+  try {
+    // Lightweight check: list models (free endpoint)
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`,
+      {
+        method: 'GET',
+        signal: AbortSignal.timeout(5000), // 5s timeout
+      }
+    );
+
+    // 200 = valid key, 400/403 = invalid key
+    return response.ok;
+  } catch (error) {
+    // Network error or timeout
+    console.error('Google AI API verification failed:', error);
+    return false;
+  }
+}
+
+/**
  * Verify proof token for agent registration
- * V3: Platform-specific verification with API key format validation
+ * V4: Real platform API verification (not just format validation)
  * 
  * Platform verification strategies:
- * - claude: Validate Anthropic API key format (sk-ant-*)
- * - chatgpt: Validate OpenAI API key format (sk-* or sk-proj-*)
- * - gemini: Validate Google AI API key format (AIza*)
+ * - claude: Validate via Anthropic API (real API call)
+ * - chatgpt: Validate via OpenAI API (real API call)
+ * - gemini: Validate via Google AI API (real API call)
  * - openclaw: Use shared secret (OPENCLAW_REGISTRATION_SECRET)
  * - custom: Use shared secret (CUSTOM_REGISTRATION_SECRET)
  * 
  * Falls back to global AGENT_REGISTRATION_SECRET if platform-specific not set.
  */
-export function verifyProofToken(proofToken: string, platform: AgentPlatform): boolean {
-  // For platforms with API key format validation
-  if (['claude', 'chatgpt', 'gemini'].includes(platform)) {
-    return validateApiKeyFormat(proofToken, platform);
+export async function verifyProofToken(proofToken: string, platform: AgentPlatform): Promise<boolean> {
+  // For platforms with real API verification
+  if (platform === 'claude') {
+    // First check format (fast path, avoids unnecessary API calls)
+    if (!validateApiKeyFormat(proofToken, platform)) {
+      return false;
+    }
+    // Then verify with real API call
+    return await verifyClaudeAgent(proofToken);
+  }
+
+  if (platform === 'chatgpt') {
+    if (!validateApiKeyFormat(proofToken, platform)) {
+      return false;
+    }
+    return await verifyChatGPTAgent(proofToken);
+  }
+
+  if (platform === 'gemini') {
+    if (!validateApiKeyFormat(proofToken, platform)) {
+      return false;
+    }
+    return await verifyGeminiAgent(proofToken);
   }
 
   // For shared-secret platforms (openclaw, custom)
   const platformSecrets: Record<AgentPlatform, string | undefined> = {
     openclaw: process.env.OPENCLAW_REGISTRATION_SECRET,
-    claude: process.env.CLAUDE_REGISTRATION_SECRET, // Unused (format validation above)
-    chatgpt: process.env.CHATGPT_REGISTRATION_SECRET, // Unused (format validation above)
-    gemini: process.env.GEMINI_REGISTRATION_SECRET, // Unused (format validation above)
+    claude: process.env.CLAUDE_REGISTRATION_SECRET, // Unused (API verification above)
+    chatgpt: process.env.CHATGPT_REGISTRATION_SECRET, // Unused (API verification above)
+    gemini: process.env.GEMINI_REGISTRATION_SECRET, // Unused (API verification above)
     custom: process.env.CUSTOM_REGISTRATION_SECRET,
   };
 
@@ -128,8 +226,9 @@ export async function registerAgent(
     throw new Error(`Invalid platform: must be one of ${AGENT_PLATFORMS.join(', ')}`);
   }
 
-  // Verify proof token
-  if (!verifyProofToken(proofToken, platform)) {
+  // Verify proof token (now async for platform API verification)
+  const isValid = await verifyProofToken(proofToken, platform);
+  if (!isValid) {
     throw new Error('Invalid proof token: agent registration denied');
   }
 
