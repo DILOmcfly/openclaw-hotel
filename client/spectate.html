@@ -211,8 +211,15 @@
     }
 
     /* Room View */
-    #roomView { display: none; min-height: 100vh; }
+    #roomView { 
+      display: none; 
+      min-height: 100vh; 
+      opacity: 0;
+      transition: opacity 0.4s ease-in-out;
+    }
     #roomView.active { display: flex; flex-direction: column; }
+    #roomView.fade-in { opacity: 1; }
+    #roomView.fade-out { opacity: 0; }
 
     .room-toolbar {
       display: flex;
@@ -528,6 +535,7 @@
     // State
     let currentRoomId = null;
     let currentRoomName = '';
+    let roomsList = []; // For mobile swipe navigation
     let ws = null;
     let agents = new Map(); // agentId -> { name, x, y, targetX, targetY, direction, sprite, graphics, bubble }
     let chatMessages = [];
@@ -547,9 +555,11 @@
     let panY = 0;
     let selectedAgent = null;
 
-    // FPS tracking
+    // FPS tracking & throttling
     let fpsFrames = [];
     let fpsVisible = false;
+    let lastSortTime = 0;
+    const SORT_THROTTLE_MS = isLowEnd ? 33 : 16; // 30 FPS on low-end, 60 FPS on desktop
 
     // ===== UI STATE HELPERS =====
     function showLoading(text = 'Loading...', subtext = 'Please wait') {
@@ -1263,8 +1273,11 @@
         }
       }
 
-      // Re-sort depth every frame (isometric requirement)
-      contentContainer.sortChildren();
+      // Re-sort depth (throttled on low-end devices for better FPS)
+      if (now - lastSortTime >= SORT_THROTTLE_MS) {
+        contentContainer.sortChildren();
+        lastSortTime = now;
+      }
     }
 
     // ===== ROOM LIST =====
@@ -1278,11 +1291,13 @@
         }
         
         const data = await res.json();
-        renderRoomList(data.rooms || []);
+        roomsList = data.rooms || []; // Store for swipe navigation
+        renderRoomList(roomsList);
       } catch (err) {
         console.error('Failed to fetch rooms:', err);
         showError(`Failed to load rooms: ${err.message || 'Network error'}`);
         document.getElementById('roomList').innerHTML = '<div class="empty-state">⚠️ Failed to load rooms. Check your connection.</div>';
+        roomsList = []; // Reset on error
       }
     }
 
@@ -1332,10 +1347,17 @@
         agents.clear();
         chatMessages = [];
 
-        // Switch view
+        // Switch view with fade-in transition
+        const roomView = document.getElementById('roomView');
+        roomView.classList.remove('fade-out'); // Clear any previous fade-out
         document.getElementById('roomSelector').classList.add('hidden');
-        document.getElementById('roomView').classList.add('active');
+        roomView.classList.add('active');
         document.getElementById('roomTitle').textContent = roomName;
+        
+        // Trigger fade-in after layout (next frame)
+        requestAnimationFrame(() => {
+          roomView.classList.add('fade-in');
+        });
 
         // Clear chat
         document.getElementById('chatMessages').innerHTML = '';
@@ -1400,19 +1422,28 @@
     }
 
     function leaveRoom() {
-      if (ws) { ws.close(); ws = null; }
-      if (app) {
-        app.destroy(true, { children: true, texture: true });
-        app = null;
-      }
-      currentRoomId = null;
-      agents.clear();
+      const roomView = document.getElementById('roomView');
+      
+      // Trigger fade-out transition
+      roomView.classList.remove('fade-in');
+      roomView.classList.add('fade-out');
+      
+      // Wait for transition to complete (400ms)
+      setTimeout(() => {
+        if (ws) { ws.close(); ws = null; }
+        if (app) {
+          app.destroy(true, { children: true, texture: true });
+          app = null;
+        }
+        currentRoomId = null;
+        agents.clear();
 
-      document.getElementById('roomSelector').classList.remove('hidden');
-      document.getElementById('roomView').classList.remove('active');
+        document.getElementById('roomSelector').classList.remove('hidden');
+        roomView.classList.remove('active', 'fade-out');
 
-      fetchRooms();
-      fetchStats();
+        fetchRooms();
+        fetchStats();
+      }, 400);
     }
 
     // ===== WEBSOCKET =====
@@ -1689,9 +1720,26 @@
           const endX = e.changedTouches[0].clientX;
           const swipeDist = endX - swipeStartX;
           
-          if (Math.abs(swipeDist) > 100) {
-            // Swipe detected - could be used for room switching
-            console.log('[Touch] Swipe detected:', swipeDist > 0 ? 'right' : 'left');
+          if (Math.abs(swipeDist) > 100 && currentRoomId && roomsList.length > 1) {
+            // Find current room index
+            const currentIndex = roomsList.findIndex(r => r.id === currentRoomId);
+            if (currentIndex !== -1) {
+              let nextIndex;
+              if (swipeDist > 0) {
+                // Swipe right → previous room
+                nextIndex = currentIndex === 0 ? roomsList.length - 1 : currentIndex - 1;
+              } else {
+                // Swipe left → next room
+                nextIndex = currentIndex === roomsList.length - 1 ? 0 : currentIndex + 1;
+              }
+              
+              const nextRoom = roomsList[nextIndex];
+              console.log('[Touch] Swipe navigation:', nextRoom.name);
+              leaveRoom();
+              setTimeout(() => {
+                enterRoom(nextRoom.id, nextRoom.name);
+              }, 450); // Wait for fade-out transition
+            }
           }
         }
       }, { passive: true });
