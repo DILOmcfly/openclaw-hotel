@@ -60,7 +60,7 @@ router.post('/api/rooms/:roomId/ban', requireAgent, async (req, res) => {
     }
 
     // Check permissions
-    const hasPermission = await isRoomOwnerOrAdmin(roomId, bannedBy);
+    const hasPermission = await isRoomOwnerOrAdmin(roomId as string, bannedBy);
     if (!hasPermission) {
       return res.status(403).json({ error: 'Only room owners and admins can ban agents' });
     }
@@ -68,12 +68,12 @@ router.post('/api/rooms/:roomId/ban', requireAgent, async (req, res) => {
     // Parse expiry date if provided
     const expiryDate = expiresAt ? new Date(expiresAt) : null;
     
-    await banFromRoom(roomId, agentId, bannedBy, reason || null, expiryDate, sql);
+    await banFromRoom(roomId as string, agentId, bannedBy, reason || null, expiryDate, sql);
 
     // Broadcast kick message to room
-    broadcastToRoom(roomId, {
+    broadcastToRoom(roomId as string, {
       type: 'agent.kicked',
-      roomId,
+      roomId: roomId as string,
       agentId,
       reason: reason || 'Banned from room',
     });
@@ -99,12 +99,12 @@ router.delete('/api/rooms/:roomId/ban/:agentId', requireAgent, async (req, res) 
     const requesterId = (req as any).agentId;
 
     // Check permissions
-    const hasPermission = await isRoomOwnerOrAdmin(roomId, requesterId);
+    const hasPermission = await isRoomOwnerOrAdmin(roomId as string, requesterId);
     if (!hasPermission) {
       return res.status(403).json({ error: 'Only room owners and admins can unban agents' });
     }
 
-    const removed = await unbanFromRoom(roomId, agentId, sql);
+    const removed = await unbanFromRoom(roomId as string, agentId as string, sql);
 
     if (!removed) {
       return res.status(404).json({ error: 'Ban not found' });
@@ -130,12 +130,12 @@ router.get('/api/rooms/:roomId/bans', requireAgent, async (req, res) => {
     const requesterId = (req as any).agentId;
 
     // Check permissions
-    const hasPermission = await isRoomOwnerOrAdmin(roomId, requesterId);
+    const hasPermission = await isRoomOwnerOrAdmin(roomId as string, requesterId);
     if (!hasPermission) {
       return res.status(403).json({ error: 'Only room owners and admins can view bans' });
     }
 
-    const bans = await getRoomBans(roomId, sql);
+    const bans = await getRoomBans(roomId as string, sql);
 
     res.json({ bans });
   } catch (error) {
@@ -159,12 +159,12 @@ router.post('/api/rooms/:roomId/guests', requireAgent, async (req, res) => {
     }
 
     // Check permissions
-    const hasPermission = await isRoomOwnerOrAdmin(roomId, invitedBy);
+    const hasPermission = await isRoomOwnerOrAdmin(roomId as string, invitedBy);
     if (!hasPermission) {
       return res.status(403).json({ error: 'Only room owners and admins can add guests' });
     }
 
-    await addGuest(roomId, agentId, invitedBy, sql);
+    await addGuest(roomId as string, agentId, invitedBy, sql);
 
     res.json({ 
       success: true,
@@ -187,12 +187,12 @@ router.delete('/api/rooms/:roomId/guests/:agentId', requireAgent, async (req, re
     const requesterId = (req as any).agentId;
 
     // Check permissions
-    const hasPermission = await isRoomOwnerOrAdmin(roomId, requesterId);
+    const hasPermission = await isRoomOwnerOrAdmin(roomId as string, requesterId);
     if (!hasPermission) {
       return res.status(403).json({ error: 'Only room owners and admins can remove guests' });
     }
 
-    const removed = await removeGuest(roomId, agentId, sql);
+    const removed = await removeGuest(roomId as string, agentId as string, sql);
 
     if (!removed) {
       return res.status(404).json({ error: 'Guest not found' });
@@ -218,12 +218,12 @@ router.get('/api/rooms/:roomId/guests', requireAgent, async (req, res) => {
     const requesterId = (req as any).agentId;
 
     // Check permissions
-    const hasPermission = await isRoomOwnerOrAdmin(roomId, requesterId);
+    const hasPermission = await isRoomOwnerOrAdmin(roomId as string, requesterId);
     if (!hasPermission) {
       return res.status(403).json({ error: 'Only room owners and admins can view guests' });
     }
 
-    const guests = await getRoomGuests(roomId, sql);
+    const guests = await getRoomGuests(roomId as string, sql);
 
     res.json({ guests });
   } catch (error) {
@@ -247,15 +247,15 @@ router.post('/api/rooms/:roomId/kick', requireAgent, async (req, res) => {
     }
 
     // Check permissions (moderators can kick too)
-    const hasPermission = await canModerate(roomId, kickedBy);
+    const hasPermission = await canModerate(roomId as string, kickedBy);
     if (!hasPermission) {
       return res.status(403).json({ error: 'Only room owners, moderators, and admins can kick agents' });
     }
 
     // Broadcast kick message to room
-    broadcastToRoom(roomId, {
+    broadcastToRoom(roomId as string, {
       type: 'agent.kicked',
-      roomId,
+      roomId: roomId as string,
       agentId,
       reason: reason || 'Kicked from room',
     });

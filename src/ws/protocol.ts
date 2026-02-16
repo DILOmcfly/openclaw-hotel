@@ -644,6 +644,13 @@ export type GameBlackjackUpdatedMsg = {
   status: string
 }
 
+export type AgentKickedMsg = {
+  type: 'agent.kicked'
+  roomId: string
+  agentId: string
+  reason: string
+}
+
 export type ServerMessage =
   | ConnectedMsg
   | RoomJoinedMsg
@@ -688,6 +695,7 @@ export type ServerMessage =
   | GameConnectFourUpdatedMsg
   | GameBlackjackCreatedMsg
   | GameBlackjackUpdatedMsg
+  | AgentKickedMsg
   | MarketplaceNewListingMsg
   | MarketplaceSoldMsg
 
