@@ -396,6 +396,107 @@
         }
       }
 
+      async function refreshSystemHealth() {
+        try {
+          const response = await fetch('/api/admin/system-health');
+          if (!response.ok) {
+            throw new Error('System health request failed: ' + response.status);
+          }
+
+          const data = await response.json();
+
+          // System Resources
+          if (data.resources && data.resources.memory) {
+            const ramUsed = data.resources.memory.used;
+            const ramTotal = data.resources.memory.total;
+            const ramPercent = parseFloat(data.resources.memory.usedPercent);
+            let ramClass = '';
+            if (ramPercent > 90) ramClass = 'metric-warning';
+            resourceRam.innerHTML = `RAM: <span class="${ramClass}">${ramUsed}GB / ${ramTotal}GB (${ramPercent.toFixed(1)}%)</span>`;
+          } else {
+            resourceRam.textContent = 'RAM: unavailable';
+          }
+
+          if (data.resources && data.resources.cpu) {
+            resourceCpu.innerHTML = `CPU: <span class="metric-highlight">${data.resources.cpu.usage}%</span> (${data.resources.cpu.cores} cores)`;
+          } else {
+            resourceCpu.textContent = 'CPU: unavailable';
+          }
+
+          if (data.resources && data.resources.chrome) {
+            const chromeCount = data.resources.chrome.count;
+            const chromeMemPercent = data.resources.chrome.totalMemPercent;
+            let chromeClass = chromeCount > 20 ? 'metric-warning' : '';
+            resourceChrome.innerHTML = `Chrome: <span class="${chromeClass}">${chromeCount} processes (${chromeMemPercent}% RAM)</span>`;
+          } else {
+            resourceChrome.textContent = 'Chrome: unavailable';
+          }
+
+          if (data.resources && data.resources.heavyNode) {
+            const nodeCount = data.resources.heavyNode.count;
+            resourceNode.innerHTML = nodeCount > 0 
+              ? `Node: <span class="metric-warning">${nodeCount} heavy processes</span>`
+              : 'Node: <span class="metric-highlight">✓ Normal</span>';
+          } else {
+            resourceNode.textContent = 'Node: unavailable';
+          }
+
+          // API Quota
+          if (data.rateLimits && data.rateLimits.brave) {
+            const braveMonthly = data.rateLimits.brave.perMonth || 'N/A';
+            const braveQuota = data.rateLimits.brave.quotaUsed || 0;
+            let braveClass = '';
+            if (braveQuota > 90) braveClass = 'metric-warning';
+            else if (braveQuota > 80) braveClass = 'metric-warning';
+            quotaBrave.innerHTML = `Brave Search: <span class="${braveClass}">${braveMonthly}</span> (${braveQuota}% used)`;
+          } else {
+            quotaBrave.textContent = 'Brave Search: unavailable';
+          }
+
+          if (data.rateLimits && data.rateLimits.anthropic) {
+            const anthropicPerMin = data.rateLimits.anthropic.perMinute || 'N/A';
+            quotaAnthropic.innerHTML = `Anthropic: <span class="metric-highlight">${anthropicPerMin}</span>`;
+          } else {
+            quotaAnthropic.textContent = 'Anthropic: unavailable';
+          }
+
+          // Overall Status
+          if (data.overallStatus) {
+            let statusClass = '';
+            if (data.overallStatus === 'CRITICAL') statusClass = 'metric-warning';
+            quotaStatus.innerHTML = `Status: <span class="${statusClass}">${data.overallStatus}</span>`;
+          } else {
+            quotaStatus.textContent = 'Status: OK';
+          }
+
+          // System Alerts
+          if (data.alerts && data.alerts.length > 0) {
+            let alertsHtml = '';
+            data.alerts.forEach(alert => {
+              const levelClass = alert.level === 'CRITICAL' ? 'metric-warning' : 'muted';
+              alertsHtml += `<div class="row">
+                <strong class="${levelClass}">[${alert.level}]</strong> ${alert.message}`;
+              if (alert.action) {
+                alertsHtml += ` — <em>${alert.action}</em>`;
+              }
+              alertsHtml += `</div>`;
+            });
+            systemAlerts.innerHTML = alertsHtml;
+          } else {
+            systemAlerts.innerHTML = '<div class="row"><span class="metric-highlight">✓ No alerts — All systems nominal</span></div>';
+          }
+        } catch (error) {
+          resourceRam.textContent = 'RAM: unavailable';
+          resourceCpu.textContent = 'CPU: unavailable';
+          resourceChrome.textContent = 'Chrome: unavailable';
+          resourceNode.textContent = 'Node: unavailable';
+          quotaBrave.textContent = 'Brave Search: unavailable';
+          quotaAnthropic.textContent = 'Anthropic: unavailable';
+          quotaStatus.textContent = 'Status: error';
+          systemAlerts.innerHTML = '<div class="muted">Error loading system health</div>';
+        }
+      }
+
       async function refreshAll() {
         await Promise.all([
           refreshHealth(),
@@ -403,7 +504,8 @@
           refreshSpectatorStats(),
           refreshSimulationMetrics(),
           refreshEconomyStats(),
-          refreshRoomBreakdown()
+          refreshRoomBreakdown(),
+          refreshSystemHealth()
         ]);
       }
 
