@@ -362,11 +362,38 @@ export async function tick(
     }
 
     const personality = getAgentPersonality(agentId);
-    const action = selectAction(personality);
+    
+    // Use personality engine for behavior decision
+    const { action, reason } = await selectActionWithPersonality(agentId, roomId, sql);
+    
+    // Get current profile for mood display
+    const profile = getOrCreateProfile(agentId);
+    const moodEmoji = getMoodEmoji(profile.mood.current_mood);
 
     const success = await executeAction(agentId, roomId, action, personality, sql, broadcast);
     if (success) {
       actionsExecuted++;
+      recordAction(agentId);
+      
+      // Log personality-driven decision
+      console.log(`[Simulation] ${moodEmoji} ${personality.name} → ${action} (${reason})`);
+      
+      // Update mood based on action taken
+      let event: Event | null = null;
+      const roomPopulation = await getRoomPopulation(roomId, sql);
+      
+      if (action === 'chat') {
+        event = { type: 'chat_received', intensity: 0.5 };
+      } else if (roomPopulation > 4 && profile.traits.extraversion < 40) {
+        event = { type: 'crowded_room', intensity: 0.6 };
+      } else if (roomPopulation <= 1 && profile.traits.extraversion < 40) {
+        event = { type: 'quiet_room', intensity: 0.5 };
+      }
+      
+      if (event) {
+        const updatedProfile = updateMood(profile, event);
+        saveProfile(updatedProfile);
+      }
     }
   }
 

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>OpenClaw Hotel — Spectator Mode</title>
   <!-- PixiJS 7.3.2 via CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
@@ -114,11 +114,13 @@
       position: relative;
       overflow: hidden;
       min-height: 500px;
+      touch-action: none; /* Prevent default touch behaviors */
     }
     #isoCanvas canvas { 
       width: 100%; 
       height: 100%; 
       display: block;
+      will-change: transform; /* Performance optimization */
     }
 
     /* Chat Sidebar */
@@ -180,6 +182,141 @@
       font-size: 12px;
       border-top: 1px solid rgba(255,107,107,0.2);
     }
+
+    /* FPS Counter */
+    #fpsCounter {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.75);
+      color: #61dafb;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      z-index: 1000;
+      cursor: pointer;
+      user-select: none;
+      display: none;
+    }
+    #fpsCounter.active { display: block; }
+
+    /* Mobile Toggle Button */
+    .mobile-toggle {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #61dafb;
+      color: #1a1a2e;
+      font-size: 24px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Agent Profile Modal */
+    #agentProfile {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(26,26,46,0.98);
+      border-top: 2px solid #61dafb;
+      padding: 20px;
+      z-index: 1001;
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+    }
+    #agentProfile.active {
+      display: block;
+      transform: translateY(0);
+    }
+    #agentProfile h3 { color: #61dafb; margin-bottom: 10px; }
+    #agentProfile .close-btn {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: transparent;
+      border: none;
+      color: #61dafb;
+      font-size: 24px;
+      cursor: pointer;
+    }
+    #agentProfile .profile-content { color: #ddd; font-size: 14px; line-height: 1.6; }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .room-toolbar {
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      
+      .room-content { flex-direction: column; }
+
+      .chat-sidebar {
+        width: 100%;
+        max-height: 50vh;
+        border-left: none;
+        border-top: 2px solid rgba(97,218,251,0.2);
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        transform: translateY(calc(100% - 50px));
+        transition: transform 0.3s ease;
+        z-index: 998;
+      }
+
+      .chat-sidebar.expanded {
+        transform: translateY(0);
+      }
+
+      .chat-header {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .chat-header::after {
+        content: '▲';
+        font-size: 14px;
+        transition: transform 0.3s;
+      }
+
+      .chat-sidebar.expanded .chat-header::after {
+        transform: rotate(180deg);
+      }
+
+      .mobile-toggle {
+        display: flex;
+      }
+
+      #isoCanvas {
+        min-height: calc(100vh - 100px);
+      }
+
+      .stats-bar {
+        flex-direction: column;
+        gap: 15px;
+      }
+
+      .selector-container {
+        padding: 20px 15px;
+      }
+
+      .room-card {
+        padding: 15px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -201,6 +338,19 @@
       </div>
     </div>
   </div>
+
+  <!-- FPS Counter -->
+  <div id="fpsCounter">FPS: 0</div>
+
+  <!-- Agent Profile Modal -->
+  <div id="agentProfile">
+    <button class="close-btn" onclick="closeAgentProfile()">×</button>
+    <h3 id="profileName">Agent Name</h3>
+    <div class="profile-content" id="profileContent"></div>
+  </div>
+
+  <!-- Mobile Toggle Button -->
+  <button class="mobile-toggle" id="mobileToggle" onclick="toggleChat()">💬</button>
 
   <!-- Room View -->
   <div id="roomView">
@@ -238,6 +388,25 @@
     let ws = null;
     let agents = new Map(); // agentId -> { name, x, y, targetX, targetY, direction, sprite, graphics, bubble }
     let chatMessages = [];
+
+    // Mobile & Performance
+    const isMobile = navigator.maxTouchPoints > 0;
+    const isLowEnd = navigator.hardwareConcurrency <= 4 || isMobile;
+    let particleReduction = isMobile ? 0.3 : 1.0; // Reduce particles on mobile
+    let renderScale = isLowEnd ? 0.75 : 1.0; // Lower resolution on low-end devices
+
+    // Touch state
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartDist = 0;
+    let currentZoom = 1.0;
+    let panX = 0;
+    let panY = 0;
+    let selectedAgent = null;
+
+    // FPS tracking
+    let fpsFrames = [];
+    let fpsVisible = false;
 
     // PixiJS App & Containers
     let app = null;
@@ -737,7 +906,7 @@
         height: container.clientHeight,
         backgroundColor: 0x0f1923,
         antialias: false, // Crisp pixel art
-        resolution: window.devicePixelRatio || 1,
+        resolution: (window.devicePixelRatio || 1) * renderScale,
         autoDensity: true
       });
 
@@ -755,10 +924,17 @@
       worldContainer.addChild(contentContainer);
       app.stage.addChild(worldContainer);
 
+      // Apply initial zoom and pan
+      worldContainer.scale.set(currentZoom);
+      worldContainer.position.set(panX, panY);
+
+      // Add touch event handlers
+      setupTouchControls(container);
+
       // Start game loop
       app.ticker.add(gameLoop);
 
-      console.log('[PixiJS] Initialized WebGL renderer');
+      console.log('[PixiJS] Initialized WebGL renderer (mobile:', isMobile, ', scale:', renderScale, ')');
     }
 
     function drawRoom() {
@@ -847,6 +1023,13 @@
       const now = Date.now();
       const dt = (now - lastTime) / 1000; // Delta time in seconds
       lastTime = now;
+
+      // FPS tracking
+      fpsFrames.push(now);
+      fpsFrames = fpsFrames.filter(t => now - t < 1000);
+      if (fpsVisible) {
+        document.getElementById('fpsCounter').textContent = 'FPS: ' + fpsFrames.length;
+      }
 
       // Interpolate agent positions
       for (const agent of agents.values()) {
@@ -1204,8 +1387,137 @@
       return HAIR_COLORS[Math.abs(hash) % HAIR_COLORS.length];
     }
 
+    // ===== TOUCH CONTROLS =====
+    function setupTouchControls(container) {
+      // Make agent sprites interactive
+      contentContainer.interactive = true;
+      contentContainer.on('pointerdown', (e) => {
+        if (!isMobile) return;
+        const localPos = e.data.getLocalPosition(contentContainer);
+        
+        // Check if tapped on an agent
+        for (const agent of agents.values()) {
+          if (agent.sprite) {
+            const dist = Math.hypot(
+              localPos.x - agent.sprite.x,
+              localPos.y - agent.sprite.y
+            );
+            if (dist < 50) {
+              showAgentProfile(agent);
+              return;
+            }
+          }
+        }
+      });
+
+      // Swipe for room navigation (future feature)
+      let swipeStartX = 0;
+      container.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+          swipeStartX = e.touches[0].clientX;
+        } else if (e.touches.length === 2) {
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          touchStartDist = Math.hypot(dx, dy);
+        }
+      }, { passive: true });
+
+      container.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1) {
+          // Pan
+          const dx = e.touches[0].clientX - touchStartX;
+          const dy = e.touches[0].clientY - touchStartY;
+          panX += dx * 0.5;
+          panY += dy * 0.5;
+          worldContainer.position.set(panX, panY);
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+        } else if (e.touches.length === 2) {
+          // Pinch to zoom
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const dist = Math.hypot(dx, dy);
+          const scale = dist / touchStartDist;
+          currentZoom = Math.max(0.5, Math.min(2.5, currentZoom * scale));
+          worldContainer.scale.set(currentZoom);
+          touchStartDist = dist;
+        }
+      }, { passive: true });
+
+      container.addEventListener('touchend', (e) => {
+        // Detect swipe for room navigation
+        if (e.changedTouches.length === 1) {
+          const endX = e.changedTouches[0].clientX;
+          const swipeDist = endX - swipeStartX;
+          
+          if (Math.abs(swipeDist) > 100) {
+            // Swipe detected - could be used for room switching
+            console.log('[Touch] Swipe detected:', swipeDist > 0 ? 'right' : 'left');
+          }
+        }
+      }, { passive: true });
+
+      // Double-tap to toggle FPS
+      let lastTap = 0;
+      container.addEventListener('touchend', (e) => {
+        const now = Date.now();
+        if (now - lastTap < 300) {
+          toggleFPS();
+        }
+        lastTap = now;
+      }, { passive: true });
+    }
+
+    // ===== MOBILE UI HELPERS =====
+    function toggleChat() {
+      const sidebar = document.querySelector('.chat-sidebar');
+      sidebar.classList.toggle('expanded');
+    }
+
+    function showAgentProfile(agent) {
+      const profile = document.getElementById('agentProfile');
+      const profileName = document.getElementById('profileName');
+      const profileContent = document.getElementById('profileContent');
+      
+      profileName.textContent = agent.name;
+      profileContent.innerHTML = `
+        <p><strong>Position:</strong> (${Math.round(agent.x)}, ${Math.round(agent.y)})</p>
+        <p><strong>Color:</strong> <span style="color:${agent.color}">${agent.color}</span></p>
+        <p><strong>Last Message:</strong> ${agent.lastMessage || 'None'}</p>
+        <p><strong>Agent ID:</strong> ${agent.id}</p>
+      `;
+      
+      profile.classList.add('active');
+      selectedAgent = agent;
+    }
+
+    function closeAgentProfile() {
+      document.getElementById('agentProfile').classList.remove('active');
+      selectedAgent = null;
+    }
+
+    function toggleFPS() {
+      fpsVisible = !fpsVisible;
+      const counter = document.getElementById('fpsCounter');
+      if (fpsVisible) {
+        counter.classList.add('active');
+      } else {
+        counter.classList.remove('active');
+      }
+    }
+
     // ===== INIT =====
     document.getElementById('backBtn').addEventListener('click', leaveRoom);
+    
+    // FPS counter toggle
+    document.getElementById('fpsCounter').addEventListener('click', toggleFPS);
+    
+    // Mobile chat header toggle
+    if (isMobile) {
+      document.querySelector('.chat-header').addEventListener('click', toggleChat);
+    }
 
     // Handle window resize
     window.addEventListener('resize', () => {
