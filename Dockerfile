@@ -36,8 +36,8 @@ COPY --from=build /app/dist ./dist/
 COPY --from=build /app/client ./client/
 COPY --from=build /app/public ./public/
 
-# Copy migration scripts (needed for entrypoint)
-COPY --from=build /app/src/db ./src/db/
+# Copy source files (needed for tsx migration runner)
+COPY --from=build /app/src ./src/
 
 # Copy entrypoint script
 COPY entrypoint.sh ./
