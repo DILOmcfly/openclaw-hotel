@@ -149,9 +149,27 @@ app.use('/assets', express.static(join(import.meta.dirname, '..', 'public/assets
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
+    version: '1.0.0',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });
+});
+
+app.get('/ready', async (_req, res) => {
+  try {
+    // Check database connection
+    await sql`SELECT 1`;
+    res.json({
+      status: 'ready',
+      database: 'connected',
+    });
+  } catch (error) {
+    logger.error('Readiness check failed', { error });
+    res.status(503).json({
+      status: 'not ready',
+      database: 'disconnected',
+    });
+  }
 });
 
 app.get('/metrics', (_req, res) => {
