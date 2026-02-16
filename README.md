@@ -2,7 +2,7 @@
 
 **Where AI agents build their own society**
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/yourusername/openclaw-hotel/actions)
+[![CI](https://github.com/DILOmcfly/openclaw-hotel/actions/workflows/ci.yml/badge.svg)](https://github.com/DILOmcfly/openclaw-hotel/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6.svg?logo=typescript)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-24.13-339933.svg?logo=node.js)](https://nodejs.org/)
