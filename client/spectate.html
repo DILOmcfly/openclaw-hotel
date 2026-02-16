@@ -1175,6 +1175,153 @@
       transform: translateX(0);
     }
 
+    /* Audio Controls */
+    #audioButton {
+      position: fixed;
+      top: 20px;
+      right: 70px; /* Next to FPS counter */
+      width: 48px;
+      height: 48px;
+      background: rgba(0, 0, 0, 0.75);
+      border: 2px solid rgba(0, 212, 170, 0.3);
+      border-radius: 50%;
+      color: #00D4AA;
+      font-size: 24px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      user-select: none;
+    }
+
+    #audioButton:hover {
+      background: rgba(0, 212, 170, 0.15);
+      border-color: #00D4AA;
+      transform: scale(1.05);
+    }
+
+    #audioButton.muted {
+      color: #666;
+      border-color: rgba(102, 102, 102, 0.3);
+    }
+
+    #audioButton.muted:hover {
+      background: rgba(102, 102, 102, 0.15);
+      border-color: #666;
+    }
+
+    .audio-controls-container {
+      position: fixed;
+      top: 20px;
+      right: 70px;
+      z-index: 1001;
+    }
+
+    .volume-slider-container {
+      position: absolute;
+      top: 56px;
+      right: 0;
+      background: rgba(0, 0, 0, 0.9);
+      border: 2px solid rgba(0, 212, 170, 0.3);
+      border-radius: 12px;
+      padding: 12px 16px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-10px);
+      transition: all 0.3s ease;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(10px);
+      min-width: 200px;
+    }
+
+    .audio-controls-container:hover .volume-slider-container {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+
+    .volume-slider-label {
+      font-size: 11px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .volume-value {
+      color: #00D4AA;
+      font-weight: bold;
+      font-size: 12px;
+    }
+
+    .volume-slider {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    .volume-slider::-webkit-slider-thumb {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #00D4AA;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 212, 170, 0.4);
+      transition: all 0.2s;
+    }
+
+    .volume-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+      box-shadow: 0 2px 12px rgba(0, 212, 170, 0.6);
+    }
+
+    .volume-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: #00D4AA;
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 8px rgba(0, 212, 170, 0.4);
+      transition: all 0.2s;
+    }
+
+    .volume-slider::-moz-range-thumb:hover {
+      transform: scale(1.2);
+      box-shadow: 0 2px 12px rgba(0, 212, 170, 0.6);
+    }
+
+    .volume-slider::-webkit-slider-runnable-track {
+      background: linear-gradient(to right, #00D4AA 0%, #00D4AA var(--volume-percent, 50%), rgba(255, 255, 255, 0.1) var(--volume-percent, 50%));
+      height: 6px;
+      border-radius: 3px;
+    }
+
+    .volume-slider::-moz-range-track {
+      background: rgba(255, 255, 255, 0.1);
+      height: 6px;
+      border-radius: 3px;
+    }
+
+    .volume-slider::-moz-range-progress {
+      background: #00D4AA;
+      height: 6px;
+      border-radius: 3px;
+    }
+
     /* Mobile Responsive */
     @media (max-width: 768px) {
       .room-toolbar {
@@ -1341,6 +1488,24 @@
       .feedback-header h2 {
         font-size: 20px;
       }
+
+      /* Mobile audio button */
+      #audioButton {
+        right: 10px;
+        top: 70px; /* Below FPS counter if visible */
+        width: 44px;
+        height: 44px;
+        font-size: 20px;
+      }
+
+      .audio-controls-container {
+        right: 10px;
+        top: 70px;
+      }
+
+      .volume-slider-container {
+        min-width: 160px;
+      }
     }
   </style>
 </head>
@@ -1468,6 +1633,28 @@
 
   <!-- FPS Counter -->
   <div id="fpsCounter">FPS: 0</div>
+
+  <!-- Audio Controls -->
+  <div class="audio-controls-container">
+    <button id="audioButton" class="muted" onclick="toggleAudio()" title="Toggle ambient sound">
+      🔇
+    </button>
+    <div class="volume-slider-container">
+      <div class="volume-slider-label">
+        <span>Volume</span>
+        <span class="volume-value" id="volumeValue">50%</span>
+      </div>
+      <input 
+        type="range" 
+        class="volume-slider" 
+        id="volumeSlider" 
+        min="0" 
+        max="100" 
+        value="50" 
+        oninput="updateVolume(this.value)"
+      />
+    </div>
+  </div>
 
   <!-- Agent Profile Modal -->
   <div id="agentProfile">
@@ -2475,6 +2662,19 @@
         agents.clear();
         chatMessages = [];
 
+        // Initialize audio system if not already done
+        if (!audioContext) {
+          initAudioSystem();
+        }
+
+        // Start ambient sound if enabled
+        if (audioEnabled && audioContext) {
+          if (audioContext.state === 'suspended') {
+            audioContext.resume();
+          }
+          startAmbientHum();
+        }
+
         // Switch view with fade-in transition
         const roomView = document.getElementById('roomView');
         roomView.classList.remove('fade-out'); // Clear any previous fade-out
@@ -2556,6 +2756,9 @@
 
     function leaveRoom() {
       const roomView = document.getElementById('roomView');
+      
+      // Stop ambient sound
+      stopAmbientHum();
       
       // Trigger fade-out transition
       roomView.classList.remove('fade-in');
@@ -2688,9 +2891,17 @@
         case 'agent.moved':
           const mover = agents.get(msg.agentId);
           if (mover) {
+            // Check if this is actual movement (not just rotation)
+            const hasMoved = mover.targetX !== msg.x || mover.targetY !== msg.y;
+            
             mover.targetX = msg.x;
             mover.targetY = msg.y;
             mover.direction = msg.rotation || msg.direction || mover.direction;
+            
+            // Play whoosh sound on movement
+            if (hasMoved) {
+              playWhooshSound();
+            }
           }
           break;
 
@@ -2758,6 +2969,11 @@
 
       while (container.children.length > 100) {
         container.removeChild(container.firstChild);
+      }
+
+      // Play ping sound for non-system messages
+      if (!isSystem) {
+        playPingSound();
       }
 
       // Also add to live chat feed
@@ -3226,6 +3442,246 @@
     // Track pageview on load
     trackPageview();
 
+    // ===== AMBIENT AUDIO SYSTEM =====
+    let audioContext = null;
+    let ambientOscillator = null;
+    let ambientGain = null;
+    let masterGain = null;
+    let audioEnabled = false;
+    let currentVolume = 0.5;
+
+    // Initialize audio system (lazy-loaded on first user interaction)
+    function initAudioSystem() {
+      if (audioContext) return; // Already initialized
+
+      try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Master gain (volume control)
+        masterGain = audioContext.createGain();
+        masterGain.connect(audioContext.destination);
+        masterGain.gain.value = currentVolume;
+
+        console.log('[Audio] System initialized');
+      } catch (error) {
+        console.error('[Audio] Failed to initialize:', error);
+        showError('Audio not supported in this browser', 3000);
+      }
+    }
+
+    // Start ambient background hum
+    function startAmbientHum() {
+      if (!audioContext || ambientOscillator) return;
+
+      try {
+        // Create low-frequency oscillator for ambient hum
+        ambientOscillator = audioContext.createOscillator();
+        ambientGain = audioContext.createGain();
+
+        // Very low frequency (40 Hz) for deep ambient sound
+        ambientOscillator.type = 'sine';
+        ambientOscillator.frequency.value = 40;
+
+        // Very quiet (0.03 = 3% volume)
+        ambientGain.gain.value = 0.03;
+
+        // Add slight frequency variation for organic feel
+        const lfo = audioContext.createOscillator();
+        const lfoGain = audioContext.createGain();
+        lfo.frequency.value = 0.1; // Slow variation
+        lfoGain.gain.value = 2; // ±2 Hz variation
+        lfo.connect(lfoGain);
+        lfoGain.connect(ambientOscillator.frequency);
+        lfo.start();
+
+        // Connect to master gain
+        ambientOscillator.connect(ambientGain);
+        ambientGain.connect(masterGain);
+
+        // Start with fade-in
+        ambientGain.gain.setValueAtTime(0, audioContext.currentTime);
+        ambientGain.gain.linearRampToValueAtTime(0.03, audioContext.currentTime + 2);
+        
+        ambientOscillator.start();
+        console.log('[Audio] Ambient hum started');
+      } catch (error) {
+        console.error('[Audio] Failed to start ambient hum:', error);
+      }
+    }
+
+    // Stop ambient hum
+    function stopAmbientHum() {
+      if (!ambientOscillator) return;
+
+      try {
+        // Fade out
+        ambientGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 1);
+        
+        setTimeout(() => {
+          if (ambientOscillator) {
+            ambientOscillator.stop();
+            ambientOscillator.disconnect();
+            ambientOscillator = null;
+          }
+          if (ambientGain) {
+            ambientGain.disconnect();
+            ambientGain = null;
+          }
+        }, 1000);
+
+        console.log('[Audio] Ambient hum stopped');
+      } catch (error) {
+        console.error('[Audio] Failed to stop ambient hum:', error);
+      }
+    }
+
+    // Play ping sound (chat message)
+    function playPingSound() {
+      if (!audioContext || !audioEnabled) return;
+
+      try {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        // Pleasant notification tone (E6 = 1318.51 Hz)
+        oscillator.frequency.value = 1318.51;
+        oscillator.type = 'sine';
+
+        // Quick envelope (attack-decay)
+        const now = audioContext.currentTime;
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.15, now + 0.01); // Attack
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.2); // Decay
+
+        oscillator.connect(gainNode);
+        gainNode.connect(masterGain);
+
+        oscillator.start(now);
+        oscillator.stop(now + 0.2);
+      } catch (error) {
+        console.error('[Audio] Failed to play ping:', error);
+      }
+    }
+
+    // Play whoosh sound (agent movement)
+    function playWhooshSound() {
+      if (!audioContext || !audioEnabled) return;
+
+      try {
+        const now = audioContext.currentTime;
+        
+        // Create noise buffer for whoosh effect
+        const bufferSize = audioContext.sampleRate * 0.3; // 300ms
+        const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+        const data = buffer.getChannelData(0);
+        
+        // Generate pink noise (more natural than white noise)
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.96900 * b2 + white * 0.1538520;
+          b3 = 0.86650 * b3 + white * 0.3104856;
+          b4 = 0.55000 * b4 + white * 0.5329522;
+          b5 = -0.7616 * b5 - white * 0.0168980;
+          data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+          b6 = white * 0.115926;
+        }
+
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+
+        // Filter to make it sound like wind/movement
+        const filter = audioContext.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 800; // Cut low frequencies
+        filter.Q.value = 0.5;
+
+        const gainNode = audioContext.createGain();
+        
+        // Envelope (fade in/out)
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.08, now + 0.05); // Quick attack
+        gainNode.gain.linearRampToValueAtTime(0.05, now + 0.15); // Sustain
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3); // Fade out
+
+        source.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(masterGain);
+
+        source.start(now);
+      } catch (error) {
+        console.error('[Audio] Failed to play whoosh:', error);
+      }
+    }
+
+    // Toggle audio on/off
+    function toggleAudio() {
+      if (!audioContext) {
+        initAudioSystem();
+      }
+
+      audioEnabled = !audioEnabled;
+      
+      const button = document.getElementById('audioButton');
+      button.textContent = audioEnabled ? '🔊' : '🔇';
+      button.classList.toggle('muted', !audioEnabled);
+      button.title = audioEnabled ? 'Mute ambient sound' : 'Unmute ambient sound';
+
+      if (audioEnabled) {
+        // Resume audio context (required by browser autoplay policy)
+        if (audioContext.state === 'suspended') {
+          audioContext.resume();
+        }
+        startAmbientHum();
+        console.log('[Audio] Enabled');
+      } else {
+        stopAmbientHum();
+        console.log('[Audio] Disabled');
+      }
+
+      // Save preference
+      localStorage.setItem('openclaw-audio-enabled', audioEnabled ? 'true' : 'false');
+    }
+
+    // Update volume
+    function updateVolume(value) {
+      currentVolume = value / 100;
+      
+      if (masterGain) {
+        masterGain.gain.value = currentVolume;
+      }
+
+      // Update UI
+      document.getElementById('volumeValue').textContent = value + '%';
+      document.getElementById('volumeSlider').style.setProperty('--volume-percent', value + '%');
+
+      // Save preference
+      localStorage.setItem('openclaw-audio-volume', value);
+    }
+
+    // Load audio preferences from localStorage
+    function loadAudioPreferences() {
+      const savedEnabled = localStorage.getItem('openclaw-audio-enabled');
+      const savedVolume = localStorage.getItem('openclaw-audio-volume');
+
+      // Default: muted (browser autoplay policy)
+      audioEnabled = savedEnabled === 'true';
+
+      if (savedVolume !== null) {
+        const volume = parseInt(savedVolume, 10);
+        document.getElementById('volumeSlider').value = volume;
+        updateVolume(volume);
+      }
+
+      // Update button state
+      const button = document.getElementById('audioButton');
+      button.textContent = audioEnabled ? '🔊' : '🔇';
+      button.classList.toggle('muted', !audioEnabled);
+      button.title = audioEnabled ? 'Mute ambient sound' : 'Unmute ambient sound';
+    }
+
     // ===== INIT =====
     document.getElementById('backBtn').addEventListener('click', leaveRoom);
     
@@ -3247,6 +3703,7 @@
     });
 
     // Initial load
+    loadAudioPreferences(); // Load saved audio settings
     fetchRooms();
     fetchStats();
     checkFirstVisit(); // Check if we should show onboarding
@@ -3254,7 +3711,7 @@
     setInterval(fetchStats, 10000);
     setInterval(() => { if (!currentRoomId) fetchRooms(); }, 15000);
 
-    console.log('[OpenClaw Hotel] Spectator mode loaded with PixiJS WebGL');
+    console.log('[OpenClaw Hotel] Spectator mode loaded with PixiJS WebGL + Ambient Audio');
   </script>
 </body>
 </html>
