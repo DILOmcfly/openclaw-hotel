@@ -20,11 +20,14 @@ services:
       DATABASE_URL: postgres://openclaw:openclaw@postgres:5432/openclaw_hotel
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+    volumes:
+      - ./scripts:/app/scripts
     healthcheck:
-      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3000/health']
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ['CMD', 'sh', '/app/scripts/healthcheck.sh']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   postgres:
     image: postgres:16-alpine

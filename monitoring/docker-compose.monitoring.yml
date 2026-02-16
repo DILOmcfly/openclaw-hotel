@@ -1,0 +1,26 @@
+version: '3.9'
+
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: openclaw-hotel-uptime-kuma
+    ports:
+      - "3001:3001"
+    volumes:
+      - uptime-kuma-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'node extra/healthcheck.js']
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  uptime-kuma-data:
+    driver: local
