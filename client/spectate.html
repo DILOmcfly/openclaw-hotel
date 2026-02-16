@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OpenClaw Hotel — Spectator Mode</title>
+  <!-- PixiJS 7.3.2 via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { 
@@ -113,7 +115,11 @@
       overflow: hidden;
       min-height: 500px;
     }
-    #isoCanvas canvas { width: 100%; height: 100%; }
+    #isoCanvas canvas { 
+      width: 100%; 
+      height: 100%; 
+      display: block;
+    }
 
     /* Chat Sidebar */
     .chat-sidebar {
@@ -174,53 +180,6 @@
       font-size: 12px;
       border-top: 1px solid rgba(255,107,107,0.2);
     }
-
-    /* Isometric grid styles */
-    .iso-tile {
-      position: absolute;
-      cursor: default;
-    }
-    .iso-agent {
-      position: absolute;
-      transition: left 0.5s ease, top 0.5s ease;
-      z-index: 10;
-    }
-    .agent-label {
-      position: absolute;
-      bottom: 100%;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.7);
-      color: #61dafb;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      white-space: nowrap;
-    }
-    .chat-bubble {
-      position: absolute;
-      bottom: calc(100% + 20px);
-      left: 50%;
-      transform: translateX(-50%);
-      background: white;
-      color: #333;
-      padding: 6px 12px;
-      border-radius: 12px;
-      font-size: 12px;
-      max-width: 200px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      animation: fadeIn 0.3s ease;
-    }
-    .chat-bubble::after {
-      content: '';
-      position: absolute;
-      top: 100%;
-      left: 50%;
-      transform: translateX(-50%);
-      border: 6px solid transparent;
-      border-top-color: white;
-    }
-    @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(5px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
   </style>
 </head>
 <body>
@@ -268,7 +227,7 @@
 
   <script>
     // ============================================================
-    // OpenClaw Hotel — Spectator Client (Vanilla JS, no build step)
+    // OpenClaw Hotel — Spectator Client (PixiJS WebGL)
     // ============================================================
     const API = window.location.origin;
     const WS_URL = API.replace('http', 'ws');
@@ -277,47 +236,57 @@
     let currentRoomId = null;
     let currentRoomName = '';
     let ws = null;
-    let agents = new Map(); // agentId -> { name, x, y, direction, element }
+    let agents = new Map(); // agentId -> { name, x, y, targetX, targetY, direction, sprite, graphics, bubble }
     let chatMessages = [];
-    let canvas, ctx;
+
+    // PixiJS App & Containers
+    let app = null;
+    let worldContainer = null;
+    let floorContainer = null;
+    let wallContainer = null;
+    let contentContainer = null; // Furniture + agents (sorted by depth)
 
     // Tile dimensions (isometric)
     const TILE_W = 64;
     const TILE_H = 32;
-    const ROOM_SIZE = 16; // 16x16 grid
+    const ROOM_SIZE = 16;
 
     // ===== SPRITE LOADER =====
-    const spriteImages = {};
+    const spriteTextures = {};
     let spritesLoaded = false;
 
     const SPRITE_NAMES = [
       'floor_wood', 'floor_carpet', 'floor_stone',
       'wall_brick', 'wall_wood', 'wall_stone', 'window',
       'sofa', 'table', 'chair', 'lamp', 'plant', 'bookshelf',
-      'computer', 'tv', 'rug', 'painting', 'fridge', 'bed', 'door'
+      'computer', 'tv', 'rug', 'painting', 'fridge', 'bed', 'door',
+      'coffee_table', 'lounge_chair', 'side_table', 'desk', 'coatrack', 'radio', 'speaker'
     ];
 
     async function loadSprites() {
       const promises = SPRITE_NAMES.map(name => new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => { spriteImages[name] = img; resolve(); };
-        img.onerror = () => { console.warn('Failed to load sprite:', name); resolve(); };
-        img.src = '/assets/room-sprites/' + name + '.png';
+        PIXI.Texture.fromURL('/assets/room-sprites/' + name + '.png')
+          .then(texture => {
+            spriteTextures[name] = texture;
+            resolve();
+          })
+          .catch(() => {
+            console.warn('Failed to load sprite:', name);
+            resolve();
+          });
       }));
       await Promise.all(promises);
       spritesLoaded = true;
-      console.log('[Sprites] Loaded:', Object.keys(spriteImages).length, 'sprites');
+      console.log('[Sprites] Loaded:', Object.keys(spriteTextures).length, 'PixiJS textures');
     }
 
     // Load sprites immediately
     loadSprites();
 
-    // ===== ROOM LAYOUTS (Habbo style) =====
-    // Each room has a floor plan and furniture placement
+    // ===== ROOM LAYOUTS =====
     const ROOM_LAYOUTS = {
       'default': {
         size: 12,
-        // Floor map: 'w'=wood, 'c'=carpet, 's'=stone, ' '=void
         floor: [
           'wwwwwwwwwwww',
           'wwwwwwwwwwww',
@@ -332,47 +301,31 @@
           'wwwwwwwwwwww',
           'wwwwwwwwwwww',
         ],
-        // Furniture: [sprite, x, y, scale]
-        // Designed as a cozy hotel lobby - logical zones
         furniture: [
-          // === LOUNGE AREA 1 (top-left, against left wall) ===
-          ['sofa', 2, 3, 0.38],       // sofa against left wall
-          ['rug', 3, 3, 0.28],        // rug in front of sofa
-          ['coffee_table', 3, 4, 0.5],// coffee table
-          ['lounge_chair', 4, 3, 0.45],// chair facing sofa
-
-          // === LOUNGE AREA 2 (bottom-left) ===
-          ['sofa', 2, 7, 0.38],       // second sofa
-          ['rug', 3, 7, 0.28],        // rug in front
-          ['coffee_table', 3, 8, 0.5],// coffee table
-
-          // === TV AREA (center, facing sofas) ===
-          ['tv', 5, 5, 0.65],         // TV on cabinet
-          ['side_table', 5, 4, 0.55], // side table next to TV
-
-          // === BOOKSHELF (against back wall) ===
-          ['bookshelf', 3, 1, 0.45],  // bookshelf against back wall
-          ['bookshelf', 4, 1, 0.45],  // second bookshelf
-
-          // === WORK AREA (right, against back wall) ===
-          ['desk', 8, 1, 0.45],       // desk against wall
-          ['computer', 8, 1, 0.8],    // computer on desk
-          ['chair', 8, 2, 0.65],      // chair at desk
-
-          // === KITCHEN CORNER (far right) ===
-          ['fridge', 10, 1, 0.4],     // fridge in corner
-
-          // === DECORATIVE ===
-          ['plant', 1, 1, 0.7],       // corner plant
-          ['plant', 1, 10, 0.7],      // corner plant
-          ['plant', 10, 10, 0.7],     // corner plant
-          ['lamp', 1, 5, 0.55],       // floor lamp between sofas
-          ['lamp', 10, 5, 0.55],      // floor lamp right side
-          ['coatrack', 10, 9, 0.55],  // coat rack near entrance
-          ['radio', 6, 1, 0.8],       // radio on shelf
-          ['speaker', 7, 1, 0.6],     // speaker against wall
+          ['sofa', 2, 3, 0.38],
+          ['rug', 3, 3, 0.28],
+          ['coffee_table', 3, 4, 0.5],
+          ['lounge_chair', 4, 3, 0.45],
+          ['sofa', 2, 7, 0.38],
+          ['rug', 3, 7, 0.28],
+          ['coffee_table', 3, 8, 0.5],
+          ['tv', 5, 5, 0.65],
+          ['side_table', 5, 4, 0.55],
+          ['bookshelf', 3, 1, 0.45],
+          ['bookshelf', 4, 1, 0.45],
+          ['desk', 8, 1, 0.45],
+          ['computer', 8, 1, 0.8],
+          ['chair', 8, 2, 0.65],
+          ['fridge', 10, 1, 0.4],
+          ['plant', 1, 1, 0.7],
+          ['plant', 1, 10, 0.7],
+          ['plant', 10, 10, 0.7],
+          ['lamp', 1, 5, 0.55],
+          ['lamp', 10, 5, 0.55],
+          ['coatrack', 10, 9, 0.55],
+          ['radio', 6, 1, 0.8],
+          ['speaker', 7, 1, 0.6],
         ],
-        // Wall decorations: [sprite, position, side] (side: 'back'=top, 'left'=left)
         wallWindows: [
           { side: 'back', pos: 4 },
           { side: 'back', pos: 7 },
@@ -395,20 +348,16 @@
           'cccccccccc',
         ],
         furniture: [
-          // === CHILL ZONE (center) ===
           ['sofa', 3, 3, 0.38],
           ['sofa', 3, 5, 0.38],
           ['coffee_table', 4, 4, 0.5],
           ['rug', 4, 3, 0.32],
           ['rug', 4, 5, 0.32],
-          // === READING CORNER (top-left) ===
           ['bookshelf', 1, 1, 0.45],
           ['lounge_chair', 2, 2, 0.45],
           ['lamp', 1, 2, 0.55],
-          // === MUSIC CORNER (top-right) ===
           ['speaker', 7, 1, 0.6],
           ['radio', 8, 1, 0.8],
-          // === DECORATIVE ===
           ['plant', 1, 8, 0.7],
           ['plant', 8, 8, 0.7],
           ['plant', 8, 1, 0.6],
@@ -420,8 +369,6 @@
           { side: 'left', pos: 4 },
           { side: 'left', pos: 7 },
         ],
-        wallColor: '#6b5b4f',
-        floorTint: 'warm'
       },
       'arena': {
         size: 14,
@@ -442,20 +389,16 @@
           'ssssssssssssss',
         ],
         furniture: [
-          // === ARENA PERIMETER ===
           ['chair', 2, 2, 0.55],
           ['chair', 2, 11, 0.55],
           ['chair', 11, 2, 0.55],
           ['chair', 11, 11, 0.55],
-          // === SPECTATOR BENCHES ===
           ['sofa', 1, 5, 0.35],
           ['sofa', 1, 8, 0.35],
           ['sofa', 12, 5, 0.35],
           ['sofa', 12, 8, 0.35],
-          // === SCORE AREA ===
           ['tv', 6, 1, 0.65],
           ['computer', 7, 1, 0.7],
-          // === DECORATIVE ===
           ['lamp', 1, 1, 0.55],
           ['lamp', 1, 12, 0.55],
           ['lamp', 12, 1, 0.55],
@@ -474,10 +417,9 @@
       }
     };
 
-    // ===== ISOMETRIC RENDERING =====
+    // ===== ISOMETRIC HELPERS =====
     function isoToScreen(x, y) {
-      const container = document.getElementById('isoCanvas');
-      const offsetX = container.clientWidth * 0.45;
+      const offsetX = app.screen.width * 0.45;
       const offsetY = 80;
       return {
         sx: offsetX + (x - y) * (TILE_W / 2),
@@ -485,128 +427,143 @@
       };
     }
 
-    function drawIsoTile(ctx, sx, sy, tileType) {
+    // ===== PIXI GRAPHICS CREATION =====
+    function createIsoTileGraphics(tileType) {
+      const graphics = new PIXI.Graphics();
       const floorMap = { 'w': 'floor_wood', 'c': 'floor_carpet', 's': 'floor_stone' };
       const spriteName = floorMap[tileType] || 'floor_wood';
-      const img = spriteImages[spriteName];
+      const texture = spriteTextures[spriteName];
 
-      if (img) {
-        // Draw the sprite centered on the tile
-        ctx.drawImage(img, sx - TILE_W/2, sy, TILE_W, TILE_H);
+      if (texture) {
+        // Create sprite for textured tile
+        const sprite = new PIXI.Sprite(texture);
+        sprite.width = TILE_W;
+        sprite.height = TILE_H;
+        sprite.anchor.set(0.5, 0);
+        return sprite;
       } else {
         // Fallback: colored diamond
-        const colors = { 'w': '#8B6914', 'c': '#8B4513', 's': '#696969' };
-        ctx.beginPath();
-        ctx.moveTo(sx, sy);
-        ctx.lineTo(sx + TILE_W/2, sy + TILE_H/2);
-        ctx.lineTo(sx, sy + TILE_H);
-        ctx.lineTo(sx - TILE_W/2, sy + TILE_H/2);
-        ctx.closePath();
-        ctx.fillStyle = colors[tileType] || '#8B6914';
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
+        const colors = { 'w': 0x8B6914, 'c': 0x8B4513, 's': 0x696969 };
+        graphics.beginFill(colors[tileType] || 0x8B6914);
+        graphics.moveTo(0, 0);
+        graphics.lineTo(TILE_W/2, TILE_H/2);
+        graphics.lineTo(0, TILE_H);
+        graphics.lineTo(-TILE_W/2, TILE_H/2);
+        graphics.closePath();
+        graphics.endFill();
+        graphics.lineStyle(0.5, 0x000000, 0.15);
+        graphics.moveTo(0, 0);
+        graphics.lineTo(TILE_W/2, TILE_H/2);
+        graphics.lineTo(0, TILE_H);
+        graphics.lineTo(-TILE_W/2, TILE_H/2);
+        graphics.closePath();
+        return graphics;
       }
     }
 
-    function drawWallSegment(ctx, sx, sy, side, hasWindow) {
+    function createWallGraphics(side, hasWindow) {
+      const graphics = new PIXI.Graphics();
       const WALL_H = 56;
-      const hw = TILE_W / 2; // 32
-      const hh = TILE_H / 2; // 16
+      const hw = TILE_W / 2;
+      const hh = TILE_H / 2;
 
       if (side === 'back') {
-        // Back wall: parallelogram following right isometric edge
-        const x0 = sx, y0 = sy;
-        const x1 = sx + hw, y1 = sy + hh;
-        const x2 = sx + hw, y2 = sy + hh - WALL_H;
-        const x3 = sx, y3 = sy - WALL_H;
+        // Back wall parallelogram
+        const x0 = 0, y0 = 0;
+        const x1 = hw, y1 = hh;
+        const x2 = hw, y2 = hh - WALL_H;
+        const x3 = 0, y3 = -WALL_H;
 
-        // Wall fill - warm cream/beige
-        const g = ctx.createLinearGradient(x0, y3, x0, y0);
+        // Gradient fill
+        const canvas = document.createElement('canvas');
+        canvas.width = hw;
+        canvas.height = WALL_H;
+        const ctx = canvas.getContext('2d');
+        const g = ctx.createLinearGradient(0, 0, 0, WALL_H);
         g.addColorStop(0, '#c4b096');
         g.addColorStop(0.1, '#c4b496');
         g.addColorStop(0.9, '#c0b090');
         g.addColorStop(1, '#8a7a64');
         ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3);
-        ctx.closePath(); ctx.fill();
+        ctx.fillRect(0, 0, hw, WALL_H);
+
+        const texture = PIXI.Texture.from(canvas);
+        graphics.beginTextureFill({ texture });
+        graphics.drawPolygon([x0, y0, x1, y1, x2, y2, x3, y3]);
+        graphics.endFill();
 
         // Baseboard
-        ctx.fillStyle = '#6a5a44';
-        ctx.beginPath();
-        ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x1, y1-5); ctx.lineTo(x0, y0-5);
-        ctx.closePath(); ctx.fill();
+        graphics.beginFill(0x6a5a44);
+        graphics.drawPolygon([x0, y0, x1, y1, x1, y1-5, x0, y0-5]);
+        graphics.endFill();
 
         // Crown molding
-        ctx.fillStyle = '#d4c4a8';
-        ctx.beginPath();
-        ctx.moveTo(x3, y3); ctx.lineTo(x2, y2); ctx.lineTo(x2, y2+4); ctx.lineTo(x3, y3+4);
-        ctx.closePath(); ctx.fill();
+        graphics.beginFill(0xd4c4a8);
+        graphics.drawPolygon([x3, y3, x2, y2, x2, y2+4, x3, y3+4]);
+        graphics.endFill();
 
         // Outline
-        ctx.strokeStyle = '#5a4a34'; ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3);
-        ctx.closePath(); ctx.stroke();
+        graphics.lineStyle(1, 0x5a4a34);
+        graphics.drawPolygon([x0, y0, x1, y1, x2, y2, x3, y3, x0, y0]);
 
-        // Window IN PERSPECTIVE (parallelogram matching wall angle)
+        // Window
         if (hasWindow) {
           const ww = hw * 0.55, wh = WALL_H * 0.45;
           const wy_off = WALL_H * 0.2;
           const wx_off = hw * 0.15;
-          // Window follows the 2:1 slope of the back wall
           const w0x = x3 + wx_off, w0y = y3 + wy_off;
           const w1x = w0x + ww, w1y = w0y + ww * (hh/hw);
           const w2x = w1x, w2y = w1y + wh;
           const w3x = w0x, w3y = w0y + wh;
-          // Frame
-          ctx.fillStyle = '#7a6844';
-          ctx.beginPath(); ctx.moveTo(w0x,w0y); ctx.lineTo(w1x,w1y); ctx.lineTo(w2x,w2y); ctx.lineTo(w3x,w3y);
-          ctx.closePath(); ctx.fill();
-          // Glass
-          ctx.fillStyle = '#a8d4e8';
-          ctx.beginPath(); ctx.moveTo(w0x+2,w0y+1); ctx.lineTo(w1x-2,w1y+1); ctx.lineTo(w2x-2,w2y-1); ctx.lineTo(w3x+2,w3y-1);
-          ctx.closePath(); ctx.fill();
-          // Crossbars in perspective
-          ctx.strokeStyle = '#7a6844'; ctx.lineWidth = 1.5;
+
+          graphics.beginFill(0x7a6844);
+          graphics.drawPolygon([w0x, w0y, w1x, w1y, w2x, w2y, w3x, w3y]);
+          graphics.endFill();
+
+          graphics.beginFill(0xa8d4e8);
+          graphics.drawPolygon([w0x+2, w0y+1, w1x-2, w1y+1, w2x-2, w2y-1, w3x+2, w3y-1]);
+          graphics.endFill();
+
+          graphics.lineStyle(1.5, 0x7a6844);
           const mY0=(w0y+w3y)/2, mY1=(w1y+w2y)/2;
-          ctx.beginPath(); ctx.moveTo(w0x+2,mY0); ctx.lineTo(w1x-2,mY1); ctx.stroke();
+          graphics.moveTo(w0x+2, mY0).lineTo(w1x-2, mY1);
           const mX0=(w0x+w1x)/2, mXb=(w3x+w2x)/2;
-          ctx.beginPath(); ctx.moveTo(mX0,(w0y+w1y)/2+1); ctx.lineTo(mXb,(w3y+w2y)/2-1); ctx.stroke();
+          graphics.moveTo(mX0, (w0y+w1y)/2+1).lineTo(mXb, (w3y+w2y)/2-1);
         }
       } else {
-        // Left wall: parallelogram following left isometric edge
-        const x0 = sx, y0 = sy;
-        const x1 = sx - hw, y1 = sy + hh;
-        const x2 = sx - hw, y2 = sy + hh - WALL_H;
-        const x3 = sx, y3 = sy - WALL_H;
+        // Left wall
+        const x0 = 0, y0 = 0;
+        const x1 = -hw, y1 = hh;
+        const x2 = -hw, y2 = hh - WALL_H;
+        const x3 = 0, y3 = -WALL_H;
 
-        const g = ctx.createLinearGradient(x0, y3, x0, y0);
+        const canvas = document.createElement('canvas');
+        canvas.width = hw;
+        canvas.height = WALL_H;
+        const ctx = canvas.getContext('2d');
+        const g = ctx.createLinearGradient(0, 0, 0, WALL_H);
         g.addColorStop(0, '#b8a48c');
         g.addColorStop(0.1, '#b4a088');
         g.addColorStop(0.9, '#b09c84');
         g.addColorStop(1, '#a89880');
         ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3);
-        ctx.closePath(); ctx.fill();
+        ctx.fillRect(0, 0, hw, WALL_H);
 
-        ctx.fillStyle = '#5a4a34';
-        ctx.beginPath();
-        ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x1, y1-5); ctx.lineTo(x0, y0-5);
-        ctx.closePath(); ctx.fill();
+        const texture = PIXI.Texture.from(canvas);
+        graphics.beginTextureFill({ texture });
+        graphics.drawPolygon([x0, y0, x1, y1, x2, y2, x3, y3]);
+        graphics.endFill();
 
-        ctx.fillStyle = '#c4b498';
-        ctx.beginPath();
-        ctx.moveTo(x3, y3); ctx.lineTo(x2, y2); ctx.lineTo(x2, y2+4); ctx.lineTo(x3, y3+4);
-        ctx.closePath(); ctx.fill();
+        graphics.beginFill(0x5a4a34);
+        graphics.drawPolygon([x0, y0, x1, y1, x1, y1-5, x0, y0-5]);
+        graphics.endFill();
 
-        ctx.strokeStyle = '#4a3a24'; ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3);
-        ctx.closePath(); ctx.stroke();
+        graphics.beginFill(0xc4b498);
+        graphics.drawPolygon([x3, y3, x2, y2, x2, y2+4, x3, y3+4]);
+        graphics.endFill();
+
+        graphics.lineStyle(1, 0x4a3a24);
+        graphics.drawPolygon([x0, y0, x1, y1, x2, y2, x3, y3, x0, y0]);
 
         if (hasWindow) {
           const ww = hw * 0.55, wh = WALL_H * 0.45;
@@ -616,132 +573,203 @@
           const w1x = w0x - ww, w1y = w0y + ww * (hh/hw);
           const w2x = w1x, w2y = w1y + wh;
           const w3x = w0x, w3y = w0y + wh;
-          ctx.fillStyle = '#7a6844';
-          ctx.beginPath(); ctx.moveTo(w0x,w0y); ctx.lineTo(w1x,w1y); ctx.lineTo(w2x,w2y); ctx.lineTo(w3x,w3y);
-          ctx.closePath(); ctx.fill();
-          ctx.fillStyle = '#a8d4e8';
-          ctx.beginPath(); ctx.moveTo(w0x-2,w0y+1); ctx.lineTo(w1x+2,w1y+1); ctx.lineTo(w2x+2,w2y-1); ctx.lineTo(w3x-2,w3y-1);
-          ctx.closePath(); ctx.fill();
-          ctx.strokeStyle = '#7a6844'; ctx.lineWidth = 1.5;
+
+          graphics.beginFill(0x7a6844);
+          graphics.drawPolygon([w0x, w0y, w1x, w1y, w2x, w2y, w3x, w3y]);
+          graphics.endFill();
+
+          graphics.beginFill(0xa8d4e8);
+          graphics.drawPolygon([w0x-2, w0y+1, w1x+2, w1y+1, w2x+2, w2y-1, w3x-2, w3y-1]);
+          graphics.endFill();
+
+          graphics.lineStyle(1.5, 0x7a6844);
           const mY0=(w0y+w3y)/2, mY1=(w1y+w2y)/2;
-          ctx.beginPath(); ctx.moveTo(w0x-2,mY0); ctx.lineTo(w1x+2,mY1); ctx.stroke();
+          graphics.moveTo(w0x-2, mY0).lineTo(w1x+2, mY1);
           const mX0=(w0x+w1x)/2, mXb=(w3x+w2x)/2;
-          ctx.beginPath(); ctx.moveTo(mX0,(w0y+w1y)/2+1); ctx.lineTo(mXb,(w3y+w2y)/2-1); ctx.stroke();
+          graphics.moveTo(mX0, (w0y+w1y)/2+1).lineTo(mXb, (w3y+w2y)/2-1);
         }
       }
+
+      return graphics;
     }
 
-    function drawFurniture(ctx, sprite, sx, sy, scale) {
-      const img = spriteImages[sprite];
-      if (!img) return;
-
-      const w = img.width * scale;
-      const h = img.height * scale;
-      // Draw centered on tile position, offset up for height
-      ctx.drawImage(img, sx - w/2, sy - h + TILE_H/2, w, h);
-    }
-
-    function drawAgent(ctx, sx, sy, agent) {
+    function createAgentGraphics(agent) {
+      const container = new PIXI.Container();
       const bodyH = 42;
       const bodyW = 22;
       const headR = 11;
 
       // Shadow
-      ctx.beginPath();
-      ctx.ellipse(sx, sy + 2, 14, 6, 0, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      ctx.fill();
+      const shadow = new PIXI.Graphics();
+      shadow.beginFill(0x000000, 0.25);
+      shadow.drawEllipse(0, 2, 14, 6);
+      shadow.endFill();
+      container.addChild(shadow);
 
+      // Body parts
+      const body = new PIXI.Graphics();
+      
       // Shoes
-      ctx.fillStyle = '#333';
-      ctx.fillRect(sx - 6, sy - 2, 5, 4);
-      ctx.fillRect(sx + 1, sy - 2, 5, 4);
+      body.beginFill(0x333333);
+      body.drawRect(-6, -2, 5, 4);
+      body.drawRect(1, -2, 5, 4);
+      body.endFill();
 
-      // Legs (pants)
-      ctx.fillStyle = '#2a4494';
-      ctx.fillRect(sx - 5, sy - 12, 4, 12);
-      ctx.fillRect(sx + 1, sy - 12, 4, 12);
+      // Legs
+      body.beginFill(0x2a4494);
+      body.drawRect(-5, -12, 4, 12);
+      body.drawRect(1, -12, 4, 12);
+      body.endFill();
 
-      // Body (shirt - agent color)
-      const color = agent.color || '#61dafb';
-      ctx.fillStyle = color;
-      ctx.fillRect(sx - bodyW/2, sy - bodyH + 8, bodyW, bodyH/2 + 2);
+      // Shirt
+      const color = parseInt((agent.color || '#61dafb').replace('#', ''), 16);
+      body.beginFill(color);
+      body.drawRect(-bodyW/2, -bodyH + 8, bodyW, bodyH/2 + 2);
+      body.endFill();
 
       // Arms
-      ctx.fillStyle = color;
-      ctx.fillRect(sx - bodyW/2 - 3, sy - bodyH + 10, 4, 16);
-      ctx.fillRect(sx + bodyW/2 - 1, sy - bodyH + 10, 4, 16);
+      body.beginFill(color);
+      body.drawRect(-bodyW/2 - 3, -bodyH + 10, 4, 16);
+      body.drawRect(bodyW/2 - 1, -bodyH + 10, 4, 16);
+      body.endFill();
 
-      // Hands (skin)
-      ctx.fillStyle = '#ffd5b0';
-      ctx.fillRect(sx - bodyW/2 - 3, sy - bodyH + 26, 4, 4);
-      ctx.fillRect(sx + bodyW/2 - 1, sy - bodyH + 26, 4, 4);
+      // Hands
+      body.beginFill(0xffd5b0);
+      body.drawRect(-bodyW/2 - 3, -bodyH + 26, 4, 4);
+      body.drawRect(bodyW/2 - 1, -bodyH + 26, 4, 4);
+      body.endFill();
 
       // Head
-      ctx.beginPath();
-      ctx.arc(sx, sy - bodyH - headR + 10, headR, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffd5b0';
-      ctx.fill();
-      ctx.strokeStyle = '#d4a580';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      body.beginFill(0xffd5b0);
+      body.drawCircle(0, -bodyH - headR + 10, headR);
+      body.endFill();
+      body.lineStyle(1, 0xd4a580);
+      body.drawCircle(0, -bodyH - headR + 10, headR);
 
       // Hair
-      ctx.fillStyle = agent.hairColor || '#4a3728';
-      ctx.beginPath();
-      ctx.arc(sx, sy - bodyH - headR + 6, headR + 1, Math.PI, Math.PI * 2);
-      ctx.fill();
-      ctx.fillRect(sx - headR - 1, sy - bodyH - headR + 6, headR * 2 + 2, 5);
+      const hairColor = parseInt((agent.hairColor || '#4a3728').replace('#', ''), 16);
+      body.beginFill(hairColor);
+      body.arc(0, -bodyH - headR + 6, headR + 1, Math.PI, Math.PI * 2);
+      body.drawRect(-headR - 1, -bodyH - headR + 6, headR * 2 + 2, 5);
+      body.endFill();
 
       // Eyes
-      ctx.fillStyle = '#333';
-      ctx.fillRect(sx - 4, sy - bodyH - headR + 9, 3, 3);
-      ctx.fillRect(sx + 2, sy - bodyH - headR + 9, 3, 3);
+      body.beginFill(0x333333);
+      body.drawRect(-4, -bodyH - headR + 9, 3, 3);
+      body.drawRect(2, -bodyH - headR + 9, 3, 3);
+      body.endFill();
 
-      // Mouth (smile)
-      ctx.strokeStyle = '#c4836a';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(sx, sy - bodyH - headR + 16, 3, 0, Math.PI);
-      ctx.stroke();
+      container.addChild(body);
 
-      // Name tag with background
-      ctx.font = 'bold 11px "Courier New", monospace';
-      ctx.textAlign = 'center';
-      const nameW = ctx.measureText(agent.name).width + 12;
-      const tagY = sy - bodyH - headR - 14;
+      // Name tag
+      const tagBg = new PIXI.Graphics();
+      const nameText = new PIXI.Text(agent.name, {
+        fontFamily: '"Courier New", monospace',
+        fontSize: 11,
+        fontWeight: 'bold',
+        fill: 0xffffff
+      });
+      nameText.anchor.set(0.5, 0);
+      const nameW = nameText.width + 12;
+      const tagY = -bodyH - headR - 14;
 
-      // Tag background
-      ctx.fillStyle = 'rgba(0,0,0,0.75)';
-      ctx.beginPath();
-      ctx.roundRect(sx - nameW/2, tagY, nameW, 18, 4);
-      ctx.fill();
+      tagBg.beginFill(0x000000, 0.75);
+      tagBg.drawRoundedRect(-nameW/2, tagY, nameW, 18, 4);
+      tagBg.endFill();
+      tagBg.beginFill(color);
+      tagBg.drawRect(-nameW/2, tagY, 3, 18);
+      tagBg.endFill();
 
-      // Colored left border
-      ctx.fillStyle = color;
-      ctx.fillRect(sx - nameW/2, tagY, 3, 18);
+      nameText.position.set(2, tagY + 4);
+      container.addChild(tagBg);
+      container.addChild(nameText);
 
-      // Name text
-      ctx.fillStyle = '#fff';
-      ctx.fillText(agent.name, sx + 2, tagY + 13);
+      return container;
+    }
+
+    function createChatBubble(message) {
+      const container = new PIXI.Container();
+      const text = new PIXI.Text(message.substring(0, 35), {
+        fontFamily: 'sans-serif',
+        fontSize: 12,
+        fill: 0x333333,
+        wordWrap: true,
+        wordWrapWidth: 180
+      });
+
+      const padding = 8;
+      const bubbleW = Math.min(text.width + padding * 2, 220);
+      const bubbleH = text.height + padding * 2;
+
+      const bubble = new PIXI.Graphics();
+      bubble.beginFill(0xffffff);
+      bubble.drawRoundedRect(-bubbleW/2, -100, bubbleW, bubbleH, 10);
+      bubble.endFill();
+
+      // Arrow
+      bubble.beginFill(0xffffff);
+      bubble.moveTo(-5, -100 + bubbleH);
+      bubble.lineTo(0, -100 + bubbleH + 8);
+      bubble.lineTo(5, -100 + bubbleH);
+      bubble.closePath();
+      bubble.endFill();
+
+      text.anchor.set(0.5, 0);
+      text.position.set(0, -100 + padding);
+
+      container.addChild(bubble);
+      container.addChild(text);
+      container.alpha = 0;
+
+      return container;
+    }
+
+    // ===== ROOM RENDERING =====
+    function initPixiApp() {
+      const container = document.getElementById('isoCanvas');
+      
+      if (app) {
+        app.destroy(true, { children: true, texture: true, baseTexture: true });
+      }
+
+      app = new PIXI.Application({
+        width: container.clientWidth,
+        height: container.clientHeight,
+        backgroundColor: 0x0f1923,
+        antialias: false, // Crisp pixel art
+        resolution: window.devicePixelRatio || 1,
+        autoDensity: true
+      });
+
+      container.appendChild(app.view);
+
+      // Create layer containers
+      worldContainer = new PIXI.Container();
+      floorContainer = new PIXI.Container();
+      wallContainer = new PIXI.Container();
+      contentContainer = new PIXI.Container();
+      contentContainer.sortableChildren = true; // Enable z-index sorting
+
+      worldContainer.addChild(floorContainer);
+      worldContainer.addChild(wallContainer);
+      worldContainer.addChild(contentContainer);
+      app.stage.addChild(worldContainer);
+
+      // Start game loop
+      app.ticker.add(gameLoop);
+
+      console.log('[PixiJS] Initialized WebGL renderer');
     }
 
     function drawRoom() {
-      const container = document.getElementById('isoCanvas');
-      if (!canvas) {
-        canvas = document.createElement('canvas');
-        container.appendChild(canvas);
-      }
-      canvas.width = container.clientWidth;
-      canvas.height = container.clientHeight;
-      ctx = canvas.getContext('2d');
-      ctx.imageSmoothingEnabled = false; // Crisp pixel art!
+      if (!app) return;
 
-      // Clear with dark background
-      ctx.fillStyle = '#0f1923';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Clear containers
+      floorContainer.removeChildren();
+      wallContainer.removeChildren();
+      contentContainer.removeChildren();
 
-      // Select layout based on room name
+      // Select layout
       const roomNameLower = (currentRoomName || '').toLowerCase();
       const layoutKey = roomNameLower.includes('chill') ? 'chill'
         : roomNameLower.includes('arena') ? 'arena'
@@ -749,101 +777,112 @@
       const layout = ROOM_LAYOUTS[layoutKey];
       const size = layout.size;
 
-      // Check which wall positions have windows
+      // Window positions
       const backWindows = new Set(layout.wallWindows.filter(w => w.side === 'back').map(w => w.pos));
       const leftWindows = new Set(layout.wallWindows.filter(w => w.side === 'left').map(w => w.pos));
 
-      // === 1. Draw walls FIRST (back, then left) ===
-      // Back wall (y=0 edge)
+      // === 1. Walls ===
       for (let x = 0; x < size; x++) {
         const { sx, sy } = isoToScreen(x, 0);
-        drawWallSegment(ctx, sx, sy, 'back', backWindows.has(x));
+        const wall = createWallGraphics('back', backWindows.has(x));
+        wall.position.set(sx, sy);
+        wallContainer.addChild(wall);
       }
-      // Left wall (x=0 edge)
       for (let y = 0; y < size; y++) {
         const { sx, sy } = isoToScreen(0, y);
-        drawWallSegment(ctx, sx, sy, 'left', leftWindows.has(y));
+        const wall = createWallGraphics('left', leftWindows.has(y));
+        wall.position.set(sx, sy);
+        wallContainer.addChild(wall);
       }
 
-      // === 2. Draw floor tiles ===
+      // === 2. Floor ===
       for (let x = 0; x < size; x++) {
         for (let y = 0; y < size; y++) {
           const tileType = layout.floor[y]?.[x] || 'w';
           if (tileType === ' ') continue;
           const { sx, sy } = isoToScreen(x, y);
-          drawIsoTile(ctx, sx, sy, tileType);
+          const tile = createIsoTileGraphics(tileType);
+          tile.position.set(sx, sy);
+          floorContainer.addChild(tile);
         }
       }
 
-      // === 3. Collect all drawable items and sort by depth ===
-      const drawables = [];
+      // === 3. Furniture ===
+      for (const [spriteName, fx, fy, scale] of layout.furniture) {
+        const texture = spriteTextures[spriteName];
+        if (!texture) continue;
 
-      // Add furniture
-      for (const [sprite, fx, fy, scale] of layout.furniture) {
-        drawables.push({ type: 'furniture', sprite, x: fx, y: fy, scale, depth: fx + fy });
+        const sprite = new PIXI.Sprite(texture);
+        const { sx, sy } = isoToScreen(fx, fy);
+        sprite.width = sprite.texture.width * scale;
+        sprite.height = sprite.texture.height * scale;
+        sprite.anchor.set(0.5, 1);
+        sprite.position.set(sx, sy + TILE_H/2);
+        sprite.zIndex = fx + fy; // Depth sorting
+        contentContainer.addChild(sprite);
       }
 
-      // Add agents
+      // === 4. Agents ===
       for (const agent of agents.values()) {
-        drawables.push({ type: 'agent', agent, x: agent.x, y: agent.y, depth: agent.x + agent.y });
+        if (!agent.sprite) {
+          agent.sprite = createAgentGraphics(agent);
+          agent.bubble = createChatBubble('');
+          agent.sprite.addChild(agent.bubble);
+        }
+        const { sx, sy } = isoToScreen(agent.x, agent.y);
+        agent.sprite.position.set(sx, sy);
+        agent.sprite.zIndex = agent.x + agent.y; // Depth sorting
+        contentContainer.addChild(agent.sprite);
       }
 
-      // Sort by depth (back to front)
-      drawables.sort((a, b) => a.depth - b.depth);
+      // Sort by z-index
+      contentContainer.sortChildren();
 
-      // === 4. Draw all items in depth order ===
-      for (const item of drawables) {
-        const { sx, sy } = isoToScreen(item.x, item.y);
-        if (item.type === 'furniture') {
-          drawFurniture(ctx, item.sprite, sx, sy, item.scale);
-        } else if (item.type === 'agent') {
-          drawAgent(ctx, sx, sy, item.agent);
+      console.log('[PixiJS] Room drawn with', contentContainer.children.length, 'objects');
+    }
 
-          // Chat bubble
-          if (item.agent.lastMessage && Date.now() - item.agent.lastMessageTime < 5000) {
-            const msg = item.agent.lastMessage.substring(0, 35);
-            ctx.font = '11px sans-serif';
-            const msgW = Math.min(ctx.measureText(msg).width + 16, 220);
-            const bx = sx - msgW/2;
-            const by = sy - 100;
+    // ===== GAME LOOP (Movement Interpolation) =====
+    let lastTime = Date.now();
+    function gameLoop(delta) {
+      const now = Date.now();
+      const dt = (now - lastTime) / 1000; // Delta time in seconds
+      lastTime = now;
 
-            // Bubble shadow
-            ctx.fillStyle = 'rgba(0,0,0,0.2)';
-            ctx.beginPath();
-            ctx.roundRect(bx + 2, by + 2, msgW, 26, 10);
-            ctx.fill();
+      // Interpolate agent positions
+      for (const agent of agents.values()) {
+        if (agent.targetX !== undefined && agent.targetY !== undefined) {
+          // Lerp towards target over 500ms (0.5s)
+          const lerpSpeed = 2.0; // Reaches target in ~0.5s
+          agent.x += (agent.targetX - agent.x) * lerpSpeed * dt;
+          agent.y += (agent.targetY - agent.y) * lerpSpeed * dt;
 
-            // Bubble
-            ctx.fillStyle = 'white';
-            ctx.beginPath();
-            ctx.roundRect(bx, by, msgW, 26, 10);
-            ctx.fill();
+          // Snap when very close
+          if (Math.abs(agent.x - agent.targetX) < 0.01) agent.x = agent.targetX;
+          if (Math.abs(agent.y - agent.targetY) < 0.01) agent.y = agent.targetY;
 
-            // Arrow
-            ctx.beginPath();
-            ctx.moveTo(sx - 5, by + 26);
-            ctx.lineTo(sx, by + 34);
-            ctx.lineTo(sx + 5, by + 26);
-            ctx.fill();
+          // Update sprite position
+          if (agent.sprite) {
+            const { sx, sy } = isoToScreen(agent.x, agent.y);
+            agent.sprite.position.set(sx, sy);
+            agent.sprite.zIndex = agent.x + agent.y;
+          }
+        }
 
-            // Text
-            ctx.fillStyle = '#333';
-            ctx.textAlign = 'center';
-            ctx.font = '12px sans-serif';
-            ctx.fillText(msg, sx, by + 17);
+        // Fade out chat bubble after 5s
+        if (agent.bubble && agent.lastMessageTime) {
+          const elapsed = now - agent.lastMessageTime;
+          if (elapsed < 300) {
+            agent.bubble.alpha = Math.min(1, elapsed / 300);
+          } else if (elapsed > 4700) {
+            agent.bubble.alpha = Math.max(0, 1 - (elapsed - 4700) / 300);
+          } else {
+            agent.bubble.alpha = 1;
           }
         }
       }
 
-      // === 5. Ambient lighting overlay (subtle) ===
-      const grad = ctx.createRadialGradient(
-        canvas.width * 0.45, canvas.height * 0.4, 50,
-        canvas.width * 0.45, canvas.height * 0.4, canvas.width * 0.6
-      );
-      grad.addColorStop(0, 'rgba(255,200,100,0.03)');
-      grad.addColorStop(1, 'rgba(0,0,30,0.15)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Re-sort depth every frame (isometric requirement)
+      contentContainer.sortChildren();
     }
 
     // ===== ROOM LIST =====
@@ -906,20 +945,29 @@
 
       addChatMessage('System', `You are now spectating "${roomName}"`, true);
 
-      // Fetch room state (agents, furniture)
+      // Initialize PixiJS
+      initPixiApp();
+
+      // Fetch room state
       try {
         const res = await fetch(API + '/api/spectate/rooms/' + roomId);
         const data = await res.json();
         if (data.agents && data.agents.length > 0) {
           for (const a of data.agents) {
+            const x = a.x ?? Math.floor(Math.random() * 10) + 1;
+            const y = a.y ?? Math.floor(Math.random() * 10) + 1;
             agents.set(a.id, {
               id: a.id,
               name: a.displayName || 'Agent',
-              x: a.x ?? Math.floor(Math.random() * 10) + 1,
-              y: a.y ?? Math.floor(Math.random() * 10) + 1,
+              x: x,
+              y: y,
+              targetX: x,
+              targetY: y,
               direction: a.direction || 2,
               color: getAgentColor(a.id),
               hairColor: getHairColor(a.id),
+              sprite: null,
+              bubble: null
             });
           }
           updateAgentList();
@@ -931,16 +979,20 @@
         console.error('Failed to fetch room state:', err);
       }
 
-      // Draw room with agents
+      // Draw room
       setTimeout(drawRoom, 100);
 
-      // Connect WebSocket for live updates
+      // Connect WebSocket
       connectWS(roomId);
       addChatMessage('System', 'Watching for agent activity...', true);
     }
 
     function leaveRoom() {
       if (ws) { ws.close(); ws = null; }
+      if (app) {
+        app.destroy(true, { children: true, texture: true });
+        app = null;
+      }
       currentRoomId = null;
       agents.clear();
 
@@ -974,7 +1026,6 @@
       ws.onclose = () => {
         console.log('[WS] Disconnected');
         addChatMessage('System', '🔌 Disconnected from room', true);
-        // Auto-reconnect after 3s
         if (currentRoomId) {
           setTimeout(() => {
             if (currentRoomId) connectWS(currentRoomId);
@@ -990,17 +1041,23 @@
     function handleWSMessage(msg) {
       switch (msg.type) {
         case 'room.state':
-          // Full room state sync
           if (msg.agents) {
             agents.clear();
             for (const a of msg.agents) {
+              const x = a.x || Math.floor(Math.random() * 12) + 2;
+              const y = a.y || Math.floor(Math.random() * 12) + 2;
               agents.set(a.id, {
                 id: a.id,
                 name: a.displayName || a.name || 'Agent',
-                x: a.x || Math.floor(Math.random() * 12) + 2,
-                y: a.y || Math.floor(Math.random() * 12) + 2,
+                x: x,
+                y: y,
+                targetX: x,
+                targetY: y,
                 direction: a.direction || 0,
                 color: getAgentColor(a.id),
+                hairColor: getHairColor(a.id),
+                sprite: null,
+                bubble: null
               });
             }
             updateAgentList();
@@ -1009,14 +1066,20 @@
           break;
 
         case 'agent.join':
+          const x = msg.x || Math.floor(Math.random() * 10) + 1;
+          const y = msg.y || Math.floor(Math.random() * 10) + 1;
           agents.set(msg.agentId, {
             id: msg.agentId,
             name: msg.displayName || 'Agent',
-            x: msg.x || Math.floor(Math.random() * 10) + 1,
-            y: msg.y || Math.floor(Math.random() * 10) + 1,
+            x: x,
+            y: y,
+            targetX: x,
+            targetY: y,
             direction: 0,
             color: getAgentColor(msg.agentId),
             hairColor: getHairColor(msg.agentId),
+            sprite: null,
+            bubble: null
           });
           addChatMessage('System', `🤖 ${msg.displayName || 'Agent'} entered the room`, true);
           updateAgentList();
@@ -1025,20 +1088,21 @@
 
         case 'agent.leave':
           const leaving = agents.get(msg.agentId);
+          if (leaving && leaving.sprite) {
+            contentContainer.removeChild(leaving.sprite);
+          }
           agents.delete(msg.agentId);
           addChatMessage('System', `👋 ${leaving?.name || 'Agent'} left the room`, true);
           updateAgentList();
-          drawRoom();
           break;
 
         case 'agent.move':
         case 'agent.moved':
           const mover = agents.get(msg.agentId);
           if (mover) {
-            mover.x = msg.x;
-            mover.y = msg.y;
+            mover.targetX = msg.x;
+            mover.targetY = msg.y;
             mover.direction = msg.rotation || msg.direction || mover.direction;
-            drawRoom();
           }
           break;
 
@@ -1050,14 +1114,18 @@
           if (chatter) {
             chatter.lastMessage = chatText;
             chatter.lastMessageTime = Date.now();
+            
+            // Update bubble
+            if (chatter.bubble) {
+              chatter.sprite.removeChild(chatter.bubble);
+            }
+            chatter.bubble = createChatBubble(chatText);
+            chatter.sprite.addChild(chatter.bubble);
           }
           addChatMessage(
             msg.displayName || chatter?.name || 'Agent',
             chatText
           );
-          drawRoom();
-          // Clear bubble after 5s
-          setTimeout(drawRoom, 5500);
           break;
 
         case 'agent.action':
@@ -1100,7 +1168,6 @@
       container.appendChild(div);
       container.scrollTop = container.scrollHeight;
 
-      // Limit messages
       while (container.children.length > 100) {
         container.removeChild(container.firstChild);
       }
@@ -1141,18 +1208,22 @@
     document.getElementById('backBtn').addEventListener('click', leaveRoom);
 
     // Handle window resize
-    window.addEventListener('resize', () => { if (currentRoomId) drawRoom(); });
+    window.addEventListener('resize', () => {
+      if (app && currentRoomId) {
+        const container = document.getElementById('isoCanvas');
+        app.renderer.resize(container.clientWidth, container.clientHeight);
+        drawRoom();
+      }
+    });
 
     // Initial load
     fetchRooms();
     fetchStats();
 
-    // Refresh stats every 10s
     setInterval(fetchStats, 10000);
-    // Refresh room list every 15s (only when on selector)
     setInterval(() => { if (!currentRoomId) fetchRooms(); }, 15000);
 
-    console.log('[OpenClaw Hotel] Spectator mode loaded');
+    console.log('[OpenClaw Hotel] Spectator mode loaded with PixiJS WebGL');
   </script>
 </body>
 </html>

@@ -2,12 +2,22 @@
  * Continuous Simulation Service
  * 
  * Makes agents act autonomously even when no humans are watching.
- * Agents perform actions based on their personalities every tick.
+ * Agents perform actions based on their Big Five personalities and mood.
  */
 
 import { PERSONALITIES, type Personality } from '../ai/personalities.js';
 import * as presenceService from './presence.js';
 import { generateAgentMessage, getConversationConfig, type ConversationContext } from './agentConversation.js';
+import {
+  generatePersonalityProfile,
+  decideBehavior,
+  updateMood,
+  applyMoodDecay,
+  getMoodEmoji,
+  type PersonalityProfile,
+  type BehaviorAction,
+  type Event,
+} from './personalityEngine.js';
 
 export type SimulationConfig = {
   enabled: boolean;
@@ -38,6 +48,34 @@ const metrics: SimulationMetrics = {
 };
 
 /**
+ * In-memory personality profiles for agents
+ * Persists across ticks, initialized on first encounter
+ */
+const agentProfiles = new Map<string, PersonalityProfile>();
+
+/**
+ * Get or create personality profile for an agent
+ */
+function getOrCreateProfile(agentId: string): PersonalityProfile {
+  let profile = agentProfiles.get(agentId);
+  
+  if (!profile) {
+    profile = generatePersonalityProfile(agentId);
+    agentProfiles.set(agentId, profile);
+    console.log(`[Simulation] 🎭 Generated personality for ${agentId}: ${JSON.stringify(profile.traits)}`);
+  }
+  
+  return profile;
+}
+
+/**
+ * Update and save agent profile
+ */
+function saveProfile(profile: PersonalityProfile): void {
+  agentProfiles.set(profile.agentId, profile);
+}
+
+/**
  * Get all active agents in the hotel with their current rooms
  */
 async function getActiveAgents(sql: any): Promise<Array<{ agentId: string; roomId: string }>> {
@@ -63,41 +101,86 @@ function getAgentPersonality(agentId: string): Personality {
 }
 
 /**
- * Select a random action for an agent based on their personality
+ * Get room population count
  */
-function selectAction(personality: Personality): AgentAction {
-  const random = Math.random();
-
-  // Probability distribution based on personality traits
-  if (personality.traits.includes('active') || personality.traits.includes('energetic')) {
-    // Active personalities move more
-    if (random < 0.4) return 'move';
-    if (random < 0.7) return 'emote';
-    if (random < 0.9) return 'chat';
-    return 'idle';
+async function getRoomPopulation(roomId: string, sql: any): Promise<number> {
+  try {
+    const result = await sql`
+      SELECT COUNT(*)::int AS count
+      FROM presence
+      WHERE room_id = ${roomId}::uuid
+    `;
+    return result[0]?.count || 0;
+  } catch (error) {
+    console.error(`[Simulation] Failed to get room population:`, error);
+    return 0;
   }
+}
 
-  if (personality.traits.includes('talkative') || personality.traits.includes('friendly')) {
-    // Talkative personalities chat more
-    if (random < 0.5) return 'chat';
-    if (random < 0.7) return 'emote';
-    if (random < 0.85) return 'move';
-    return 'idle';
+/**
+ * Get time since agent's last action
+ */
+const lastActionTimes = new Map<string, Date>();
+
+function getTimeSinceLastAction(agentId: string): number {
+  const lastAction = lastActionTimes.get(agentId);
+  if (!lastAction) return 60; // Default: 60 minutes
+  
+  const minutesElapsed = (Date.now() - lastAction.getTime()) / (1000 * 60);
+  return Math.floor(minutesElapsed);
+}
+
+function recordAction(agentId: string): void {
+  lastActionTimes.set(agentId, new Date());
+}
+
+/**
+ * Select action using Big Five personality engine
+ * Replaces old trait-based system with mood-aware behavior
+ */
+async function selectActionWithPersonality(
+  agentId: string,
+  roomId: string,
+  sql: any
+): Promise<{ action: AgentAction; reason: string }> {
+  // Get or create profile
+  let profile = getOrCreateProfile(agentId);
+  
+  // Apply mood decay based on time since last update
+  const minutesElapsed = (Date.now() - profile.lastUpdated.getTime()) / (1000 * 60);
+  if (minutesElapsed > 5) {
+    profile = applyMoodDecay(profile, minutesElapsed);
+    saveProfile(profile);
   }
-
-  if (personality.traits.includes('calm') || personality.traits.includes('philosophical')) {
-    // Calm personalities mostly idle
-    if (random < 0.5) return 'idle';
-    if (random < 0.7) return 'chat';
-    if (random < 0.85) return 'move';
-    return 'emote';
-  }
-
-  // Default distribution
-  if (random < 0.3) return 'move';
-  if (random < 0.5) return 'chat';
-  if (random < 0.7) return 'emote';
-  return 'idle';
+  
+  // Get context for decision-making
+  const currentRoomPopulation = await getRoomPopulation(roomId, sql);
+  const timeSinceLastInteraction = getTimeSinceLastAction(agentId);
+  
+  // Decide behavior based on personality + mood
+  const decision = decideBehavior(profile, {
+    currentRoomPopulation,
+    timeSinceLastInteraction,
+    availableRooms: 10, // Could be dynamic in future
+  });
+  
+  // Map personality engine actions to simulation actions
+  const actionMap: Record<string, AgentAction> = {
+    'seek_group': 'move',
+    'chat_frequently': 'chat',
+    'find_quiet_room': 'move',
+    'idle': 'idle',
+    'explore_new_room': 'move',
+    'try_new_activity': 'emote',
+    'avoid_crowded_room': 'move',
+    'socialize': 'chat',
+    'rest': 'idle',
+    'emote': 'emote',
+  };
+  
+  const action = actionMap[decision.type] || 'idle';
+  
+  return { action, reason: decision.reason };
 }
 
 /**
