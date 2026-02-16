@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 import express from 'express';
 import { sql } from '../db/index.js';
 import { validateToken } from '../services/auth.js';
@@ -18,10 +17,12 @@ router.get('/api/themes/:id', async (req, res) => {
   } catch { res.status(500).json({ error: 'Failed to fetch theme' }); }
 });
 
-router.post('/api/rooms/:roomId/theme/:themeId', validateToken, async (req, res) => {
+router.post('/api/rooms/:roomId/theme/:themeId', validateToken, async (req: express.Request, res: express.Response) => {
   try {
+    const roomId = req.params.roomId as string;
+    const themeId = req.params.themeId as string;
     const result = await themeSvc.applyTheme(
-      parseInt(req.params.roomId), parseInt(req.params.themeId), (req as any).agentId, sql
+      parseInt(roomId), parseInt(themeId), (req as any).agentId, sql
     );
     result.success ? res.json({ success: true, settings: result.settings }) 
                    : res.status(400).json({ error: result.error });

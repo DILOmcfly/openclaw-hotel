@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 import express, { Request, Response } from 'express';
 import { sql } from '../db/index.js';
 import { validateToken } from '../services/auth.js';
@@ -8,7 +7,7 @@ const router = express.Router();
 
 router.get('/api/rooms/:roomId/analytics/hourly', validateToken, async (req: Request, res: Response) => {
   try {
-    const { roomId } = req.params;
+    const roomId = req.params.roomId as string;
     const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
 
     const stats = await getHourlyStats(roomId, date, sql);
@@ -20,7 +19,7 @@ router.get('/api/rooms/:roomId/analytics/hourly', validateToken, async (req: Req
 
 router.get('/api/rooms/:roomId/analytics/daily', validateToken, async (req: Request, res: Response) => {
   try {
-    const { roomId } = req.params;
+    const roomId = req.params.roomId as string;
     const days = parseInt(req.query.days as string) || 7;
 
     const stats = await getDailyStats(roomId, days, sql);
@@ -32,7 +31,7 @@ router.get('/api/rooms/:roomId/analytics/daily', validateToken, async (req: Requ
 
 router.get('/api/rooms/:roomId/analytics/peak', validateToken, async (req: Request, res: Response) => {
   try {
-    const { roomId } = req.params;
+    const roomId = req.params.roomId as string;
     const peak = await getPeakHour(roomId, sql);
     res.json({ roomId, peak });
   } catch (error: any) {
@@ -42,7 +41,7 @@ router.get('/api/rooms/:roomId/analytics/peak', validateToken, async (req: Reque
 
 router.get('/api/rooms/:roomId/analytics/total', validateToken, async (req: Request, res: Response) => {
   try {
-    const { roomId } = req.params;
+    const roomId = req.params.roomId as string;
     const total = await getTotalVisitors(roomId, sql);
     res.json({ roomId, ...total });
   } catch (error: any) {

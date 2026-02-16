@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 import express from 'express';
 import { sql } from '../db/index.js';
 import { requireRole } from '../middleware/admin.js';
@@ -56,8 +55,9 @@ router.post('/api/seasons', requireRole('admin'), async (req, res) => {
 
 router.put('/api/seasons/:id/activate', requireRole('admin'), async (req, res) => {
   try {
-    await activateSeason(req.params.id, sql);
-    logger.info('Season activated', { seasonId: req.params.id });
+    const seasonId = req.params.id as string;
+    await activateSeason(seasonId, sql);
+    logger.info('Season activated', { seasonId });
     res.json({ success: true });
   } catch (error: any) {
     logger.error('Failed to activate season', { error });
@@ -67,8 +67,9 @@ router.put('/api/seasons/:id/activate', requireRole('admin'), async (req, res) =
 
 router.put('/api/seasons/:id/deactivate', requireRole('admin'), async (req, res) => {
   try {
-    await deactivateSeason(req.params.id, sql);
-    logger.info('Season deactivated', { seasonId: req.params.id });
+    const seasonId = req.params.id as string;
+    await deactivateSeason(seasonId, sql);
+    logger.info('Season deactivated', { seasonId });
     res.json({ success: true });
   } catch (error: any) {
     logger.error('Failed to deactivate season', { error });
@@ -78,14 +79,15 @@ router.put('/api/seasons/:id/deactivate', requireRole('admin'), async (req, res)
 
 router.post('/api/seasons/:id/items', requireRole('admin'), async (req, res) => {
   try {
+    const seasonId = req.params.id as string;
     const { itemType, name, description, rarity } = req.body;
     if (!itemType || !name) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     const item = await addSeasonalItem(
-      req.params.id, itemType, name, description || '', rarity || 'rare', sql
+      seasonId, itemType, name, description || '', rarity || 'rare', sql
     );
-    logger.info('Seasonal item added', { itemId: item.id, seasonId: req.params.id });
+    logger.info('Seasonal item added', { itemId: item.id, seasonId });
     res.json({ success: true, item });
   } catch (error: any) {
     logger.error('Failed to add seasonal item', { error });

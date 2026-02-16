@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 /**
  * Room Templates API Routes
  * Endpoints for browsing and creating rooms from templates
@@ -33,7 +32,8 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const template = await templateService.getTemplateById(req.params.id, sql);
+    const templateId = req.params.id as string;
+    const template = await templateService.getTemplateById(templateId, sql);
     
     if (!template) {
       return res.status(404).json({ error: 'Template not found' });
@@ -52,7 +52,7 @@ router.get('/:id', async (req: Request, res: Response) => {
  */
 router.post('/use/:id', validateToken, async (req: Request, res: Response) => {
   try {
-    const templateId = req.params.id;
+    const templateId = req.params.id as string;
     const { roomName } = req.body;
     
     if (!roomName) {

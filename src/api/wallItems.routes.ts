@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 /**
  * Wall Items API Routes
  */
@@ -16,12 +15,13 @@ router.post('/api/rooms/:roomId/walls', validateToken, async (req, res) => {
     const agentId = res.locals.agentId;
     if (!agentId) return res.status(401).json({ error: 'Unauthorized' });
 
+    const roomId = req.params.roomId as string;
     const { wall, positionX, positionY, itemType, content } = req.body;
     if (!wall || positionX === undefined || positionY === undefined || !itemType) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const item = await placeItem(req.params.roomId, wall, positionX, positionY, itemType, content || '', agentId, sql);
+    const item = await placeItem(roomId, wall, positionX, positionY, itemType, content || '', agentId, sql);
     res.status(201).json({ item });
   } catch (error: any) {
     const status = error.message.includes('Invalid') || error.message.includes('Position') ? 400 : 500;
@@ -32,7 +32,8 @@ router.post('/api/rooms/:roomId/walls', validateToken, async (req, res) => {
 // GET /api/rooms/:roomId/walls - List wall items
 router.get('/api/rooms/:roomId/walls', async (req, res) => {
   try {
-    const items = await getWallItems(req.params.roomId, req.query.wall as string | undefined, sql);
+    const roomId = req.params.roomId as string;
+    const items = await getWallItems(roomId, req.query.wall as string | undefined, sql);
     res.json({ items });
   } catch (error: any) {
     const status = error.message.includes('Invalid') ? 400 : 500;
@@ -44,10 +45,11 @@ router.get('/api/rooms/:roomId/walls', async (req, res) => {
 router.delete('/api/walls/:id', validateToken, async (req, res) => {
   try {
     const agentId = res.locals.agentId;
+    const itemId = req.params.id as string;
     if (!agentId) return res.status(401).json({ error: 'Unauthorized' });
-    if (!req.params.id) return res.status(400).json({ error: 'Missing wall item ID' });
+    if (!itemId) return res.status(400).json({ error: 'Missing wall item ID' });
 
-    await removeItem(req.params.id, agentId, sql);
+    await removeItem(itemId, agentId, sql);
     res.json({ success: true });
   } catch (error: any) {
     const status = error.message.includes('not found') ? 404 : error.message.includes('Unauthorized') ? 403 : 500;
@@ -59,15 +61,16 @@ router.delete('/api/walls/:id', validateToken, async (req, res) => {
 router.put('/api/walls/:id/move', validateToken, async (req, res) => {
   try {
     const agentId = res.locals.agentId;
+    const itemId = req.params.id as string;
     if (!agentId) return res.status(401).json({ error: 'Unauthorized' });
-    if (!req.params.id) return res.status(400).json({ error: 'Missing wall item ID' });
+    if (!itemId) return res.status(400).json({ error: 'Missing wall item ID' });
 
     const { positionX, positionY } = req.body;
     if (positionX === undefined || positionY === undefined) {
       return res.status(400).json({ error: 'Missing positionX or positionY' });
     }
 
-    const item = await moveItem(req.params.id, positionX, positionY, agentId, sql);
+    const item = await moveItem(itemId, positionX, positionY, agentId, sql);
     res.json({ item });
   } catch (error: any) {
     const status = error.message.includes('not found') ? 404 : 
@@ -81,11 +84,12 @@ router.put('/api/walls/:id/move', validateToken, async (req, res) => {
 router.put('/api/walls/:id/content', validateToken, async (req, res) => {
   try {
     const agentId = res.locals.agentId;
+    const itemId = req.params.id as string;
     if (!agentId) return res.status(401).json({ error: 'Unauthorized' });
-    if (!req.params.id) return res.status(400).json({ error: 'Missing wall item ID' });
+    if (!itemId) return res.status(400).json({ error: 'Missing wall item ID' });
     if (req.body.content === undefined) return res.status(400).json({ error: 'Missing content' });
 
-    const item = await updateContent(req.params.id, req.body.content, agentId, sql);
+    const item = await updateContent(itemId, req.body.content, agentId, sql);
     res.json({ item });
   } catch (error: any) {
     const status = error.message.includes('not found') ? 404 : error.message.includes('Unauthorized') ? 403 : 500;

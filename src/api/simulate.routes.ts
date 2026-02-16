@@ -1,4 +1,3 @@
-// @ts-nocheck - TODO: fix type errors
 import { Router } from 'express';
 import type { Sql } from 'postgres';
 import { sql } from '../db/index.js';
@@ -207,28 +206,28 @@ router.post('/api/internal/simulate', async (_req, res) => {
         WHERE agent_id = ${hopper.agent_id}::uuid
       `;
 
-      // Broadcast agent.left to old room
+      // Broadcast presence.leave to old room
       broadcastToSpectators(oldRoomId, {
-        type: 'agent.left',
+        type: 'presence.leave',
         roomId: oldRoomId,
         agentId: hopper.agent_id,
       });
 
-      // Broadcast agent.joined to new room
+      // Broadcast presence.join to new room
       const [agentInfo] = await sql<{ display_name: string; sprite_url: string }[]>`
         SELECT display_name, sprite_url FROM agents WHERE id = ${hopper.agent_id}::uuid
       `;
 
       if (agentInfo) {
         broadcastToSpectators(newRoomId, {
-          type: 'agent.joined',
+          type: 'presence.join',
           roomId: newRoomId,
-          agentId: hopper.agent_id,
-          displayName: agentInfo.display_name,
-          spriteUrl: agentInfo.sprite_url,
-          x: newX,
-          y: newY,
-          rotation: newRotation,
+          agent: {
+            id: hopper.agent_id,
+            name: agentInfo.display_name,
+            x: newX,
+            y: newY,
+          },
         });
       }
     }
