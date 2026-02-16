@@ -3,22 +3,73 @@ const Redis = IORedis as any;
 type RedisType = any;
 
 /**
+ * In-memory fallback when Redis is not available
+ */
+class InMemoryStore {
+  private store = new Map<string, { value: string; expiresAt: number }>();
+
+  async setex(key: string, ttl: number, value: string): Promise<void> {
+    this.store.set(key, { value, expiresAt: Date.now() + ttl * 1000 });
+  }
+
+  async get(key: string): Promise<string | null> {
+    const entry = this.store.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      this.store.delete(key);
+      return null;
+    }
+    return entry.value;
+  }
+
+  async del(key: string): Promise<void> {
+    this.store.delete(key);
+  }
+
+  async expire(key: string, ttl: number): Promise<number> {
+    const entry = this.store.get(key);
+    if (!entry) return 0;
+    entry.expiresAt = Date.now() + ttl * 1000;
+    return 1;
+  }
+
+  async quit(): Promise<void> {
+    this.store.clear();
+  }
+}
+
+/**
  * Redis client for session storage and caching
- * Uses connection pooling for production scalability
+ * Falls back to in-memory store when Redis is unavailable
  */
 class RedisClient {
   private client: RedisType;
   private isConnected: boolean = false;
+  private useMemory: boolean = false;
 
   constructor() {
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-    
+    const redisUrl = process.env.REDIS_URL;
+
+    if (!redisUrl) {
+      console.log('[Redis] No REDIS_URL — using in-memory session store');
+      this.client = new InMemoryStore();
+      this.isConnected = true;
+      this.useMemory = true;
+      return;
+    }
+
     this.client = new Redis(redisUrl, {
       maxRetriesPerRequest: 3,
       enableReadyCheck: true,
       retryStrategy: (times: number) => {
-        const delay = Math.min(times * 50, 2000);
-        return delay;
+        if (times > 5) {
+          console.warn('[Redis] Max retries reached — falling back to in-memory');
+          this.client = new InMemoryStore();
+          this.isConnected = true;
+          this.useMemory = true;
+          return null; // stop retrying
+        }
+        return Math.min(times * 50, 2000);
       },
     });
 
@@ -29,49 +80,35 @@ class RedisClient {
 
     this.client.on('error', (err: Error) => {
       console.error('[Redis] Connection error:', err.message);
-      this.isConnected = false;
+      if (!this.useMemory) {
+        this.isConnected = false;
+      }
     });
 
     this.client.on('close', () => {
-      this.isConnected = false;
-      console.log('[Redis] Connection closed');
+      if (!this.useMemory) {
+        this.isConnected = false;
+        console.log('[Redis] Connection closed');
+      }
     });
   }
 
-  /**
-   * Store session data with TTL
-   * @param sessionId - Unique session identifier
-   * @param agentId - Agent ID
-   * @param ttlSeconds - Time to live in seconds (default 30 days)
-   */
   async setSession(sessionId: string, agentId: string, ttlSeconds: number = 30 * 24 * 60 * 60): Promise<void> {
     if (!this.isConnected) {
       throw new Error('Redis client not connected');
     }
-    
     const key = `session:${sessionId}`;
     const value = JSON.stringify({ agentId, createdAt: Date.now() });
-    
     await this.client.setex(key, ttlSeconds, value);
   }
 
-  /**
-   * Retrieve session data
-   * @param sessionId - Session identifier
-   * @returns Agent ID if session exists, null otherwise
-   */
   async getSession(sessionId: string): Promise<string | null> {
     if (!this.isConnected) {
       throw new Error('Redis client not connected');
     }
-    
     const key = `session:${sessionId}`;
     const value = await this.client.get(key);
-    
-    if (!value) {
-      return null;
-    }
-    
+    if (!value) return null;
     try {
       const parsed = JSON.parse(value);
       return parsed.agentId;
@@ -81,55 +118,28 @@ class RedisClient {
     }
   }
 
-  /**
-   * Delete session (logout)
-   * @param sessionId - Session identifier
-   */
   async deleteSession(sessionId: string): Promise<void> {
-    if (!this.isConnected) {
-      throw new Error('Redis client not connected');
-    }
-    
-    const key = `session:${sessionId}`;
-    await this.client.del(key);
+    if (!this.isConnected) throw new Error('Redis client not connected');
+    await this.client.del(`session:${sessionId}`);
   }
 
-  /**
-   * Extend session TTL (on activity)
-   * @param sessionId - Session identifier
-   * @param ttlSeconds - New TTL in seconds
-   */
   async extendSession(sessionId: string, ttlSeconds: number = 30 * 24 * 60 * 60): Promise<boolean> {
-    if (!this.isConnected) {
-      throw new Error('Redis client not connected');
-    }
-    
-    const key = `session:${sessionId}`;
-    const result = await this.client.expire(key, ttlSeconds);
+    if (!this.isConnected) throw new Error('Redis client not connected');
+    const result = await this.client.expire(`session:${sessionId}`, ttlSeconds);
     return result === 1;
   }
 
-  /**
-   * Check if Redis is connected
-   */
   get connected(): boolean {
     return this.isConnected;
   }
 
-  /**
-   * Close Redis connection (for graceful shutdown)
-   */
   async disconnect(): Promise<void> {
     await this.client.quit();
   }
 
-  /**
-   * Get raw Redis client (for advanced operations)
-   */
   getClient(): RedisType {
     return this.client;
   }
 }
 
-// Singleton instance
 export const redisClient = new RedisClient();
