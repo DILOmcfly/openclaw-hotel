@@ -10,6 +10,7 @@
     "start": "node dist/server.js",
     "migrate": "tsx src/db/migrate.ts",
     "seed": "tsx src/db/seed.ts",
+    "seed:beta": "tsx src/db/seed-beta.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run 'src/tests/integration/*.integration.test.ts'",
