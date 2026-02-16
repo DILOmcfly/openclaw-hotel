@@ -1486,6 +1486,14 @@
       container.addChild(tagBg);
       container.addChild(nameText);
 
+      // Make agent clickable
+      container.interactive = true;
+      container.buttonMode = true;
+      container.cursor = 'pointer';
+      container.on('pointerdown', () => {
+        showAgentInfo(agent.id);
+      });
+
       return container;
     }
 
@@ -2059,10 +2067,154 @@
       const list = document.getElementById('agentList');
       let html = '<h4>Agents in Room (' + agents.size + ')</h4>';
       for (const [id, agent] of agents) {
-        html += `<div class="agent-item"><div class="agent-dot" style="background:${agent.color}"></div>${agent.name}</div>`;
+        html += `<div class="agent-item" style="cursor: pointer;" onclick="showAgentInfo('${id}')">
+          <div class="agent-dot" style="background:${agent.color}"></div>${agent.name}
+        </div>`;
       }
       list.innerHTML = html;
       document.getElementById('roomAgentCount').textContent = agents.size;
+    }
+
+    // ===== AGENT INFO PANEL =====
+    async function showAgentInfo(agentId) {
+      const panel = document.getElementById('agentInfoPanel');
+      const agent = agents.get(agentId);
+      
+      if (!agent) {
+        console.error('Agent not found:', agentId);
+        return;
+      }
+
+      // Show panel immediately with loading state
+      panel.classList.add('active');
+      
+      // Set basic info
+      document.getElementById('agentInfoName').textContent = agent.name;
+      document.getElementById('agentInfoBio').innerHTML = '<div class="loading-spinner-small"></div>';
+      document.getElementById('personalityTraits').innerHTML = '<div class="loading-spinner-small"></div>';
+      document.getElementById('agentRelationships').innerHTML = '<div class="loading-spinner-small"></div>';
+      document.getElementById('agentActivity').innerHTML = '<div class="loading-spinner-small"></div>';
+
+      try {
+        // Fetch profile data (bio, display name)
+        const profileRes = await fetch(`${API}/api/agents/${agentId}/profile`);
+        const profileData = profileRes.ok ? await profileRes.json() : null;
+
+        // Fetch personality data (OCEAN traits + archetype)
+        const personalityRes = await fetch(`${API}/api/agents/${agentId}/personality`);
+        const personalityData = personalityRes.ok ? await personalityRes.json() : null;
+
+        // Fetch status/mood data
+        const statusRes = await fetch(`${API}/api/status/${agentId}`);
+        const statusData = statusRes.ok ? await statusRes.json() : null;
+
+        // Update name with emoji based on personality archetype
+        const emoji = getArchetypeEmoji(personalityData?.archetype);
+        document.getElementById('agentInfoName').textContent = `${emoji} ${profileData?.displayName || agent.name}`;
+
+        // Update mood
+        const moodEmoji = getMoodEmoji(statusData?.mood || 'neutral');
+        const moodText = capitalize(statusData?.mood || 'Neutral');
+        document.getElementById('moodEmoji').textContent = moodEmoji;
+        document.getElementById('moodText').textContent = moodText;
+
+        // Update bio
+        document.getElementById('agentInfoBio').textContent = profileData?.bio || 'No bio available.';
+
+        // Update personality traits (OCEAN)
+        if (personalityData) {
+          const traits = [
+            { name: 'Openness (Curiosity)', value: personalityData.curiosity || 50, key: 'curiosity' },
+            { name: 'Conscientiousness', value: 50, key: 'conscientiousness' }, // Not in DB, use default
+            { name: 'Extraversion (Sociability)', value: personalityData.sociability || 50, key: 'sociability' },
+            { name: 'Agreeableness (Generosity)', value: personalityData.generosity || 50, key: 'generosity' },
+            { name: 'Neuroticism (Volatility)', value: personalityData.volatility || 50, key: 'volatility' },
+          ];
+
+          let traitsHtml = '';
+          for (const trait of traits) {
+            traitsHtml += `
+              <div class="personality-trait">
+                <div class="trait-label">
+                  <span>${trait.name}</span>
+                  <span>${trait.value}%</span>
+                </div>
+                <div class="trait-bar">
+                  <div class="trait-fill" style="width: ${trait.value}%"></div>
+                </div>
+              </div>
+            `;
+          }
+          document.getElementById('personalityTraits').innerHTML = traitsHtml;
+        } else {
+          document.getElementById('personalityTraits').innerHTML = '<div class="error-message">Personality data not available</div>';
+        }
+
+        // Update relationships (placeholder - needs friends/relationships API)
+        // For now, show placeholder data
+        document.getElementById('agentRelationships').innerHTML = '<div style="color: #888; font-size: 13px;">No relationships data available for spectators</div>';
+
+        // Update recent activity (placeholder)
+        document.getElementById('agentActivity').innerHTML = `
+          <div class="activity-item">
+            <div>Joined room "${escapeHtml(currentRoomName)}"</div>
+            <div class="activity-time">Just now</div>
+          </div>
+          ${agent.lastMessage ? `
+          <div class="activity-item">
+            <div>Said: "${escapeHtml(truncate(agent.lastMessage, 30))}"</div>
+            <div class="activity-time">Recently</div>
+          </div>
+          ` : ''}
+        `;
+
+      } catch (error) {
+        console.error('Failed to load agent info:', error);
+        document.getElementById('personalityTraits').innerHTML = '<div class="error-message">Failed to load data</div>';
+        document.getElementById('agentInfoBio').innerHTML = '<div class="error-message">Failed to load bio</div>';
+      }
+    }
+
+    function closeAgentInfo() {
+      document.getElementById('agentInfoPanel').classList.remove('active');
+    }
+
+    function getArchetypeEmoji(archetype) {
+      const emojis = {
+        'explorer': '🧭',
+        'socialite': '🎭',
+        'competitor': '🏆',
+        'helper': '💝',
+        'rebel': '⚡',
+        'leader': '👑',
+        'analyst': '🔬',
+        'artist': '🎨',
+      };
+      return emojis[archetype?.toLowerCase()] || '🤖';
+    }
+
+    function getMoodEmoji(mood) {
+      const emojis = {
+        'happy': '😊',
+        'sad': '😢',
+        'excited': '🤩',
+        'busy': '😤',
+        'away': '🌙',
+        'neutral': '😐',
+        'angry': '😠',
+        'sleepy': '😴',
+        'creative': '💡',
+        'social': '🎉',
+      };
+      return emojis[mood?.toLowerCase()] || '😐';
+    }
+
+    function capitalize(str) {
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    function truncate(str, maxLen) {
+      return str.length > maxLen ? str.substring(0, maxLen) + '...' : str;
     }
 
     // ===== COLORS =====
