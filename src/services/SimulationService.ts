@@ -21,6 +21,7 @@ import {
 import { addMemory, getRecentMemories } from './agentMemory.js';
 import { checkAndGenerateReflections } from './reflectionService.js';
 import { updateRelationship } from './socialDynamics.js';
+import { addLiveEvent, buildEventMessage, EVENT_ICONS } from './liveEventsStore.js';
 
 export type SimulationConfig = {
   enabled: boolean;
@@ -530,6 +531,18 @@ async function executeAction(
           timestamp: new Date().toISOString(),
         });
 
+        // T-346: Capture chat in global live events (1 in 4 to avoid noise)
+        if (Math.random() < 0.25) {
+          addLiveEvent({
+            type: 'chat',
+            roomId,
+            agentId,
+            agentName: personality.name,
+            icon: EVENT_ICONS.chat,
+            message: buildEventMessage('chat', personality.name),
+          });
+        }
+
         // Add memory of conversation (graceful degradation)
         try {
           await addMemory(
@@ -574,6 +587,17 @@ async function executeAction(
           type: 'emote',
           agentId,
           emote,
+        });
+
+        // T-346: Capture emote in global live events
+        addLiveEvent({
+          type: 'emote',
+          roomId,
+          agentId,
+          agentName: personality.name,
+          detail: emote,
+          icon: EVENT_ICONS.emote,
+          message: buildEventMessage('emote', personality.name, undefined, emote),
         });
 
         // Add memory of emote (graceful degradation)

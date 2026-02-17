@@ -385,9 +385,9 @@
         if (!response.ok) throw new Error('Stats unavailable');
         
         const data = await response.json();
-        document.getElementById('agents').textContent = data.agentsOnline || 0;
-        document.getElementById('spectators').textContent = data.spectators || 0;
-        document.getElementById('rooms').textContent = data.activeRooms || 0;
+        document.getElementById('agents').textContent = data.totalAgentsOnline || data.agentsOnline || 0;
+        document.getElementById('spectators').textContent = data.totalSpectators || data.spectators || 0;
+        document.getElementById('rooms').textContent = data.activeRooms || data.totalRooms || 0;
       } catch (err) {
         console.warn('Failed to fetch stats:', err);
       }

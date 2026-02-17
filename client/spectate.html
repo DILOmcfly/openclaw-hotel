@@ -644,6 +644,116 @@
       border-top: 1px solid rgba(255,107,107,0.2);
     }
 
+    /* ===== LEADERBOARD (T-346) ===== */
+    #leaderboardPanel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding: 8px;
+    }
+    .leaderboard-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    #leaderboardMetric {
+      flex: 1;
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .leaderboard-refresh {
+      cursor: pointer;
+      font-size: 16px;
+      opacity: 0.7;
+      transition: opacity 0.2s, transform 0.3s;
+      user-select: none;
+    }
+    .leaderboard-refresh:hover { opacity: 1; }
+    .leaderboard-refresh.spinning { animation: spin 0.5s linear; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    #leaderboardList {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .leaderboard-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      font-size: 12px;
+      animation: slideInRight 0.3s ease both;
+      transition: background 0.2s;
+    }
+    .leaderboard-row:hover { background: rgba(0,212,170,0.08); }
+    .lb-rank {
+      width: 20px;
+      font-weight: 700;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 11px;
+    }
+    .lb-rank.gold   { color: #f4c542; font-size: 16px; }
+    .lb-rank.silver { color: #c0c0c0; font-size: 14px; }
+    .lb-rank.bronze { color: #cd7f32; font-size: 13px; }
+    .lb-name {
+      flex: 1;
+      font-weight: 600;
+      color: var(--accent);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .lb-score {
+      font-weight: 700;
+      color: var(--text-primary);
+      min-width: 32px;
+      text-align: right;
+    }
+    .lb-bar-wrap {
+      width: 100%;
+      height: 3px;
+      background: var(--border-color);
+      border-radius: 2px;
+      margin-top: 4px;
+      overflow: hidden;
+    }
+    .lb-bar {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+    .leaderboard-loading, .leaderboard-empty, .leaderboard-error {
+      text-align: center;
+      padding: 24px 16px;
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+    .leaderboard-error { color: #ff6b6b; }
+    .leaderboard-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 6px;
+      border-top: 1px solid var(--border-color);
+      font-size: 10px;
+      color: var(--text-secondary);
+      margin-top: 6px;
+    }
+    .leaderboard-auto { opacity: 0.6; }
+
     /* FPS Counter */
     #fpsCounter {
       position: fixed;
@@ -1882,6 +1992,108 @@
         min-width: 160px;
       }
     }
+
+    /* ── T-346: Live Events Ticker ──────────────────────────────────────── */
+    @keyframes tickerScroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    #liveEventsTicker {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 36px;
+      background: rgba(10, 10, 20, 0.92);
+      border-top: 1px solid rgba(0, 212, 170, 0.3);
+      display: flex;
+      align-items: center;
+      z-index: 9000;
+      overflow: hidden;
+      backdrop-filter: blur(6px);
+      font-size: 13px;
+      color: var(--text-secondary);
+      transition: opacity 0.3s ease;
+    }
+    #liveEventsTicker.hidden {
+      opacity: 0;
+      pointer-events: none;
+      height: 0;
+      border-top: none;
+    }
+
+    .ticker-label {
+      flex-shrink: 0;
+      padding: 0 10px;
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      color: #ff4444;
+      background: rgba(255, 68, 68, 0.12);
+      border-right: 1px solid rgba(255, 68, 68, 0.3);
+      height: 100%;
+      display: flex;
+      align-items: center;
+      white-space: nowrap;
+    }
+
+    .ticker-track-container {
+      flex: 1;
+      overflow: hidden;
+      height: 100%;
+      display: flex;
+      align-items: center;
+    }
+
+    .ticker-track {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      white-space: nowrap;
+      will-change: transform;
+    }
+
+    .ticker-event {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 24px;
+      border-right: 1px solid rgba(97, 218, 251, 0.12);
+      height: 36px;
+      transition: background 0.2s;
+    }
+    .ticker-event:hover {
+      background: rgba(0, 212, 170, 0.08);
+    }
+
+    .ticker-icon { font-size: 14px; }
+    .ticker-msg  { color: var(--text-secondary); }
+
+    /* Type-specific colours */
+    .ticker-trade      { --type-color: #ffd700; }
+    .ticker-game_win   { --type-color: #ff8c00; }
+    .ticker-achievement{ --type-color: #c084fc; }
+    .ticker-emote      { --type-color: #60a5fa; }
+    .ticker-trade .ticker-icon,
+    .ticker-game_win .ticker-icon,
+    .ticker-achievement .ticker-icon,
+    .ticker-emote .ticker-icon {
+      filter: drop-shadow(0 0 4px var(--type-color, transparent));
+    }
+
+    .ticker-toggle {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0 10px;
+      height: 100%;
+      transition: color 0.2s;
+    }
+    .ticker-toggle:hover { color: var(--text-primary); }
   </style>
 </head>
 <body>
@@ -2080,10 +2292,11 @@
         <div class="agent-list" id="agentList">
           <h4>Agents in Room</h4>
         </div>
-        <!-- Sidebar tabs (T-337) -->
+        <!-- Sidebar tabs (T-337, T-346) -->
         <div class="sidebar-tabs">
           <div class="sidebar-tab active" id="tab-chat" onclick="switchSidebarTab('chat')">💬 Chat</div>
           <div class="sidebar-tab" id="tab-activity" onclick="switchSidebarTab('activity')">📊 Activity</div>
+          <div class="sidebar-tab" id="tab-leaderboard" onclick="switchSidebarTab('leaderboard')">🏆 Top</div>
         </div>
         <!-- Chat tab -->
         <div class="tab-pane active" id="pane-chat">
@@ -2095,6 +2308,28 @@
             <div class="activity-empty">
               <div class="activity-empty-icon">📡</div>
               <div>Waiting for agent activity…</div>
+            </div>
+          </div>
+        </div>
+        <!-- Leaderboard tab (T-346) -->
+        <div class="tab-pane" id="pane-leaderboard">
+          <div id="leaderboardPanel">
+            <div class="leaderboard-controls">
+              <select id="leaderboardMetric" onchange="loadLeaderboard()">
+                <option value="messages_sent">💬 Messages</option>
+                <option value="rooms_visited">🚪 Rooms Visited</option>
+                <option value="trades_completed">💱 Trades</option>
+                <option value="games_won">🎮 Games Won</option>
+                <option value="friends_count">👥 Friends</option>
+              </select>
+              <span class="leaderboard-refresh" onclick="loadLeaderboard()" title="Refresh">🔄</span>
+            </div>
+            <div id="leaderboardList">
+              <div class="leaderboard-loading">Loading…</div>
+            </div>
+            <div class="leaderboard-footer">
+              <span id="leaderboardTimestamp">–</span>
+              <span class="leaderboard-auto">Auto-refresh 30s</span>
             </div>
           </div>
         </div>
@@ -2142,7 +2377,216 @@
     <div>Thanks for your feedback!</div>
   </div>
 
+  <!-- ───────── T-346: Global Live Events Ticker ───────── -->
+  <div id="liveEventsTicker" aria-label="Live events across all rooms">
+    <div class="ticker-label">🔴 LIVE</div>
+    <div class="ticker-track-container">
+      <div class="ticker-track" id="tickerTrack">
+        <!-- Events injected here by JS -->
+      </div>
+    </div>
+    <button class="ticker-toggle" id="tickerToggle" title="Toggle ticker" aria-label="Toggle live events ticker">✕</button>
+  </div>
+
   <!-- Spectator client JS (lazy-loads PixiJS on room entry) -->
   <script src="/js/spectate.js" defer></script>
+
+  <!-- T-346: Live Events Ticker Script -->
+  <script>
+  (function() {
+    'use strict';
+
+    const MAX_TICKER_EVENTS = 30;
+    const POLL_INTERVAL_MS = 60_000; // Refresh from API every 60s
+    const tickerEvents = [];
+    let tickerPaused = false;
+    let trackCloneNeeded = true;
+
+    const ticker = document.getElementById('liveEventsTicker');
+    const track = document.getElementById('tickerTrack');
+    const toggleBtn = document.getElementById('tickerToggle');
+
+    // ── Icon map (mirrors liveEventsStore.ts) ────────────────────────────────
+    const EVENT_ICONS = {
+      chat:          '💬',
+      emote:         '🎭',
+      trade:         '💱',
+      game_win:      '🏆',
+      achievement:   '🏅',
+      room_enter:    '🚪',
+      room_leave:    '👋',
+      furniture_use: '🪑',
+      game_invite:   '🎮',
+    };
+
+    /** Toggle ticker visibility */
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        if (ticker.classList.contains('hidden')) {
+          ticker.classList.remove('hidden');
+          toggleBtn.textContent = '✕';
+          localStorage.setItem('tickerVisible', '1');
+        } else {
+          ticker.classList.add('hidden');
+          toggleBtn.textContent = '▶';
+          localStorage.setItem('tickerVisible', '0');
+        }
+      });
+    }
+
+    // Restore user preference
+    if (localStorage.getItem('tickerVisible') === '0') {
+      ticker?.classList.add('hidden');
+      if (toggleBtn) toggleBtn.textContent = '▶';
+    }
+
+    /** Create a single ticker item element */
+    function createTickerItem(ev) {
+      const icon = EVENT_ICONS[ev.type] || '✦';
+      const span = document.createElement('span');
+      span.className = 'ticker-event ticker-' + (ev.type || 'chat');
+      span.setAttribute('data-event-id', ev.id || '');
+      span.innerHTML = `<span class="ticker-icon">${icon}</span><span class="ticker-msg">${escapeHtml(ev.message)}</span>`;
+      return span;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    /** Rebuild the scrolling track from tickerEvents array */
+    function renderTicker() {
+      if (!track) return;
+      // Clear old
+      track.innerHTML = '';
+      if (tickerEvents.length === 0) {
+        const empty = document.createElement('span');
+        empty.className = 'ticker-event';
+        empty.textContent = 'Watching for live events…';
+        track.appendChild(empty);
+        return;
+      }
+      // Duplicate events for seamless loop
+      const frag = document.createDocumentFragment();
+      [...tickerEvents, ...tickerEvents].forEach((ev) => {
+        frag.appendChild(createTickerItem(ev));
+      });
+      track.appendChild(frag);
+      // Restart animation
+      track.style.animation = 'none';
+      // Force reflow
+      void track.offsetWidth;
+      // Duration based on event count: ~8s per event, min 20s, max 120s
+      const duration = Math.min(120, Math.max(20, tickerEvents.length * 8));
+      track.style.animation = `tickerScroll ${duration}s linear infinite`;
+    }
+
+    /** Add a new event from a WebSocket message */
+    window.addTickerEvent = function(ev) {
+      // Avoid duplicates by id
+      if (ev.id && tickerEvents.find((e) => e.id === ev.id)) return;
+      tickerEvents.unshift(ev);
+      if (tickerEvents.length > MAX_TICKER_EVENTS) tickerEvents.pop();
+      renderTicker();
+    };
+
+    /** Fetch events from backend and merge into local queue */
+    async function fetchLiveEvents() {
+      try {
+        const r = await fetch('/api/spectate/live-events?limit=20');
+        if (!r.ok) return;
+        const data = await r.json();
+        if (!Array.isArray(data.events)) return;
+        let changed = false;
+        data.events.forEach((ev) => {
+          if (!tickerEvents.find((e) => e.id === ev.id)) {
+            tickerEvents.push(ev);
+            changed = true;
+          }
+        });
+        if (changed) {
+          // Sort newest-first, trim
+          tickerEvents.sort((a, b) => b.timestamp - a.timestamp);
+          tickerEvents.splice(MAX_TICKER_EVENTS);
+          renderTicker();
+        }
+      } catch { /* offline or server error — ignore */ }
+    }
+
+    // Initial load + periodic refresh
+    fetchLiveEvents();
+    setInterval(fetchLiveEvents, POLL_INTERVAL_MS);
+
+    // Hook into global WS message handler (set before spectate.js fires)
+    const _origHandleWSMessage = window.handleWSMessage;
+    window.handleWSMessage = function(msg) {
+      // Forward to original handler first
+      if (_origHandleWSMessage) _origHandleWSMessage(msg);
+
+      // Capture notable events
+      const type = msg.type || msg.event;
+      const agentName = msg.sender || msg.displayName || msg.agentName || 'An agent';
+
+      let tickerEv = null;
+      if (type === 'chat' || type === 'message.new') {
+        if (Math.random() < 0.15) { // 15% of chats show in ticker
+          tickerEv = {
+            id: `ws-${Date.now()}-${Math.random()}`,
+            type: 'chat',
+            agentName,
+            icon: '💬',
+            message: `${agentName} said something`,
+            timestamp: Date.now(),
+          };
+        }
+      } else if (type === 'emote' || type === 'emote.broadcast') {
+        tickerEv = {
+          id: `ws-${Date.now()}-${Math.random()}`,
+          type: 'emote',
+          agentName,
+          icon: '🎭',
+          message: `${agentName} performed ${msg.emote || 'an emote'}`,
+          timestamp: Date.now(),
+        };
+      } else if (type === 'furniture_use') {
+        tickerEv = {
+          id: `ws-${Date.now()}-${Math.random()}`,
+          type: 'furniture_use',
+          agentName,
+          icon: '🪑',
+          message: `${agentName} used ${msg.furnitureName || 'furniture'}`,
+          timestamp: Date.now(),
+        };
+      } else if (type === 'game_invite') {
+        tickerEv = {
+          id: `ws-${Date.now()}-${Math.random()}`,
+          type: 'game_invite',
+          agentName,
+          icon: '🎮',
+          message: `${agentName} invited ${msg.targetName || 'someone'} to play ${msg.game || 'a game'}`,
+          timestamp: Date.now(),
+        };
+      } else if (type === 'trade_offer' || type === 'trade.requested') {
+        tickerEv = {
+          id: `ws-${Date.now()}-${Math.random()}`,
+          type: 'trade',
+          agentName,
+          icon: '💱',
+          message: `${agentName} offered a trade`,
+          timestamp: Date.now(),
+        };
+      }
+
+      if (tickerEv && window.addTickerEvent) window.addTickerEvent(tickerEv);
+    };
+
+    // Initial empty render
+    renderTicker();
+  })();
+  </script>
 </body>
 </html>

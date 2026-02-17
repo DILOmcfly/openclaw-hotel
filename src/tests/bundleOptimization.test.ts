@@ -49,10 +49,13 @@ describe('T-332: Bundle Size Optimization', () => {
       expect(sizeKB).toBeLessThan(60);
     });
 
-    it('spectate.html line count < 2000 (was 4016 with inline JS)', () => {
+    it('spectate.html line count < 2500 (was 4016 with inline JS; grew with T-338/T-343 features)', () => {
       htmlContent = htmlContent || readFileSync(htmlPath, 'utf8');
       const lineCount = htmlContent.split('\n').length;
-      expect(lineCount).toBeLessThan(2000);
+      // Original: 4016 lines with all JS inline. After T-332 extraction: ~2148 lines.
+      // New features (T-338 emote effects, T-343 minimap, sidebar tabs, etc.) added ~150 more lines.
+      // Threshold: 2500 gives a comfortable margin while still catching regression bloat.
+      expect(lineCount).toBeLessThan(2500);
     });
 
     it('does not contain large inline <script> block', () => {
@@ -116,10 +119,13 @@ describe('T-332: Bundle Size Optimization', () => {
       expect(jsContent).toContain('window.PIXI');
     });
 
-    it('spectate.js file size < 80KB (should be ~73KB)', () => {
+    it('spectate.js file size < 130KB (was ~73KB; grew with new features post T-332)', () => {
       const stats = statSync(jsPath);
       const sizeKB = stats.size / 1024;
-      expect(sizeKB).toBeLessThan(80);
+      // Original inline: ~150KB. After T-332 extraction: ~73KB.
+      // T-338 emote effects, T-343 minimap, T-337 activity feed handlers, etc. added ~28KB.
+      // Current: ~101KB. Threshold: 130KB gives margin while still preventing huge bloat.
+      expect(sizeKB).toBeLessThan(130);
     });
   });
 

@@ -1780,7 +1780,95 @@ function loadPixiJS() {
         if (badge) badge.style.display = 'none';
         _activityUnread = 0;
       }
+      // Load leaderboard on tab open (T-346)
+      if (tab === 'leaderboard') {
+        loadLeaderboard();
+      }
     }
+
+    // ===== LEADERBOARD (T-346) =====
+    let _lbInterval = null;
+    const LEADERBOARD_METRIC_LABELS = {
+      messages_sent:    { label: 'Messages Sent',   icon: '💬' },
+      rooms_visited:    { label: 'Rooms Visited',    icon: '🚪' },
+      trades_completed: { label: 'Trades Completed', icon: '💱' },
+      games_won:        { label: 'Games Won',        icon: '🎮' },
+      friends_count:    { label: 'Friends',          icon: '👥' },
+    };
+
+    async function loadLeaderboard() {
+      const select = document.getElementById('leaderboardMetric');
+      const list   = document.getElementById('leaderboardList');
+      const ts     = document.getElementById('leaderboardTimestamp');
+      const refreshBtn = document.querySelector('.leaderboard-refresh');
+      if (!list) return;
+
+      const metric = select ? select.value : 'messages_sent';
+
+      // Spinner
+      if (refreshBtn) {
+        refreshBtn.classList.add('spinning');
+        setTimeout(() => refreshBtn.classList.remove('spinning'), 500);
+      }
+
+      list.innerHTML = '<div class="leaderboard-loading">Loading…</div>';
+
+      try {
+        const res = await fetch(`/api/analytics/agents?metric=${metric}&limit=10`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const agents = data.agents || [];
+
+        if (agents.length === 0) {
+          list.innerHTML = '<div class="leaderboard-empty">No data yet — agents are warming up! 🤖</div>';
+        } else {
+          const maxScore = agents[0]?.score || 1;
+          const rankIcons = ['🥇', '🥈', '🥉'];
+          list.innerHTML = agents.map((a, i) => {
+            const pct = Math.round((a.score / maxScore) * 100);
+            const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+            const rankDisplay = i < 3 ? rankIcons[i] : `${i + 1}`;
+            return `
+              <div class="leaderboard-row" style="animation-delay:${i * 0.04}s">
+                <div class="lb-rank ${rankClass}">${rankDisplay}</div>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <span class="lb-name" title="${escapeHtml(a.agentId)}">${escapeHtml(a.displayName || a.agentId || 'Agent')}</span>
+                    <span class="lb-score">${formatScore(a.score)}</span>
+                  </div>
+                  <div class="lb-bar-wrap">
+                    <div class="lb-bar" style="width:${pct}%"></div>
+                  </div>
+                </div>
+              </div>`;
+          }).join('');
+        }
+
+        // Update timestamp
+        if (ts) ts.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+
+      } catch (err) {
+        list.innerHTML = `<div class="leaderboard-error">⚠️ Could not load leaderboard<br><small>${err.message}</small></div>`;
+      }
+    }
+
+    function formatScore(n) {
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+      return String(n);
+    }
+
+    // Auto-refresh every 30s when leaderboard tab is active
+    function startLeaderboardAutoRefresh() {
+      if (_lbInterval) clearInterval(_lbInterval);
+      _lbInterval = setInterval(() => {
+        const activeTab = document.querySelector('.sidebar-tab.active');
+        if (activeTab && activeTab.id === 'tab-leaderboard') {
+          loadLeaderboard();
+        }
+      }, 30000);
+    }
+
+    startLeaderboardAutoRefresh();
 
     // ===== ACTIVITY FEED (T-337) =====
     let activityEvents = [];

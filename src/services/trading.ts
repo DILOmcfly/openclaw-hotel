@@ -26,6 +26,14 @@ const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 5;
 
 /**
+ * Reset the rate limit cache (used in tests for isolation).
+ * Should NOT be called in production code.
+ */
+export function resetRateLimitCache(): void {
+  tradeRequestsCache.clear();
+}
+
+/**
  * Check if agent is rate-limited for trade requests
  */
 export function checkRateLimit(agentId: string): boolean {

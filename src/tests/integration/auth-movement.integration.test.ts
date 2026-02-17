@@ -34,6 +34,7 @@ describe('Integration: Auth & Movement Flow', () => {
   });
 
   beforeEach(async () => {
+    if (!sql) return; // Skip if DB not available
     // Clean up test agents created during tests (keep seed data)
     await sql`
       DELETE FROM agent_appearance WHERE agent_id NOT IN ('test-agent-1', 'test-agent-2')

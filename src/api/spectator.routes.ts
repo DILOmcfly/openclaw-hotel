@@ -4,6 +4,7 @@ import { roomMembers } from '../ws/handler.js';
 import { getSpectatorCount } from '../ws/spectator.js';
 import * as personalityService from '../services/personality.js';
 import { getRoomHistory } from '../services/chatHistory.js';
+import { getLiveEvents } from '../services/liveEventsStore.js';
 
 const router = express.Router();
 
@@ -199,6 +200,20 @@ router.get('/api/spectate/stats', async (_req, res) => {
       ...spectatorsByRoom.keys(),
     ]);
     activeRooms = allRoomIds.size;
+    // Fallback: if no WS rooms tracked, count DB rooms with agents
+    if (activeRooms === 0) {
+      try {
+        const [{ cnt }] = await sql`SELECT COUNT(DISTINCT room_id)::int AS cnt FROM presence`;
+        activeRooms = cnt;
+      } catch { /* presence table may not exist */ }
+    }
+    // Final fallback: count total rooms
+    if (activeRooms === 0) {
+      try {
+        const [{ cnt }] = await sql`SELECT COUNT(*)::int AS cnt FROM rooms`;
+        activeRooms = cnt;
+      } catch { /* rooms table may not exist */ }
+    }
 
     res.json({
       totalAgentsOnline,
@@ -346,6 +361,32 @@ router.get('/api/spectate/agents/:agentId', async (req, res) => {
 
   } catch (error) {
     console.error('[Spectator API] Error fetching agent profile:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/spectate/live-events
+ * Returns the last N notable events from across all rooms.
+ * Used by the spectator ticker to show global activity.
+ * Public endpoint — no authentication required.
+ *
+ * Query params:
+ *   limit  (number, default 20, max 50)
+ */
+router.get('/api/spectate/live-events', (req, res) => {
+  try {
+    const rawLimit = parseInt(String(req.query.limit ?? '20'), 10);
+    const limit = Number.isNaN(rawLimit) ? 20 : Math.min(Math.max(1, rawLimit), 50);
+
+    const events = getLiveEvents(limit);
+
+    res.json({
+      events,
+      total: events.length,
+    });
+  } catch (error) {
+    console.error('[Spectator API] Error fetching live events:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

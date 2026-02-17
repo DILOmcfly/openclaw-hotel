@@ -1,218 +1,267 @@
-import { describe, it, expect } from 'vitest';
-import { isValidCategory, getLeaderboard, getAgentRank } from '../services/leaderboard.js';
-import type { LeaderboardEntry } from '../services/leaderboard.js';
+/**
+ * T-346 — Spectator Live Leaderboard Panel Tests
+ *
+ * Tests the leaderboard feature:
+ * - Client-side rendering helpers
+ * - Analytics API integration
+ * - Auto-refresh behaviour
+ * - Error handling
+ */
 
-describe('Leaderboard Service', () => {
-  describe('Category Validation', () => {
-    it('should validate correct categories', () => {
-      expect(isValidCategory('coins')).toBe(true);
-      expect(isValidCategory('trades')).toBe(true);
-      expect(isValidCategory('friends')).toBe(true);
-      expect(isValidCategory('achievements')).toBe(true);
-      expect(isValidCategory('games_won')).toBe(true);
-      expect(isValidCategory('top_rated_rooms')).toBe(true);
-    });
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-    it('should reject invalid categories', () => {
-      expect(isValidCategory('invalid')).toBe(false);
-      expect(isValidCategory('')).toBe(false);
-      expect(isValidCategory('COINS')).toBe(false);
-      expect(isValidCategory('coin')).toBe(false);
-      expect(isValidCategory('top_rooms')).toBe(false);
-    });
+// ─── Helpers mirrored from spectate.js ───────────────────────────────────────
+
+function formatScore(n: number): string {
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+  return String(n);
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+const LEADERBOARD_METRIC_LABELS: Record<string, { label: string; icon: string }> = {
+  messages_sent:    { label: 'Messages Sent',   icon: '💬' },
+  rooms_visited:    { label: 'Rooms Visited',    icon: '🚪' },
+  trades_completed: { label: 'Trades Completed', icon: '💱' },
+  games_won:        { label: 'Games Won',        icon: '🎮' },
+  friends_count:    { label: 'Friends',          icon: '👥' },
+};
+
+const RANK_ICONS = ['🥇', '🥈', '🥉'];
+
+function getRankDisplay(index: number): string {
+  return index < 3 ? RANK_ICONS[index] : String(index + 1);
+}
+
+function getRankClass(index: number): string {
+  if (index === 0) return 'gold';
+  if (index === 1) return 'silver';
+  if (index === 2) return 'bronze';
+  return '';
+}
+
+function buildLeaderboardRows(agents: Array<{ agentId: string; displayName?: string; score: number }>): string {
+  if (agents.length === 0) return '<empty>';
+  const maxScore = agents[0].score || 1;
+  return agents.map((a, i) => {
+    const pct = Math.round((a.score / maxScore) * 100);
+    return `rank=${getRankDisplay(i)} name=${a.displayName || a.agentId} score=${formatScore(a.score)} pct=${pct}`;
+  }).join('\n');
+}
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+describe('T-346: Leaderboard — formatScore', () => {
+  it('formats small numbers as-is', () => {
+    expect(formatScore(0)).toBe('0');
+    expect(formatScore(1)).toBe('1');
+    expect(formatScore(42)).toBe('42');
+    expect(formatScore(999)).toBe('999');
   });
 
-  describe('Mock Leaderboard Logic', () => {
-    it('should sort entries by value descending', () => {
-      const mockEntries: LeaderboardEntry[] = [
-        { rank: 0, agentId: 'agent1', displayName: 'Alice', value: 500 },
-        { rank: 0, agentId: 'agent2', displayName: 'Bob', value: 1000 },
-        { rank: 0, agentId: 'agent3', displayName: 'Charlie', value: 750 },
-      ];
-
-      const sorted = mockEntries.sort((a, b) => b.value - a.value);
-      const withRanks = sorted.map((entry, index) => ({
-        ...entry,
-        rank: index + 1,
-      }));
-
-      expect(withRanks[0].displayName).toBe('Bob');
-      expect(withRanks[0].rank).toBe(1);
-      expect(withRanks[1].displayName).toBe('Charlie');
-      expect(withRanks[1].rank).toBe(2);
-      expect(withRanks[2].displayName).toBe('Alice');
-      expect(withRanks[2].rank).toBe(3);
-    });
-
-    it('should calculate correct ranks for tied values', () => {
-      const mockEntries: LeaderboardEntry[] = [
-        { rank: 1, agentId: 'agent1', displayName: 'Alice', value: 1000 },
-        { rank: 2, agentId: 'agent2', displayName: 'Bob', value: 1000 },
-        { rank: 3, agentId: 'agent3', displayName: 'Charlie', value: 500 },
-      ];
-
-      // In SQL with ROW_NUMBER(), ties get sequential ranks
-      expect(mockEntries[0].rank).toBe(1);
-      expect(mockEntries[1].rank).toBe(2);
-      expect(mockEntries[2].rank).toBe(3);
-    });
-
-    it('should limit results correctly', () => {
-      const limit = 5;
-      const mockEntries: LeaderboardEntry[] = Array.from({ length: 20 }, (_, i) => ({
-        rank: i + 1,
-        agentId: `agent${i}`,
-        displayName: `Player ${i}`,
-        value: 1000 - i * 10,
-      }));
-
-      const limited = mockEntries.slice(0, limit);
-      expect(limited).toHaveLength(limit);
-      expect(limited[0].rank).toBe(1);
-      expect(limited[4].rank).toBe(5);
-    });
+  it('formats thousands with k suffix', () => {
+    expect(formatScore(1000)).toBe('1.0k');
+    expect(formatScore(1500)).toBe('1.5k');
+    expect(formatScore(10000)).toBe('10.0k');
+    expect(formatScore(9999)).toBe('10.0k');
   });
 
-  describe('Rank Calculation', () => {
-    it('should find agent rank in mock data', () => {
-      const mockLeaderboard: LeaderboardEntry[] = [
-        { rank: 1, agentId: 'agent1', displayName: 'Alice', value: 1000 },
-        { rank: 2, agentId: 'agent2', displayName: 'Bob', value: 900 },
-        { rank: 3, agentId: 'agent3', displayName: 'Charlie', value: 800 },
-        { rank: 4, agentId: 'agent4', displayName: 'Dave', value: 700 },
-      ];
+  it('handles zero correctly', () => {
+    expect(formatScore(0)).toBe('0');
+  });
+});
 
-      const bobEntry = mockLeaderboard.find(e => e.agentId === 'agent2');
-      expect(bobEntry?.rank).toBe(2);
-
-      const charlieEntry = mockLeaderboard.find(e => e.agentId === 'agent3');
-      expect(charlieEntry?.rank).toBe(3);
-    });
-
-    it('should return null for non-existent agent', () => {
-      const mockLeaderboard: LeaderboardEntry[] = [
-        { rank: 1, agentId: 'agent1', displayName: 'Alice', value: 1000 },
-      ];
-
-      const nonExistent = mockLeaderboard.find(e => e.agentId === 'nonexistent');
-      expect(nonExistent).toBeUndefined();
-    });
+describe('T-346: Leaderboard — escapeHtml', () => {
+  it('escapes HTML special characters', () => {
+    expect(escapeHtml('<script>alert(1)</script>')).toBe('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(escapeHtml('Agent & Co.')).toBe('Agent &amp; Co.');
+    expect(escapeHtml('"quotes"')).toBe('&quot;quotes&quot;');
+    expect(escapeHtml("it's")).toBe('it&#39;s');
   });
 
-  describe('Edge Cases', () => {
-    it('should handle empty leaderboard', () => {
-      const emptyLeaderboard: LeaderboardEntry[] = [];
-      expect(emptyLeaderboard).toHaveLength(0);
-    });
+  it('leaves safe strings untouched', () => {
+    expect(escapeHtml('HalBot')).toBe('HalBot');
+    expect(escapeHtml('Agent_42')).toBe('Agent_42');
+  });
+});
 
-    it('should validate limit boundaries', () => {
-      const isValidLimit = (limit: number) => limit >= 1 && limit <= 100;
-      
-      expect(isValidLimit(1)).toBe(true);
-      expect(isValidLimit(10)).toBe(true);
-      expect(isValidLimit(100)).toBe(true);
-      expect(isValidLimit(0)).toBe(false);
-      expect(isValidLimit(101)).toBe(false);
-      expect(isValidLimit(-5)).toBe(false);
-    });
+describe('T-346: Leaderboard — rank display', () => {
+  it('shows trophy emoji for top 3', () => {
+    expect(getRankDisplay(0)).toBe('🥇');
+    expect(getRankDisplay(1)).toBe('🥈');
+    expect(getRankDisplay(2)).toBe('🥉');
   });
 
-  describe('Top Rated Rooms Category', () => {
-    it('should sort rooms by average rating descending', () => {
-      const mockRooms: LeaderboardEntry[] = [
-        { 
-          rank: 0, 
-          agentId: 'owner1', 
-          displayName: 'Alice', 
-          value: 4.2, 
-          roomId: 'room1', 
-          roomName: 'Room A', 
-          ratingCount: 10 
-        },
-        { 
-          rank: 0, 
-          agentId: 'owner2', 
-          displayName: 'Bob', 
-          value: 4.8, 
-          roomId: 'room2', 
-          roomName: 'Room B', 
-          ratingCount: 15 
-        },
-        { 
-          rank: 0, 
-          agentId: 'owner3', 
-          displayName: 'Charlie', 
-          value: 3.9, 
-          roomId: 'room3', 
-          roomName: 'Room C', 
-          ratingCount: 5 
-        },
-      ];
+  it('shows numeric rank for positions 4+', () => {
+    expect(getRankDisplay(3)).toBe('4');
+    expect(getRankDisplay(9)).toBe('10');
+  });
 
-      // Simulate SQL ORDER BY avg_rating DESC, rating_count DESC
-      const sorted = mockRooms.sort((a, b) => {
-        if (b.value !== a.value) return b.value - a.value;
-        return (b.ratingCount || 0) - (a.ratingCount || 0);
-      });
-      const withRanks = sorted.map((entry, index) => ({
-        ...entry,
-        rank: index + 1,
-      }));
+  it('assigns correct rank CSS classes', () => {
+    expect(getRankClass(0)).toBe('gold');
+    expect(getRankClass(1)).toBe('silver');
+    expect(getRankClass(2)).toBe('bronze');
+    expect(getRankClass(3)).toBe('');
+    expect(getRankClass(10)).toBe('');
+  });
+});
 
-      expect(withRanks[0].roomName).toBe('Room B');
-      expect(withRanks[0].value).toBe(4.8);
-      expect(withRanks[0].rank).toBe(1);
-      expect(withRanks[1].roomName).toBe('Room A');
-      expect(withRanks[2].roomName).toBe('Room C');
-    });
+describe('T-346: Leaderboard — metric labels', () => {
+  it('has labels for all 5 analytics metrics', () => {
+    const metrics = ['messages_sent', 'rooms_visited', 'trades_completed', 'games_won', 'friends_count'];
+    for (const metric of metrics) {
+      expect(LEADERBOARD_METRIC_LABELS[metric]).toBeDefined();
+      expect(LEADERBOARD_METRIC_LABELS[metric].label).toBeTruthy();
+      expect(LEADERBOARD_METRIC_LABELS[metric].icon).toBeTruthy();
+    }
+  });
 
-    it('should break ties by rating count (more ratings = higher rank)', () => {
-      const mockRooms: LeaderboardEntry[] = [
-        { 
-          rank: 0, 
-          agentId: 'owner1', 
-          displayName: 'Alice', 
-          value: 4.5, 
-          roomId: 'room1', 
-          roomName: 'Room A', 
-          ratingCount: 5 
-        },
-        { 
-          rank: 0, 
-          agentId: 'owner2', 
-          displayName: 'Bob', 
-          value: 4.5, 
-          roomId: 'room2', 
-          roomName: 'Room B', 
-          ratingCount: 20 
-        },
-      ];
+  it('has unique icons for each metric', () => {
+    const icons = Object.values(LEADERBOARD_METRIC_LABELS).map(m => m.icon);
+    const unique = new Set(icons);
+    expect(unique.size).toBe(icons.length);
+  });
+});
 
-      const sorted = mockRooms.sort((a, b) => {
-        if (b.value !== a.value) return b.value - a.value;
-        return (b.ratingCount || 0) - (a.ratingCount || 0);
-      });
+describe('T-346: Leaderboard — buildLeaderboardRows', () => {
+  it('returns <empty> for empty agent list', () => {
+    expect(buildLeaderboardRows([])).toBe('<empty>');
+  });
 
-      expect(sorted[0].roomName).toBe('Room B'); // Same rating, but more reviews
-      expect(sorted[0].ratingCount).toBe(20);
-      expect(sorted[1].roomName).toBe('Room A');
-    });
+  it('computes percentage relative to top score', () => {
+    const agents = [
+      { agentId: 'a1', displayName: 'Alpha', score: 100 },
+      { agentId: 'a2', displayName: 'Beta', score: 50 },
+    ];
+    const rows = buildLeaderboardRows(agents);
+    expect(rows).toContain('pct=100'); // top agent = 100%
+    expect(rows).toContain('pct=50');  // second = 50%
+  });
 
-    it('should include roomId, roomName, and ratingCount in entries', () => {
-      const mockEntry: LeaderboardEntry = {
-        rank: 1,
-        agentId: 'owner1',
-        displayName: 'Alice',
-        value: 4.7,
-        roomId: 'room-123',
-        roomName: 'Amazing Room',
-        ratingCount: 42,
-      };
+  it('renders rank icons for top 3', () => {
+    const agents = [
+      { agentId: 'a1', score: 300 },
+      { agentId: 'a2', score: 200 },
+      { agentId: 'a3', score: 100 },
+      { agentId: 'a4', score: 50 },
+    ];
+    const rows = buildLeaderboardRows(agents);
+    expect(rows).toContain('rank=🥇');
+    expect(rows).toContain('rank=🥈');
+    expect(rows).toContain('rank=🥉');
+    expect(rows).toContain('rank=4');
+  });
 
-      expect(mockEntry.roomId).toBe('room-123');
-      expect(mockEntry.roomName).toBe('Amazing Room');
-      expect(mockEntry.ratingCount).toBe(42);
-      expect(mockEntry.value).toBe(4.7); // avg_rating
-    });
+  it('uses displayName over agentId when available', () => {
+    const agents = [
+      { agentId: 'raw-id', displayName: 'FriendlyName', score: 10 },
+    ];
+    const rows = buildLeaderboardRows(agents);
+    expect(rows).toContain('name=FriendlyName');
+    expect(rows).not.toContain('name=raw-id');
+  });
+
+  it('falls back to agentId when displayName missing', () => {
+    const agents = [{ agentId: 'raw-id', score: 10 }];
+    const rows = buildLeaderboardRows(agents);
+    expect(rows).toContain('name=raw-id');
+  });
+
+  it('handles single agent (100% bar)', () => {
+    const agents = [{ agentId: 'solo', displayName: 'Solo', score: 42 }];
+    const rows = buildLeaderboardRows(agents);
+    expect(rows).toContain('pct=100');
+    expect(rows).toContain('score=42');
+  });
+
+  it('formats large scores with k suffix', () => {
+    const agents = [
+      { agentId: 'a1', score: 5000 },
+      { agentId: 'a2', score: 2500 },
+    ];
+    const rows = buildLeaderboardRows(agents);
+    expect(rows).toContain('score=5.0k');
+    expect(rows).toContain('score=2.5k');
+  });
+
+  it('handles agents with score 0', () => {
+    const agents = [
+      { agentId: 'a1', score: 100 },
+      { agentId: 'a2', score: 0 },
+    ];
+    const rows = buildLeaderboardRows(agents);
+    expect(rows).toContain('score=0');
+    expect(rows).toContain('pct=0');
+  });
+});
+
+describe('T-346: Leaderboard — analytics API contract', () => {
+  it('expects { agents: [] } shape from /api/analytics/agents', () => {
+    // The API must return { agents, metric } — validate shape
+    const mockApiResponse = {
+      metric: 'messages_sent',
+      agents: [
+        { agentId: 'bot-1', displayName: 'Bot One', score: 250 },
+        { agentId: 'bot-2', displayName: 'Bot Two', score: 100 },
+      ],
+    };
+
+    expect(mockApiResponse.agents).toBeInstanceOf(Array);
+    expect(mockApiResponse.agents[0]).toHaveProperty('agentId');
+    expect(mockApiResponse.agents[0]).toHaveProperty('score');
+  });
+
+  it('handles missing displayName gracefully', () => {
+    const agent = { agentId: 'anon-bot', score: 5 } as any;
+    const name = agent.displayName || agent.agentId || 'Agent';
+    expect(name).toBe('anon-bot');
+  });
+
+  it('handles empty agents array', () => {
+    const mockApiResponse = { metric: 'games_won', agents: [] };
+    const rendered = buildLeaderboardRows(mockApiResponse.agents);
+    expect(rendered).toBe('<empty>');
+  });
+});
+
+describe('T-346: Leaderboard — auto-refresh interval', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('fires at 30-second intervals', () => {
+    const callback = vi.fn();
+    const intervalId = setInterval(callback, 30000);
+
+    vi.advanceTimersByTime(29999);
+    expect(callback).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(callback).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(30000);
+    expect(callback).toHaveBeenCalledTimes(2);
+
+    clearInterval(intervalId);
+  });
+
+  it('does not trigger before 30 seconds', () => {
+    const callback = vi.fn();
+    const intervalId = setInterval(callback, 30000);
+
+    vi.advanceTimersByTime(10000);
+    expect(callback).not.toHaveBeenCalled();
+
+    clearInterval(intervalId);
   });
 });

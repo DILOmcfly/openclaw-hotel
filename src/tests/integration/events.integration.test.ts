@@ -31,6 +31,7 @@ describe('Integration: Events Flow', () => {
   });
 
   beforeEach(async () => {
+    if (!sql) return; // Skip if DB not available
     // Clear event data between tests
     await sql`DELETE FROM event_participants`;
     await sql`DELETE FROM events`;

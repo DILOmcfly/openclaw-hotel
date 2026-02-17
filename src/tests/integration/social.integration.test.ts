@@ -33,6 +33,7 @@ describe('Integration: Social/Friends Flow', () => {
   });
 
   beforeEach(async () => {
+    if (!sql) return; // Skip if DB not available
     // Clear friendships and DMs between tests
     await sql`DELETE FROM direct_messages`;
     await sql`DELETE FROM friendships`;

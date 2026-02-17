@@ -14,6 +14,8 @@ import type { Sql } from 'postgres';
 import { setupIntegrationTests, teardownIntegrationTests, getTestSql, isDatabaseAvailable } from './setup.js';
 import * as tradingService from '../../services/trading.js';
 import { nanoid } from 'nanoid';
+// T-347: Import rate limit reset for test isolation
+import { resetRateLimitCache } from '../../services/trading.js';
 
 let sql: Sql;
 
@@ -32,9 +34,12 @@ describe('Integration: Trading Flow', () => {
   });
 
   beforeEach(async () => {
+    if (!sql) return; // Skip if DB not available
     // Clear trades between tests
     await sql`DELETE FROM trade_items`;
     await sql`DELETE FROM trades`;
+    // T-347: Reset rate limit cache to prevent tests from bleeding into each other
+    resetRateLimitCache();
   });
 
   describe('Create → Add Items → Accept Flow', () => {

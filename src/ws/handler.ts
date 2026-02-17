@@ -11,6 +11,7 @@ import { isAgentMuted, checkMessageFilters, muteAgent } from '../services/modera
 import { isBanned, isGuest } from '../services/roomPermissions.js';
 import { calculateActionImpacts, updateTraitFromAction } from '../services/personality.js';
 import { processTriggerEvent, type TriggerEvent, type ScriptAction } from '../services/scriptEngine.js';
+import { addLiveEvent, buildEventMessage, EVENT_ICONS } from '../services/liveEventsStore.js';
 
 export const connections = new Map<string, WebSocket>();
 export const roomMembers = new Map<string, Set<string>>();
@@ -550,6 +551,19 @@ export function setupWebSocket(server: Server): void {
             timestamp,
           });
 
+          // T-346: Capture chat event in global live events store
+          // Only add 1 in 5 chat messages to avoid flooding the ticker
+          if (Math.random() < 0.2) {
+            addLiveEvent({
+              type: 'chat',
+              roomId: clientMessage.roomId,
+              agentId,
+              agentName: `Agent ${agentId.slice(0, 8)}`,
+              icon: EVENT_ICONS.chat,
+              message: buildEventMessage('chat', `Agent ${agentId.slice(0, 8)}`),
+            });
+          }
+
           // Trigger room scripts: chat_keyword
           processTriggerEvent(
             {
@@ -855,6 +869,17 @@ export function setupWebSocket(server: Server): void {
             emote: clientMessage.emote,
           });
 
+          // T-346: Capture emote event in global live events store
+          addLiveEvent({
+            type: 'emote',
+            roomId: clientMessage.roomId,
+            agentId,
+            agentName: `Agent ${agentId.slice(0, 8)}`,
+            detail: clientMessage.emote,
+            icon: EVENT_ICONS.emote,
+            message: buildEventMessage('emote', `Agent ${agentId.slice(0, 8)}`, undefined, clientMessage.emote),
+          });
+
           // Track personality: emotes increase volatility and sociability
           trackAction(agentId, 'emote_used');
           break;
@@ -896,6 +921,22 @@ export function setupWebSocket(server: Server): void {
               tradeId: trade.id,
               initiatorId: agentId,
               initiatorName: initiator?.display_name || 'Agent',
+            });
+
+            // T-346: Capture trade event in live events store
+            addLiveEvent({
+              type: 'trade',
+              roomId: roomId,
+              agentId,
+              agentName: initiator?.display_name || `Agent ${agentId.slice(0, 8)}`,
+              targetAgentId: clientMessage.targetAgentId,
+              targetAgentName: `Agent ${clientMessage.targetAgentId.slice(0, 8)}`,
+              icon: EVENT_ICONS.trade,
+              message: buildEventMessage(
+                'trade',
+                initiator?.display_name || `Agent ${agentId.slice(0, 8)}`,
+                `Agent ${clientMessage.targetAgentId.slice(0, 8)}`,
+              ),
             });
           } catch (error: any) {
             sendError(ws, 'TRADE_FAILED', error.message || 'Failed to create trade request');

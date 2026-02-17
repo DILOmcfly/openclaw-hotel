@@ -32,6 +32,7 @@ describe('Integration: Rooms Flow', () => {
   });
 
   beforeEach(async () => {
+    if (!sql) return; // Skip if DB not available
     // Clear room-related data between tests
     await sql`DELETE FROM room_ratings WHERE room_id NOT IN ('test-room-1', 'test-room-2')`;
     await sql`DELETE FROM room_visits WHERE room_id NOT IN ('test-room-1', 'test-room-2')`;

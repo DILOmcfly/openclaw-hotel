@@ -30,6 +30,7 @@ describe('Integration: Marketplace Flow', () => {
   });
 
   beforeEach(async () => {
+    if (!sql) return; // Skip if DB not available
     // Clear marketplace listings between tests
     await sql`DELETE FROM marketplace_listings`;
   });

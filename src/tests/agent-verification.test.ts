@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { validateApiKeyFormat, verifyProofToken } from '../services/agentAuth.js';
 
 describe('Agent Verification - Platform-Specific API Key Validation', () => {
@@ -97,6 +97,15 @@ describe('Agent Verification - Platform-Specific API Key Validation', () => {
     });
   });
 
+  /**
+   * verifyProofToken - Integration Tests
+   *
+   * T-323 made verifyProofToken async: for Claude/ChatGPT/Gemini it now performs
+   * a real API call after format validation. Tests that expect `true` for a valid
+   * FORMAT but fake key are skipped (they'd require live API keys).
+   * Invalid-format paths return `false` synchronously (no API call needed), and
+   * shared-secret platforms (openclaw, custom) are tested with await.
+   */
   describe('verifyProofToken - Integration', () => {
     const originalEnv = { ...process.env };
 
@@ -109,103 +118,95 @@ describe('Agent Verification - Platform-Specific API Key Validation', () => {
 
     afterAll(() => {
       // Restore original environment
-      process.env = originalEnv;
+      process.env = { ...originalEnv };
     });
 
-    describe('Claude platform', () => {
-      it('should verify valid Anthropic API key', () => {
-        const validKey = 'sk-ant-api03-' + 'A1B2C3D4E5F6'.repeat(10);
-        expect(verifyProofToken(validKey, 'claude')).toBe(true);
-      });
-
-      it('should reject invalid Anthropic API key format', () => {
+    describe('Claude platform — format rejection (no API call)', () => {
+      it('should reject invalid Anthropic API key format (returns false without API call)', async () => {
         const invalidKey = 'sk-invalid-key';
-        expect(verifyProofToken(invalidKey, 'claude')).toBe(false);
+        await expect(verifyProofToken(invalidKey, 'claude')).resolves.toBe(false);
       });
 
-      it('should reject shared secret for claude platform', () => {
+      it('should reject shared secret for claude platform', async () => {
         const secret = 'some-shared-secret';
-        expect(verifyProofToken(secret, 'claude')).toBe(false);
+        await expect(verifyProofToken(secret, 'claude')).resolves.toBe(false);
+      });
+
+      it('should reject empty string for claude platform', async () => {
+        await expect(verifyProofToken('', 'claude')).resolves.toBe(false);
       });
     });
 
-    describe('ChatGPT platform', () => {
-      it('should verify valid OpenAI API key', () => {
-        const validKey = 'sk-' + 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKL';
-        expect(verifyProofToken(validKey, 'chatgpt')).toBe(true);
-      });
-
-      it('should verify valid OpenAI project API key', () => {
-        const validKey = 'sk-proj-' + 'x'.repeat(48);
-        expect(verifyProofToken(validKey, 'chatgpt')).toBe(true);
-      });
-
-      it('should reject invalid OpenAI API key format', () => {
+    describe('ChatGPT platform — format rejection (no API call)', () => {
+      it('should reject invalid OpenAI API key format', async () => {
         const invalidKey = 'sk-short';
-        expect(verifyProofToken(invalidKey, 'chatgpt')).toBe(false);
+        await expect(verifyProofToken(invalidKey, 'chatgpt')).resolves.toBe(false);
+      });
+
+      it('should reject empty string for chatgpt platform', async () => {
+        await expect(verifyProofToken('', 'chatgpt')).resolves.toBe(false);
       });
     });
 
-    describe('Gemini platform', () => {
-      it('should verify valid Google AI API key', () => {
-        const validKey = 'AIza' + 'SyDx1234567890abcdefghijklmnopqrstu'; // 35 chars after prefix
-        expect(verifyProofToken(validKey, 'gemini')).toBe(true);
-      });
-
-      it('should reject invalid Google AI API key format', () => {
+    describe('Gemini platform — format rejection (no API call)', () => {
+      it('should reject invalid Google AI API key format', async () => {
         const invalidKey = 'AIzaShort';
-        expect(verifyProofToken(invalidKey, 'gemini')).toBe(false);
+        await expect(verifyProofToken(invalidKey, 'gemini')).resolves.toBe(false);
+      });
+
+      it('should reject empty string for gemini platform', async () => {
+        await expect(verifyProofToken('', 'gemini')).resolves.toBe(false);
       });
     });
 
-    describe('OpenClaw platform (shared secret)', () => {
-      it('should verify with platform-specific secret', () => {
-        expect(verifyProofToken('openclaw-secret-123', 'openclaw')).toBe(true);
+    describe('OpenClaw platform (shared secret — synchronous comparison)', () => {
+      it('should verify with platform-specific secret', async () => {
+        await expect(verifyProofToken('openclaw-secret-123', 'openclaw')).resolves.toBe(true);
       });
 
-      it('should reject wrong secret', () => {
-        expect(verifyProofToken('wrong-secret', 'openclaw')).toBe(false);
+      it('should reject wrong secret', async () => {
+        await expect(verifyProofToken('wrong-secret', 'openclaw')).resolves.toBe(false);
       });
 
-      it('should reject API key format for openclaw', () => {
+      it('should reject API key format for openclaw', async () => {
         const apiKey = 'sk-ant-api03-' + 'a'.repeat(95);
-        expect(verifyProofToken(apiKey, 'openclaw')).toBe(false);
+        await expect(verifyProofToken(apiKey, 'openclaw')).resolves.toBe(false);
       });
     });
 
-    describe('Custom platform (shared secret)', () => {
-      it('should verify with platform-specific secret', () => {
-        expect(verifyProofToken('custom-secret-456', 'custom')).toBe(true);
+    describe('Custom platform (shared secret — synchronous comparison)', () => {
+      it('should verify with platform-specific secret', async () => {
+        await expect(verifyProofToken('custom-secret-456', 'custom')).resolves.toBe(true);
       });
 
-      it('should fallback to global secret if platform secret not set', () => {
+      it('should fallback to global secret if platform secret not set', async () => {
         delete process.env.CUSTOM_REGISTRATION_SECRET;
         // Config default is 'agent-secret-dev' (loaded at module init)
-        expect(verifyProofToken('agent-secret-dev', 'custom')).toBe(true);
+        await expect(verifyProofToken('agent-secret-dev', 'custom')).resolves.toBe(true);
         // Restore for other tests
         process.env.CUSTOM_REGISTRATION_SECRET = 'custom-secret-456';
       });
 
-      it('should reject wrong secret', () => {
-        expect(verifyProofToken('wrong-secret', 'custom')).toBe(false);
+      it('should reject wrong secret', async () => {
+        await expect(verifyProofToken('wrong-secret', 'custom')).resolves.toBe(false);
       });
     });
   });
 
   describe('Edge Cases', () => {
-    it('should handle empty strings', () => {
+    it('should handle empty strings for format validation', () => {
       expect(validateApiKeyFormat('', 'claude')).toBe(false);
       expect(validateApiKeyFormat('', 'chatgpt')).toBe(false);
       expect(validateApiKeyFormat('', 'gemini')).toBe(false);
     });
 
-    it('should handle null-like inputs gracefully', () => {
-      expect(verifyProofToken('', 'claude')).toBe(false);
-      expect(verifyProofToken('', 'chatgpt')).toBe(false);
-      expect(verifyProofToken('', 'gemini')).toBe(false);
+    it('should handle null-like inputs gracefully (async)', async () => {
+      await expect(verifyProofToken('', 'claude')).resolves.toBe(false);
+      await expect(verifyProofToken('', 'chatgpt')).resolves.toBe(false);
+      await expect(verifyProofToken('', 'gemini')).resolves.toBe(false);
     });
 
-    it('should handle very long keys', () => {
+    it('should handle very long keys in format validation', () => {
       const veryLongKey = 'sk-ant-api03-' + 'a'.repeat(500);
       expect(validateApiKeyFormat(veryLongKey, 'claude')).toBe(true);
     });
