@@ -143,9 +143,23 @@ const app = express();
 app.use(express.json());
 
 // Serve static files from client directory
-app.use(express.static(join(import.meta.dirname, '..', 'client')));
-// Serve static assets (sprites, etc.)
-app.use('/assets', express.static(join(import.meta.dirname, '..', 'public/assets')));
+// HTML files: no-cache (always fresh), JS/CSS/assets: 1 year (immutable)
+app.use(express.static(join(import.meta.dirname, '..', 'client'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      // HTML must always be re-validated (content changes)
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (filePath.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf)$/)) {
+      // Static assets: cache aggressively (1 year)
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  }
+}));
+// Serve static assets (sprites, etc.) with aggressive caching
+app.use('/assets', express.static(join(import.meta.dirname, '..', 'public/assets'), {
+  maxAge: '1y',
+  immutable: true,
+}));
 
 // === PUBLIC ROUTES (no auth required) ===
 app.get('/health', (_req, res) => {
