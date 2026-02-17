@@ -504,6 +504,63 @@
       will-change: transform; /* Performance optimization */
     }
 
+    /* ── T-348: Spectator Reaction System ───────────────────────────────────── */
+    #reactionPanel {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+      display: flex;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 40px;
+      padding: 8px 14px;
+      pointer-events: auto;
+      transition: opacity 0.3s;
+    }
+    #reactionPanel.hidden { opacity: 0; pointer-events: none; }
+    .reaction-btn {
+      font-size: 24px;
+      line-height: 1;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      padding: 4px 2px;
+      border-radius: 8px;
+      transition: transform 0.12s ease, opacity 0.15s;
+      user-select: none;
+    }
+    .reaction-btn:hover { transform: scale(1.3); }
+    .reaction-btn:active { transform: scale(0.95); }
+    .reaction-btn.cooling { opacity: 0.4; cursor: default; pointer-events: none; }
+    /* Floating reaction animation */
+    .floating-reaction {
+      position: absolute;
+      pointer-events: none;
+      z-index: 60;
+      font-size: 32px;
+      line-height: 1;
+      animation: floatUp 2.5s ease-out forwards;
+      white-space: nowrap;
+    }
+    .floating-reaction .reaction-label {
+      font-size: 10px;
+      color: rgba(255,255,255,0.7);
+      display: block;
+      text-align: center;
+      margin-top: 2px;
+    }
+    @keyframes floatUp {
+      0%   { opacity: 1; transform: translateY(0) scale(1); }
+      20%  { opacity: 1; transform: translateY(-20px) scale(1.2); }
+      80%  { opacity: 0.7; transform: translateY(-90px) scale(0.9); }
+      100% { opacity: 0; transform: translateY(-120px) scale(0.7); }
+    }
+
     /* Chat Sidebar */
     .chat-sidebar {
       width: 320px;
@@ -2372,7 +2429,17 @@
       </div>
     </div>
     <div class="room-content">
-      <div id="isoCanvas"></div>
+      <div id="isoCanvas">
+        <!-- T-348: Spectator Reaction Panel -->
+        <div id="reactionPanel" title="Send a reaction!">
+          <button class="reaction-btn" data-emoji="👍" onclick="sendReaction('👍')" title="Like">👍</button>
+          <button class="reaction-btn" data-emoji="🔥" onclick="sendReaction('🔥')" title="Fire">🔥</button>
+          <button class="reaction-btn" data-emoji="❤️" onclick="sendReaction('❤️')" title="Love">❤️</button>
+          <button class="reaction-btn" data-emoji="😂" onclick="sendReaction('😂')" title="LOL">😂</button>
+          <button class="reaction-btn" data-emoji="🤩" onclick="sendReaction('🤩')" title="Wow">🤩</button>
+          <button class="reaction-btn" data-emoji="🎉" onclick="sendReaction('🎉')" title="Party">🎉</button>
+        </div>
+      </div>
       <div class="chat-sidebar">
         <div class="agent-list" id="agentList">
           <h4>Agents in Room</h4>
@@ -2382,6 +2449,8 @@
           <div class="sidebar-tab active" id="tab-chat" onclick="switchSidebarTab('chat')">💬 Chat</div>
           <div class="sidebar-tab" id="tab-activity" onclick="switchSidebarTab('activity')">📊 Activity</div>
           <div class="sidebar-tab" id="tab-leaderboard" onclick="switchSidebarTab('leaderboard')">🏆 Top</div>
+          <!-- T-349: Mini-map room switcher tab -->
+          <div class="sidebar-tab" id="tab-rooms" onclick="switchSidebarTab('rooms')" title="Switch rooms">🏨 Rooms</div>
         </div>
         <!-- Chat tab -->
         <div class="tab-pane active" id="pane-chat">

@@ -1245,6 +1245,16 @@ export function startLoop(
   }, fullConfig.tickIntervalMs);
 
   console.log(`[Simulation] Loop started (interval: ${fullConfig.tickIntervalMs}ms)`);
+
+  // Seed a startup event so the feed isn't empty on launch
+  addLiveEvent({
+    type: 'room_enter',
+    roomId: 'lobby',
+    agentId: 'system',
+    agentName: 'Hotel',
+    icon: '🏨',
+    message: 'OpenClaw Hotel is online — agents are waking up!',
+  });
   return interval;
 }
 

@@ -3480,6 +3480,148 @@ function loadPixiJS() {
     // ── Expose share to global scope (called from HTML onclick) ───────────────
     window.shareCurrentRoom = shareRoom;
 
+    // ── T-348: Spectator Reaction System ──────────────────────────────────────
+    const REACTION_COOLDOWN_MS = 2000;  // 2s global cooldown (all emojis)
+    const REACTION_SPAWN_SPREAD = 120;  // px horizontal spread for random placement
+    let _reactionCooldown = false;
+    let _reactionTimer = null;
+
+    /**
+     * Spawn a floating reaction emoji above the reaction panel.
+     * @param {string} emoji   — The emoji to float up
+     * @param {string} [label] — Optional label shown below (e.g. spectator name)
+     * @param {number} [originX] — Override X origin (px from left edge of #isoCanvas)
+     * @param {number} [originY] — Override Y origin (px from top edge of #isoCanvas)
+     */
+    function spawnFloatingReaction(emoji, label, originX, originY) {
+      const canvas = document.getElementById('isoCanvas');
+      if (!canvas) return null;
+
+      const el = document.createElement('div');
+      el.className = 'floating-reaction';
+      el.setAttribute('data-emoji', emoji);
+      el.setAttribute('role', 'img');
+      el.setAttribute('aria-label', `Spectator reaction: ${emoji}`);
+
+      // Position: horizontally random near centre, vertically near bottom
+      const canvasRect = canvas.getBoundingClientRect();
+      const centreX  = originX !== undefined ? originX : (canvasRect.width / 2);
+      const spread   = Math.random() * REACTION_SPAWN_SPREAD - REACTION_SPAWN_SPREAD / 2;
+      const x = Math.max(20, Math.min(canvasRect.width - 60, centreX + spread));
+      const y = originY !== undefined ? originY : (canvasRect.height - 80);
+
+      el.style.left = `${x}px`;
+      el.style.top  = `${y}px`;
+
+      // Emoji node
+      const emojiSpan = document.createElement('span');
+      emojiSpan.textContent = emoji;
+      el.appendChild(emojiSpan);
+
+      // Optional label
+      if (label) {
+        const labelEl = document.createElement('span');
+        labelEl.className = 'reaction-label';
+        labelEl.textContent = label.slice(0, 16); // max 16 chars
+        el.appendChild(labelEl);
+      }
+
+      canvas.appendChild(el);
+
+      // Auto-remove after animation completes
+      const duration = 2500;
+      const cleanup = setTimeout(() => el.remove(), duration + 100);
+
+      // Return handle for testing
+      return { el, cleanup };
+    }
+
+    /**
+     * Handle reaction button click.
+     * Enforces cooldown, triggers animation, optionally plays sound.
+     * @param {string} emoji
+     */
+    function sendReaction(emoji) {
+      if (_reactionCooldown) return; // silently ignore during cooldown
+
+      // Set cooldown
+      _reactionCooldown = true;
+      clearTimeout(_reactionTimer);
+
+      // Visual feedback: mark all buttons as cooling
+      const buttons = document.querySelectorAll('.reaction-btn');
+      buttons.forEach(btn => btn.classList.add('cooling'));
+
+      // Spawn the floating reaction
+      spawnFloatingReaction(emoji, 'You');
+
+      // Optional audio feedback (reuse existing sound system if available)
+      try {
+        if (typeof playSound === 'function') {
+          playSound('reaction'); // soft pop
+        }
+      } catch { /* ignore if sound not available */ }
+
+      // Reset after cooldown
+      _reactionTimer = setTimeout(() => {
+        _reactionCooldown = false;
+        buttons.forEach(btn => btn.classList.remove('cooling'));
+      }, REACTION_COOLDOWN_MS);
+    }
+
+    /**
+     * Get current cooldown state (for testing).
+     */
+    function isReactionOnCooldown() { return _reactionCooldown; }
+
+    /**
+     * Reset cooldown state (for testing only).
+     */
+    function resetReactionCooldown() {
+      _reactionCooldown = false;
+      clearTimeout(_reactionTimer);
+      document.querySelectorAll('.reaction-btn').forEach(btn => btn.classList.remove('cooling'));
+    }
+
+    // Show reaction panel when in a room, hide when not
+    function updateReactionPanelVisibility(inRoom) {
+      const panel = document.getElementById('reactionPanel');
+      if (!panel) return;
+      if (inRoom) {
+        panel.classList.remove('hidden');
+      } else {
+        panel.classList.add('hidden');
+      }
+    }
+
+    // ── Expose reaction API to global scope (called from HTML onclick + tests) ─
+    window.sendReaction           = sendReaction;
+    window.spawnFloatingReaction  = spawnFloatingReaction;
+    window.isReactionOnCooldown   = isReactionOnCooldown;
+    window.resetReactionCooldown  = resetReactionCooldown;
+    window.updateReactionPanelVisibility = updateReactionPanelVisibility;
+
+    // Hook into room enter/leave to show/hide reaction panel
+    const _origEnterRoom = typeof enterRoom === 'function' ? enterRoom : null;
+    // Panel visibility is managed directly from the existing enterRoom / backBtn click handlers
+    // via patchRoomViewToggle below
+
+    function patchRoomViewToggle() {
+      // Hide panel on back-button
+      const backBtn = document.getElementById('backBtn');
+      if (backBtn && !backBtn._reactionPatched) {
+        backBtn._reactionPatched = true;
+        const origClick = backBtn.onclick;
+        backBtn.onclick = function(e) {
+          updateReactionPanelVisibility(false);
+          resetReactionCooldown();
+          if (origClick) origClick.call(this, e);
+        };
+      }
+    }
+    // Run after DOM ready
+    patchRoomViewToggle();
+
     // Initial load
     loadThemePreference(); // Load saved theme setting
     loadAudioPreferences(); // Load saved audio settings
