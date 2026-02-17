@@ -290,10 +290,32 @@
     }
 
     .room-meta .agent-badge {
-      background: rgba(0,212,170,0.15);
+      background: rgba(0,212,170,0.18);
       color: var(--accent);
-      font-weight: 600;
-      transition: color 0.3s ease;
+      font-weight: 700;
+      border: 1px solid rgba(0,212,170,0.35);
+      transition: color 0.3s ease, background 0.3s ease;
+      position: relative;
+    }
+    /* Numeric count pill inside agent badge */
+    .agent-count-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 18px;
+      background: var(--accent);
+      color: var(--bg-primary);
+      border-radius: 9px;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 0 5px;
+      margin-left: 4px;
+      line-height: 1;
+    }
+    .agent-count-pill.empty {
+      background: rgba(255,255,255,0.15);
+      color: var(--text-tertiary);
     }
 
     .empty-state { text-align: center; padding: 40px; color: var(--text-tertiary); transition: color 0.3s ease; }
@@ -1570,6 +1592,51 @@
       transform: translateX(0);
     }
 
+    /* ===== LIVE BADGE (top-left) ===== */
+    #liveBadge {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(10, 10, 15, 0.85);
+      border: 1px solid rgba(255, 40, 40, 0.5);
+      border-radius: 20px;
+      padding: 5px 10px 5px 8px;
+      z-index: 1003;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 2px 12px rgba(255, 40, 40, 0.25);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    #liveBadge.visible { opacity: 1; }
+    /* Only show in room view */
+    #roomView:not(.active) ~ #liveBadge,
+    body:not(.in-room) #liveBadge { opacity: 0 !important; }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ff2828;
+      flex-shrink: 0;
+      animation: livePulse 1.4s ease-in-out infinite;
+    }
+    @keyframes livePulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255, 40, 40, 0.7); opacity: 1; }
+      50%       { box-shadow: 0 0 0 5px rgba(255, 40, 40, 0); opacity: 0.8; }
+    }
+    .live-text {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #ff4444;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      text-transform: uppercase;
+    }
+
     /* Connection Status Indicator */
     .connection-indicator {
       position: fixed;
@@ -2238,6 +2305,12 @@
 
   <!-- Connection Status Indicator -->
   <div id="connectionIndicator" class="connection-indicator disconnected" title="Disconnected"></div>
+
+  <!-- LIVE Badge (top-left, shown while in a room) -->
+  <div id="liveBadge">
+    <span class="live-dot"></span>
+    <span class="live-text">Live</span>
+  </div>
 
   <!-- Theme Toggle -->
   <button id="themeToggle" onclick="toggleTheme()" title="Toggle dark/light mode">

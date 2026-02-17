@@ -59,6 +59,12 @@ function loadPixiJS() {
     let lastSortTime = 0;
     const SORT_THROTTLE_MS = isLowEnd ? 33 : 16; // 30 FPS on low-end, 60 FPS on desktop
 
+    // ===== PARTICLE SYSTEM =====
+    const particles = []; // Active particle objects
+    let particleContainer = null; // PIXI.Container for particles (added to worldContainer)
+    const MAX_PARTICLES = isMobile ? 25 : 60;
+    const PARTICLE_SPAWN_RATE = isMobile ? 0.35 : 0.7; // particles per frame (fractional)
+
     // ===== UI STATE HELPERS =====
     function showLoading(text = 'Loading...', subtext = 'Please wait') {
       const overlay = document.getElementById('loadingOverlay');
@@ -608,26 +614,37 @@ function loadPixiJS() {
 
       container.addChild(body);
 
-      // Name tag
+      // Name tag — enhanced: larger font, coloured pill, subtle drop-shadow
       const tagBg = new PIXI.Graphics();
       const nameText = new PIXI.Text(agent.name, {
-        fontFamily: '"Courier New", monospace',
-        fontSize: 11,
+        fontFamily: '"Segoe UI", "Helvetica Neue", Arial, sans-serif',
+        fontSize: 13,
         fontWeight: 'bold',
-        fill: 0xffffff
+        fill: 0xffffff,
+        dropShadow: true,
+        dropShadowColor: 0x000000,
+        dropShadowDistance: 1,
+        dropShadowBlur: 2,
+        dropShadowAlpha: 0.8,
       });
       nameText.anchor.set(0.5, 0);
-      const nameW = nameText.width + 12;
-      const tagY = -bodyH - headR - 14;
+      const nameW = nameText.width + 16;
+      const tagH = 20;
+      const tagY = -bodyH - headR - 18;
 
-      tagBg.beginFill(0x000000, 0.75);
-      tagBg.drawRoundedRect(-nameW/2, tagY, nameW, 18, 4);
-      tagBg.endFill();
-      tagBg.beginFill(color);
-      tagBg.drawRect(-nameW/2, tagY, 3, 18);
+      // Dark pill background with subtle border in agent color
+      tagBg.beginFill(0x0a0a14, 0.88);
+      tagBg.lineStyle(1.5, color, 0.75);
+      tagBg.drawRoundedRect(-nameW / 2, tagY, nameW, tagH, 6);
       tagBg.endFill();
 
-      nameText.position.set(2, tagY + 4);
+      // Left accent stripe in agent color
+      tagBg.lineStyle(0);
+      tagBg.beginFill(color, 0.9);
+      tagBg.drawRoundedRect(-nameW / 2, tagY, 4, tagH, 3);
+      tagBg.endFill();
+
+      nameText.position.set(4, tagY + 4);
       container.addChild(tagBg);
       container.addChild(nameText);
 
@@ -743,6 +760,122 @@ function loadPixiJS() {
         }
       }
       ticker.add(onTick);
+    }
+
+    // ===== PARTICLE SYSTEM FUNCTIONS =====
+    /**
+     * Spawn a single floating dust/sparkle particle at a random floor position.
+     * Uses a tiny PIXI.Graphics circle or star, floats up and fades out.
+     */
+    function spawnParticle() {
+      if (!window.PIXI || !particleContainer) return;
+      if (particles.length >= MAX_PARTICLES) return;
+
+      // Random tile position within the room
+      const layout = ROOM_LAYOUTS['default']; // use default size as base
+      const size = layout.size || 12;
+      const tx = Math.random() * (size - 1);
+      const ty = Math.random() * (size - 1);
+      const { sx, sy } = isoToScreen(tx, ty);
+
+      // Choose sparkle type: tiny circle or 4-point star
+      const isSparkle = Math.random() < 0.35;
+      const radius = isSparkle ? (Math.random() * 3 + 1.5) : (Math.random() * 2 + 1);
+
+      // Color: warm gold, cyan accent, or soft white
+      const colorPalette = [0xffd700, 0x00d4aa, 0xffffff, 0x88ccff, 0xffaa44];
+      const color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+
+      const gfx = new PIXI.Graphics();
+      if (isSparkle) {
+        // 4-point star sparkle
+        const r = radius;
+        const r2 = r * 0.4;
+        gfx.beginFill(color, 0.9);
+        gfx.moveTo(0, -r);
+        gfx.lineTo(r2, -r2);
+        gfx.lineTo(r, 0);
+        gfx.lineTo(r2, r2);
+        gfx.lineTo(0, r);
+        gfx.lineTo(-r2, r2);
+        gfx.lineTo(-r, 0);
+        gfx.lineTo(-r2, -r2);
+        gfx.closePath();
+        gfx.endFill();
+      } else {
+        gfx.beginFill(color, 0.75);
+        gfx.drawCircle(0, 0, radius);
+        gfx.endFill();
+      }
+
+      gfx.position.set(sx + (Math.random() - 0.5) * 20, sy + TILE_H / 4);
+      gfx.alpha = 0;
+      gfx.zIndex = -1; // Below agents/furniture
+
+      particleContainer.addChild(gfx);
+
+      const particle = {
+        gfx,
+        x: gfx.x,
+        y: gfx.y,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: -(Math.random() * 0.5 + 0.2), // drift upward
+        life: 0,       // 0..1 normalized lifetime
+        maxLife: Math.random() * 2.5 + 1.5, // seconds
+        phase: 'in',   // 'in' | 'hold' | 'out'
+        rotation: (Math.random() - 0.5) * 0.04,
+      };
+      particles.push(particle);
+    }
+
+    /** Update all particles — call from game loop */
+    function updateParticles(dt) {
+      if (!window.PIXI || !particleContainer) return;
+
+      // Fractional spawn accumulator
+      updateParticles._acc = (updateParticles._acc || 0) + PARTICLE_SPAWN_RATE;
+      while (updateParticles._acc >= 1) {
+        spawnParticle();
+        updateParticles._acc -= 1;
+      }
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life += dt;
+
+        const t = p.life / p.maxLife;
+        // Fade in for first 20%, hold until 70%, fade out for last 30%
+        if (t < 0.2) {
+          p.gfx.alpha = t / 0.2 * 0.8;
+        } else if (t < 0.7) {
+          p.gfx.alpha = 0.8;
+        } else {
+          p.gfx.alpha = (1 - (t - 0.7) / 0.3) * 0.8;
+        }
+
+        // Float upward + gentle horizontal drift
+        p.x += p.vx;
+        p.y += p.vy;
+        p.gfx.position.set(p.x, p.y);
+        p.gfx.rotation += p.rotation;
+
+        // Remove when lifetime exceeded
+        if (t >= 1) {
+          if (p.gfx.parent) p.gfx.parent.removeChild(p.gfx);
+          p.gfx.destroy();
+          particles.splice(i, 1);
+        }
+      }
+    }
+
+    /** Clean up all particles (call on room leave) */
+    function clearParticles() {
+      for (const p of particles) {
+        if (p.gfx.parent) p.gfx.parent.removeChild(p.gfx);
+        p.gfx.destroy();
+      }
+      particles.length = 0;
+      updateParticles._acc = 0;
     }
 
     // ===== MINIMAP (T-343) =====
@@ -907,8 +1040,13 @@ function loadPixiJS() {
       contentContainer = new PIXI.Container();
       contentContainer.sortableChildren = true; // Enable z-index sorting
 
+      // Particle container — between floor and content so particles float below agents
+      particleContainer = new PIXI.Container();
+      particleContainer.sortableChildren = false; // No z-sort needed; performance
+
       worldContainer.addChild(floorContainer);
       worldContainer.addChild(wallContainer);
+      worldContainer.addChild(particleContainer); // particles above walls, below furniture+agents
       worldContainer.addChild(contentContainer);
       app.stage.addChild(worldContainer);
 
@@ -929,6 +1067,57 @@ function loadPixiJS() {
       app.ticker.add(gameLoop);
 
       console.log('[PixiJS] Initialized WebGL renderer (mobile:', isMobile, ', scale:', renderScale, ')');
+    }
+
+    /**
+     * Draws a soft radial-gradient glow overlay on the floor centre.
+     * Creates a Canvas2D texture and draws it as a wide, transparent PIXI sprite.
+     */
+    function addFloorGlowOverlay(roomSize) {
+      if (!window.PIXI || !floorContainer) return;
+
+      // Centre of the room in screen-space
+      const mid = (roomSize - 1) / 2;
+      const { sx: cx, sy: cy } = isoToScreen(mid, mid);
+
+      // Glow canvas is 2× the room width in screen space for soft edges
+      const glowW = (roomSize * TILE_W) * 1.6;
+      const glowH = (roomSize * TILE_H) * 2.8;
+
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(glowW);
+      canvas.height = Math.round(glowH);
+      const ctx = canvas.getContext('2d');
+
+      // Radial gradient: warm cyan glow at centre, transparent at edges
+      const grd = ctx.createRadialGradient(
+        glowW / 2, glowH * 0.38,  0,           // inner circle (centre)
+        glowW / 2, glowH * 0.38,  glowW * 0.52 // outer circle
+      );
+      grd.addColorStop(0,   'rgba(0, 212, 170, 0.10)');
+      grd.addColorStop(0.4, 'rgba(0, 180, 220, 0.06)');
+      grd.addColorStop(1,   'rgba(0, 0, 0, 0)');
+
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const texture = PIXI.Texture.from(canvas);
+      const glow = new PIXI.Sprite(texture);
+      glow.anchor.set(0.5, 0.38);
+      glow.position.set(cx, cy);
+      glow.blendMode = PIXI.BLEND_MODES.SCREEN; // additive-style, won't darken anything
+      glow.alpha = 0.85;
+      glow.width  = glowW;
+      glow.height = glowH;
+      floorContainer.addChild(glow);
+
+      // Animate a gentle breathing pulse
+      let phase = 0;
+      PIXI.Ticker.shared.add(() => {
+        if (!glow.parent) return; // removed from scene, stop updating
+        phase += 0.012;
+        glow.alpha = 0.65 + Math.sin(phase) * 0.20;
+      });
     }
 
     function drawRoom() {
@@ -976,6 +1165,10 @@ function loadPixiJS() {
           floorContainer.addChild(tile);
         }
       }
+
+      // === 2b. Floor ambient glow overlay ===
+      // Radial gradient on a Canvas → PixiJS texture, drawn as an isometric diamond
+      addFloorGlowOverlay(size);
 
       // === 3. Furniture ===
       // Prefer live DB furniture (T-344); fall back to hardcoded layout when DB is empty
@@ -1079,6 +1272,9 @@ function loadPixiJS() {
         drawMinimap();
         gameLoop._lastMinimapDraw = now;
       }
+
+      // Particle system (floating dust/sparkles for atmosphere)
+      updateParticles(dt);
     }
 
     // ===== ROOM LIST =====
@@ -1192,7 +1388,7 @@ function loadPixiJS() {
               </div>
             </div>
             <div class="room-meta">
-              <span class="agent-badge">👥 ${agentCount} agent${agentCount !== 1 ? 's' : ''}</span>
+              <span class="agent-badge">🤖 Agents<span class="agent-count-pill ${agentCount === 0 ? 'empty' : ''}">${agentCount}</span></span>
               <span>👁 ${room.spectatorCount || 0} watching</span>
             </div>
           </div>
@@ -1284,6 +1480,10 @@ function loadPixiJS() {
 
         // Show live chat feed
         document.getElementById('liveChatFeed').style.display = 'flex';
+
+        // Show LIVE badge
+        const liveBadge = document.getElementById('liveBadge');
+        if (liveBadge) liveBadge.classList.add('visible');
 
         addChatMessage('System', `You are now spectating "${roomName}"`, true);
 
@@ -1391,15 +1591,21 @@ function loadPixiJS() {
       
       // Hide live chat feed
       document.getElementById('liveChatFeed').style.display = 'none';
+
+      // Hide LIVE badge
+      const liveBadge = document.getElementById('liveBadge');
+      if (liveBadge) liveBadge.classList.remove('visible');
       
       // Wait for transition to complete (400ms)
       setTimeout(() => {
         if (ws) { ws.close(); ws = null; }
         hideTooltip(); // T-341: hide any visible tooltip
         if (app) {
+          clearParticles(); // clean up particle graphics before destroying app
           app.destroy(true, { children: true, texture: true });
           app = null;
           tooltipContainer = null; // T-341: reset tooltip ref
+          particleContainer = null; // reset particle container ref
         }
         currentRoomId = null;
         agents.clear();

@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6.svg?logo=typescript)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-24.13-339933.svg?logo=node.js)](https://nodejs.org/)
-[![Tests](https://img.shields.io/badge/tests-2672%20passing-success.svg)](src/tests)
+[![Tests](https://img.shields.io/badge/tests-2940%20passing-success.svg)](src/tests)
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/DILOmcfly/openclaw-hotel)
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/new?template=https://github.com/DILOmcfly/openclaw-hotel&plugins=postgresql,redis&envs=JWT_SECRET&JWT_SECRETDesc=Strong+random+secret+for+JWT+tokens+(generate+with:+openssl+rand+-base64+32))
