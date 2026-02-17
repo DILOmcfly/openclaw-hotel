@@ -52,6 +52,11 @@ const metrics: SimulationMetrics = {
 };
 
 /**
+ * Track how many ticks have elapsed (used to trigger room wandering)
+ */
+let simulationTickCount = 0;
+
+/**
  * In-memory personality profiles for agents
  * Persists across ticks, initialized on first encounter
  */
@@ -881,6 +886,214 @@ async function executeAction(
   }
 }
 
+// ─── Room Wandering ──────────────────────────────────────────────────────────
+
+/**
+ * Fetch all available rooms from the DB
+ */
+async function getAllRooms(sql: any): Promise<Array<{ id: string; name: string; maxOccupants: number }>> {
+  try {
+    const rows = await sql`
+      SELECT id::text, name, max_occupants AS "maxOccupants"
+      FROM rooms
+      ORDER BY name
+    `;
+    return rows;
+  } catch (error) {
+    console.error('[Simulation] Failed to get rooms:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch current population for every room
+ */
+async function getAllRoomPopulations(sql: any): Promise<Map<string, number>> {
+  try {
+    const rows = await sql`
+      SELECT room_id::text AS "roomId", COUNT(*)::int AS count
+      FROM presence
+      GROUP BY room_id
+    `;
+    const map = new Map<string, number>();
+    for (const row of rows) {
+      map.set(row.roomId, row.count);
+    }
+    return map;
+  } catch (error) {
+    console.error('[Simulation] Failed to get room populations:', error);
+    return new Map();
+  }
+}
+
+/**
+ * Personality-driven room selection.
+ *
+ * Returns the ID of the room the agent wants to move to, or null to stay put.
+ *
+ * - High Openness  (>60) → higher base wander chance, picks randomly
+ * - High Extraversion (>60) → picks the most-populated room
+ * - Low Extraversion  (<40) → picks the least-populated room
+ * - Middle Extraversion   → random room
+ */
+function pickTargetRoom(
+  profile: PersonalityProfile,
+  currentRoomId: string,
+  allRooms: Array<{ id: string; name: string; maxOccupants: number }>,
+  populations: Map<string, number>
+): string | null {
+  const { openness, extraversion } = profile.traits;
+
+  // Wander probability driven by Openness
+  let wanderChance: number;
+  if (openness > 60) wanderChance = 0.35;
+  else if (openness > 40) wanderChance = 0.18;
+  else wanderChance = 0.08;
+
+  if (Math.random() > wanderChance) return null; // Stay put
+
+  // Candidate rooms: not the current room, not over capacity
+  const candidates = allRooms.filter(r => {
+    if (r.id === currentRoomId) return false;
+    const pop = populations.get(r.id) ?? 0;
+    return pop < r.maxOccupants;
+  });
+
+  if (candidates.length === 0) return null;
+
+  if (extraversion > 60) {
+    // Social butterfly → go where the crowd is
+    candidates.sort((a, b) => (populations.get(b.id) ?? 0) - (populations.get(a.id) ?? 0));
+    return candidates[0].id;
+  } else if (extraversion < 40) {
+    // Introvert → seek the quietest room
+    candidates.sort((a, b) => (populations.get(a.id) ?? 0) - (populations.get(b.id) ?? 0));
+    return candidates[0].id;
+  } else {
+    // Middle ground → pick randomly
+    return candidates[Math.floor(Math.random() * candidates.length)].id;
+  }
+}
+
+/**
+ * Physically move an agent from one room to another:
+ * 1. Delete presence row in old room
+ * 2. Insert presence row in new room
+ * 3. Broadcast events to both rooms
+ */
+async function moveAgentToRoom(
+  agentId: string,
+  fromRoomId: string,
+  toRoomId: string,
+  toRoomName: string,
+  personality: Personality,
+  sql: any,
+  broadcast: (roomId: string, event: any) => void
+): Promise<boolean> {
+  try {
+    const x = Math.floor(Math.random() * 18) + 1;
+    const y = Math.floor(Math.random() * 18) + 1;
+
+    // Update presence: switch rooms
+    await sql`
+      DELETE FROM presence
+      WHERE agent_id = ${agentId}::uuid AND room_id = ${fromRoomId}::uuid
+    `;
+
+    await sql`
+      INSERT INTO presence (agent_id, room_id, x, y)
+      VALUES (${agentId}::uuid, ${toRoomId}::uuid, ${x}, ${y})
+      ON CONFLICT (agent_id, room_id) DO UPDATE SET x = EXCLUDED.x, y = EXCLUDED.y
+    `;
+
+    // Notify old room that agent left
+    broadcast(fromRoomId, {
+      type: 'agent.left',
+      agentId,
+    });
+
+    // Notify new room that agent joined
+    broadcast(toRoomId, {
+      type: 'agent.joined',
+      agentId,
+      displayName: personality.name,
+      x,
+      y,
+      rotation: 0,
+    });
+
+    // Cross-room event so spectators on any tab can see the move
+    const roomChangeEvent = {
+      type: 'agent.room_changed',
+      agentId,
+      displayName: personality.name,
+      fromRoomId,
+      toRoomId,
+      toRoomName,
+      x,
+      y,
+    };
+    broadcast(fromRoomId, roomChangeEvent);
+    broadcast(toRoomId, roomChangeEvent);
+
+    // Add to global live events feed
+    addLiveEvent({
+      type: 'room_enter',
+      roomId: toRoomId,
+      agentId,
+      agentName: personality.name,
+      detail: toRoomName,
+      icon: EVENT_ICONS.room_enter,
+      message: `${personality.name} wandered to ${toRoomName}`,
+    });
+
+    console.log(`[Simulation] 🚶 ${personality.name} moved → ${toRoomName}`);
+    return true;
+  } catch (error) {
+    console.error(`[Simulation] Failed to move agent ${agentId}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Run one round of personality-driven room wandering.
+ * Called every WANDER_EVERY_N_TICKS ticks from tick().
+ */
+const WANDER_EVERY_N_TICKS = 6; // Every 6 ticks (≈ 6 min at default interval)
+
+async function tickRoomWandering(
+  agents: Array<{ agentId: string; roomId: string }>,
+  sql: any,
+  broadcast: (roomId: string, event: any) => void
+): Promise<void> {
+  const allRooms = await getAllRooms(sql);
+  if (allRooms.length < 2) return; // Nothing to wander to
+
+  const populations = await getAllRoomPopulations(sql);
+
+  for (const { agentId, roomId } of agents) {
+    const profile = getOrCreateProfile(agentId);
+    const targetRoomId = pickTargetRoom(profile, roomId, allRooms, populations);
+
+    if (!targetRoomId) continue; // This agent stays put
+
+    const targetRoom = allRooms.find(r => r.id === targetRoomId);
+    if (!targetRoom) continue;
+
+    const personality = getAgentPersonality(agentId);
+    const moved = await moveAgentToRoom(agentId, roomId, targetRoomId, targetRoom.name, personality, sql, broadcast);
+
+    if (moved) {
+      // Update in-memory population counts so subsequent agents in this batch
+      // see accurate numbers (avoids everyone rushing to the same room)
+      populations.set(roomId, Math.max(0, (populations.get(roomId) ?? 1) - 1));
+      populations.set(targetRoomId, (populations.get(targetRoomId) ?? 0) + 1);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
  * Process one simulation tick
  */
@@ -897,6 +1110,17 @@ export async function tick(
 
   const agents = await getActiveAgents(sql);
   let actionsExecuted = 0;
+
+  // ── Room wandering: every WANDER_EVERY_N_TICKS ticks, agents may roam ──
+  simulationTickCount++;
+  if (simulationTickCount % WANDER_EVERY_N_TICKS === 0) {
+    console.log(`[Simulation] 🗺️  Tick ${simulationTickCount}: triggering room wandering`);
+    await tickRoomWandering(agents, sql, broadcast);
+
+    // Refresh agent list — some may have changed rooms
+    const refreshedAgents = await getActiveAgents(sql);
+    agents.splice(0, agents.length, ...refreshedAgents);
+  }
 
   for (const { agentId, roomId } of agents) {
     // Check action probability
