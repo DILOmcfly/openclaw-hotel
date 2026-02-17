@@ -58,6 +58,20 @@ function loadPixiJS() {
     let currentZoom = 1.0;
     let panX = 0;
     let panY = 0;
+
+    // ── Room Themes (unique colors per room) ──────────────────────────
+    const ROOM_THEMES = {
+      'The Lobby':      { floor: 0x8B6914, carpet: 0x8B4513, wallTop: '#c4b096', wallBot: '#8a7a64', wallSide: '#b8a48c', accent: 0x00D4AA },
+      'Arcade':         { floor: 0x2a1a3e, carpet: 0x3d1f5c, wallTop: '#2e1650', wallBot: '#1a0e30', wallSide: '#251245', accent: 0xff00ff },
+      'Library':        { floor: 0x5c3a1e, carpet: 0x7a4e2e, wallTop: '#6b4423', wallBot: '#3d2510', wallSide: '#5a3a1c', accent: 0xffd700 },
+      'Trading Floor':  { floor: 0x1a2a1a, carpet: 0x2a3f2a, wallTop: '#1a3320', wallBot: '#0d1a10', wallSide: '#162a1a', accent: 0x00ff88 },
+      'The Garden':     { floor: 0x4a7a3a, carpet: 0x5a8a4a, wallTop: '#87ceeb', wallBot: '#5aaa7a', wallSide: '#70b870', accent: 0xff6b9d },
+    };
+    const DEFAULT_THEME = { floor: 0x8B6914, carpet: 0x8B4513, wallTop: '#c4b096', wallBot: '#8a7a64', wallSide: '#b8a48c', accent: 0x00D4AA };
+
+    function getRoomTheme() {
+      return ROOM_THEMES[currentRoomName] || DEFAULT_THEME;
+    }
     let selectedAgent = null;
 
     // FPS tracking & throttling
@@ -403,8 +417,9 @@ function loadPixiJS() {
         return sprite;
       } else {
         // Fallback: colored diamond
-        const colors = { 'w': 0x8B6914, 'c': 0x8B4513, 's': 0x696969 };
-        graphics.beginFill(colors[tileType] || 0x8B6914);
+        const theme = getRoomTheme();
+        const colors = { 'w': theme.floor, 'c': theme.carpet, 's': 0x696969 };
+        graphics.beginFill(colors[tileType] || theme.floor);
         graphics.moveTo(0, 0);
         graphics.lineTo(TILE_W/2, TILE_H/2);
         graphics.lineTo(0, TILE_H);
@@ -440,10 +455,9 @@ function loadPixiJS() {
         canvas.height = WALL_H;
         const ctx = canvas.getContext('2d');
         const g = ctx.createLinearGradient(0, 0, 0, WALL_H);
-        g.addColorStop(0, '#c4b096');
-        g.addColorStop(0.1, '#c4b496');
-        g.addColorStop(0.9, '#c0b090');
-        g.addColorStop(1, '#8a7a64');
+        const wallTheme = getRoomTheme();
+        g.addColorStop(0, wallTheme.wallTop);
+        g.addColorStop(1, wallTheme.wallBot);
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, hw, WALL_H);
 
@@ -502,10 +516,9 @@ function loadPixiJS() {
         canvas.height = WALL_H;
         const ctx = canvas.getContext('2d');
         const g = ctx.createLinearGradient(0, 0, 0, WALL_H);
-        g.addColorStop(0, '#b8a48c');
-        g.addColorStop(0.1, '#b4a088');
-        g.addColorStop(0.9, '#b09c84');
-        g.addColorStop(1, '#a89880');
+        const sideTheme = getRoomTheme();
+        g.addColorStop(0, sideTheme.wallSide);
+        g.addColorStop(1, sideTheme.wallBot);
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, hw, WALL_H);
 

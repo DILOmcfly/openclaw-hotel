@@ -666,8 +666,10 @@
       }
     }
     
-    // Update immediately and then every 10 seconds
+    // Update immediately, retry after 3s if server cold-starting, then every 10s
     updateStats();
+    setTimeout(updateStats, 3000);
+    setTimeout(updateStats, 8000);
     setInterval(updateStats, 10000);
 
     // ── Live Events Feed ──────────────────────────────────────────────────
