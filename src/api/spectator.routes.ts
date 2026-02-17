@@ -366,6 +366,54 @@ router.get('/api/spectate/agents/:agentId', async (req, res) => {
 });
 
 /**
+ * GET /api/spectate/agents/:agentId/room
+ * Find which room an agent is currently in (for Follow-Agent mode).
+ * Returns { roomId, roomName } or { roomId: null } if not in any room.
+ * Public endpoint — no authentication required.
+ */
+router.get('/api/spectate/agents/:agentId/room', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+
+    // Validate agentId format (basic UUID check)
+    if (!/^[0-9a-f-]{36}$/i.test(agentId)) {
+      return res.status(400).json({ error: 'Invalid agent ID format' });
+    }
+
+    // Check in-memory WebSocket room members first (real-time)
+    for (const [roomId, members] of roomMembers.entries()) {
+      if (members.has(agentId)) {
+        // Get room name from DB
+        let roomName: string | null = null;
+        try {
+          const [roomRow] = await sql`SELECT name FROM rooms WHERE id = ${roomId}::uuid LIMIT 1`;
+          roomName = roomRow?.name ?? null;
+        } catch { /* ignore */ }
+        return res.json({ roomId, roomName });
+      }
+    }
+
+    // Fallback: check presence table
+    const [presenceRow] = await sql`
+      SELECT p.room_id AS "roomId", r.name AS "roomName"
+      FROM presence p
+      JOIN rooms r ON r.id = p.room_id
+      WHERE p.agent_id = ${agentId}::uuid
+      LIMIT 1
+    `;
+
+    if (presenceRow) {
+      return res.json({ roomId: presenceRow.roomId, roomName: presenceRow.roomName });
+    }
+
+    res.json({ roomId: null, roomName: null });
+  } catch (error) {
+    console.error('[Spectator API] Error finding agent room:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * GET /api/spectate/live-events
  * Returns the last N notable events from across all rooms.
  * Used by the spectator ticker to show global activity.

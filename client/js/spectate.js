@@ -33,6 +33,13 @@ function loadPixiJS() {
     let roomsList = []; // For mobile swipe navigation
     let ws = null;
     let agents = new Map(); // agentId -> { name, x, y, targetX, targetY, direction, sprite, graphics, bubble }
+
+    // ── T-347: Follow-Agent Mode ──────────────────────────────────────────────
+    let followedAgentId   = null;   // agentId being followed (null = off)
+    let followedAgentName = '';     // display name for UI
+    let followPollTimer   = null;   // timeout for post-departure room lookup
+    const FOLLOW_POLL_INTERVAL_MS = 2000;   // poll every 2s while agent is "missing"
+    const FOLLOW_POLL_MAX_ATTEMPTS = 10;    // give up after 10 tries (~20s)
     let roomFurniture = new Map(); // itemId -> { id, itemDefId, x, y, z, rotation, sprite }
     let chatMessages = [];
     let chatFeedMessages = [];
@@ -1893,6 +1900,10 @@ function loadPixiJS() {
           }
           agents.delete(leaveAgentId);
           addChatMessage('System', `👋 ${departingAgent?.name || 'Agent'} left the room`, true);
+          // T-347: follow mode — track departing followed agent
+          if (leaveAgentId === followedAgentId) {
+            onFollowedAgentLeft();
+          }
           updateAgentList();
           break;
         }
@@ -2415,10 +2426,17 @@ function loadPixiJS() {
         const badge = agent.status && AGENT_STATUS_ICONS[agent.status]
           ? `<span class="agent-status-badge" title="${agent.status}">${AGENT_STATUS_ICONS[agent.status]}</span>`
           : '';
-        html += `<div class="agent-item" style="cursor: pointer;" onclick="showAgentInfo('${id}')">
+        const isFollowed = (id === followedAgentId);
+        const followBtn = `<button
+          class="follow-btn${isFollowed ? ' following' : ''}"
+          title="${isFollowed ? 'Stop following' : 'Follow this agent'}"
+          onclick="event.stopPropagation(); toggleFollowAgent('${id}', '${escapeHtml(agent.name).replace(/'/g, "\\'")}')"
+        >${isFollowed ? '👁' : '⊙'}</button>`;
+        html += `<div class="agent-item${isFollowed ? ' agent-item--followed' : ''}" style="cursor: pointer;" onclick="showAgentInfo('${id}')">
           <div class="agent-dot" style="background:${agent.color}"></div>
           <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(agent.name)}</span>
           ${badge}
+          ${followBtn}
         </div>`;
       }
       list.innerHTML = html;
@@ -2587,6 +2605,98 @@ function loadPixiJS() {
 
     function closeAgentInfo() {
       document.getElementById('agentInfoPanel').classList.remove('active');
+    }
+
+    // ── T-347: Follow-Agent Mode ──────────────────────────────────────────────
+
+    /** Start following an agent — shows indicator and sets up room-hop tracking */
+    function startFollowAgent(agentId, agentName) {
+      followedAgentId   = agentId;
+      followedAgentName = agentName || 'Agent';
+      clearTimeout(followPollTimer);
+      showFollowIndicator();
+      closeAgentInfo();
+      addChatMessage('System', `👁 Now following ${followedAgentName}`, true);
+    }
+
+    /** Stop follow mode */
+    function stopFollowAgent() {
+      followedAgentId   = null;
+      followedAgentName = '';
+      clearTimeout(followPollTimer);
+      hideFollowIndicator();
+      addChatMessage('System', '🚫 Follow mode off', true);
+    }
+
+    /** Toggle follow for a given agent */
+    function toggleFollowAgent(agentId, agentName) {
+      if (followedAgentId === agentId) {
+        stopFollowAgent();
+      } else {
+        startFollowAgent(agentId, agentName);
+      }
+    }
+
+    /** Show the floating "Following: …" banner */
+    function showFollowIndicator() {
+      let el = document.getElementById('followIndicator');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'followIndicator';
+        el.style.cssText = [
+          'position:fixed', 'top:70px', 'left:50%', 'transform:translateX(-50%)',
+          'background:rgba(0,212,170,0.15)', 'border:1px solid #00D4AA',
+          'border-radius:999px', 'padding:6px 18px', 'font-size:0.8rem',
+          'color:#00D4AA', 'z-index:9999', 'display:flex', 'align-items:center',
+          'gap:8px', 'backdrop-filter:blur(8px)', 'cursor:pointer',
+          'transition:opacity 0.3s',
+        ].join(';');
+        el.onclick = stopFollowAgent;
+        document.body.appendChild(el);
+      }
+      el.innerHTML = `<span>👁 Following</span><strong>${escapeHtml(followedAgentName)}</strong><span style="opacity:0.6;font-size:0.72rem">— click to stop</span>`;
+      el.style.display = 'flex';
+      el.style.opacity  = '1';
+    }
+
+    function hideFollowIndicator() {
+      const el = document.getElementById('followIndicator');
+      if (el) el.style.display = 'none';
+    }
+
+    /**
+     * Called when the followed agent leaves the current room.
+     * Polls /api/spectate/agents/:id/room until we find their new room,
+     * then auto-switches to it.
+     */
+    async function onFollowedAgentLeft() {
+      if (!followedAgentId) return;
+      let attempts = 0;
+
+      async function poll() {
+        if (!followedAgentId) return; // follow was cancelled
+        if (attempts >= FOLLOW_POLL_MAX_ATTEMPTS) {
+          addChatMessage('System', `👁 Lost ${followedAgentName} — they went offline`, true);
+          stopFollowAgent();
+          return;
+        }
+        attempts++;
+        try {
+          const res = await fetch(`${API}/api/spectate/agents/${followedAgentId}/room`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.roomId && data.roomId !== currentRoomId) {
+              addChatMessage('System', `👁 ${followedAgentName} moved to "${data.roomName || data.roomId}"`, true);
+              await enterRoom(data.roomId, data.roomName || data.roomId);
+              return; // success — stop polling
+            }
+          }
+        } catch { /* ignore transient errors */ }
+        followPollTimer = setTimeout(poll, FOLLOW_POLL_INTERVAL_MS);
+      }
+
+      // Small delay to let the server update presence before we poll
+      followPollTimer = setTimeout(poll, 800);
     }
 
     function getArchetypeEmoji(archetype) {

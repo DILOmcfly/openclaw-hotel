@@ -289,6 +289,10 @@ app.get('/api-docs', (_req, res) => {
   res.type('html').send(readFileSync(join(import.meta.dirname, '..', 'client', 'api-docs.html'), 'utf8'));
 });
 
+app.get('/leaderboard', (_req, res) => {
+  res.type('html').send(readFileSync(join(import.meta.dirname, '..', 'client', 'leaderboard.html'), 'utf8'));
+});
+
 // Public API routes (no auth required)
 app.use(resourceMonitorRouter);
 app.use(spectatorRouter);

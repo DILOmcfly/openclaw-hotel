@@ -658,6 +658,18 @@ async function executeAction(
           rotation: 0,
         } as any);
 
+        // Live event (1 in 3 wanders to avoid noise)
+        if (Math.random() < 0.33) {
+          addLiveEvent({
+            type: 'wander',
+            roomId,
+            agentId,
+            agentName: personality.name,
+            icon: '🚶',
+            message: `${personality.name} is exploring the room`,
+          });
+        }
+
         try {
           await addMemory(
             agentId,
@@ -721,6 +733,15 @@ async function executeAction(
           type: 'emote',
           agentId,
           emote: 'dance',
+        });
+
+        addLiveEvent({
+          type: 'dance',
+          roomId,
+          agentId,
+          agentName: personality.name,
+          icon: '💃',
+          message: `${personality.name} is dancing!`,
         });
 
         try {
