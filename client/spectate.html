@@ -665,6 +665,40 @@
     #fpsCounter.active { display: block; }
 
     /* ===== KEYBOARD HINTS (T-342) ===== */
+    /* ===== MINIMAP (T-343) ===== */
+    #minimap {
+      position: fixed;
+      bottom: 48px; /* above keyboard hints */
+      right: 14px;
+      width: 112px;
+      height: 112px;
+      background: rgba(10, 12, 20, 0.85);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      z-index: 850;
+      cursor: pointer;
+      overflow: hidden;
+      transition: opacity 0.3s;
+    }
+    #minimap:hover { opacity: 0.95; border-color: var(--accent, #4a90e2); }
+    #minimapCanvas {
+      width: 112px;
+      height: 112px;
+      display: block;
+    }
+    #minimapLabel {
+      position: absolute;
+      bottom: 3px;
+      left: 0; right: 0;
+      text-align: center;
+      font-size: 9px;
+      color: rgba(255,255,255,0.5);
+      font-family: 'Courier New', monospace;
+      pointer-events: none;
+      letter-spacing: 0.5px;
+    }
+    #roomView:not(.active) #minimap { display: none; }
+
     #keyboardHints {
       position: fixed;
       bottom: 14px;
@@ -1974,6 +2008,12 @@
 
   <!-- FPS Counter -->
   <div id="fpsCounter">FPS: 0</div>
+
+  <!-- Minimap (T-343) -->
+  <div id="minimap" title="Minimap — click to reset view">
+    <canvas id="minimapCanvas" width="112" height="112"></canvas>
+    <span id="minimapLabel">MINIMAP</span>
+  </div>
 
   <!-- Keyboard Navigation Hints (T-342) -->
   <div id="keyboardHints">

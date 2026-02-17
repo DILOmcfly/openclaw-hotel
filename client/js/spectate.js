@@ -33,6 +33,7 @@ function loadPixiJS() {
     let roomsList = []; // For mobile swipe navigation
     let ws = null;
     let agents = new Map(); // agentId -> { name, x, y, targetX, targetY, direction, sprite, graphics, bubble }
+    let roomFurniture = new Map(); // itemId -> { id, itemDefId, x, y, z, rotation, sprite }
     let chatMessages = [];
     let chatFeedMessages = [];
     const MAX_CHAT_FEED_MESSAGES = 50;
@@ -158,6 +159,76 @@ function loadPixiJS() {
 
     // Load sprites immediately
     loadSprites();
+
+    // ===== DYNAMIC FURNITURE (T-344) =====
+    // Map item_def_id (from DB catalog) → sprite name (from spriteTextures)
+    const ITEM_DEF_TO_SPRITE = {
+      chair_wood:   'chair',
+      table_round:  'table',
+      lamp_floor:   'lamp',
+      plant_pot:    'plant',
+      bookshelf:    'bookshelf',
+      sofa_2seat:   'sofa',
+      rug_small:    'rug',
+      tv_screen:    'tv',
+      desk_office:  'desk',
+      bed_single:   'bed',
+      // Additional aliases
+      chair:        'chair',
+      table:        'table',
+      lamp:         'lamp',
+      plant:        'plant',
+      sofa:         'sofa',
+      rug:          'rug',
+      tv:           'tv',
+      desk:         'desk',
+      bed:          'bed',
+      computer:     'computer',
+      fridge:       'fridge',
+      coffee_table: 'coffee_table',
+      lounge_chair: 'lounge_chair',
+      side_table:   'side_table',
+      coatrack:     'coatrack',
+      radio:        'radio',
+      speaker:      'speaker',
+    };
+
+    /** Map an item_def_id to a known sprite name (returns null if unknown) */
+    function defIdToSprite(itemDefId) {
+      if (!itemDefId) return null;
+      const key = String(itemDefId).toLowerCase().replace(/[- ]/g, '_');
+      return ITEM_DEF_TO_SPRITE[key] || ITEM_DEF_TO_SPRITE[itemDefId] || null;
+    }
+
+    /**
+     * Render a single furniture item onto contentContainer.
+     * Returns the PIXI.Sprite (or null if sprite missing).
+     */
+    function addFurnitureSprite(item) {
+      if (!window.PIXI || !contentContainer) return null;
+      const spriteName = defIdToSprite(item.itemDefId || item.item_def_id);
+      const texture = spriteName ? spriteTextures[spriteName] : null;
+      if (!texture) return null;
+
+      const sprite = new PIXI.Sprite(texture);
+      const { sx, sy } = isoToScreen(item.x || 0, item.y || 0);
+      const scale = 0.5;
+      sprite.width  = sprite.texture.width  * scale;
+      sprite.height = sprite.texture.height * scale;
+      sprite.anchor.set(0.5, 1);
+      sprite.position.set(sx, sy + TILE_H / 2);
+      sprite.zIndex = (item.x || 0) + (item.y || 0);
+      contentContainer.addChild(sprite);
+      contentContainer.sortChildren();
+      return sprite;
+    }
+
+    /** Remove a furniture sprite from contentContainer and destroy it. */
+    function removeFurnitureSprite(item) {
+      if (!item || !item.sprite) return;
+      if (item.sprite.parent) item.sprite.parent.removeChild(item.sprite);
+      item.sprite.destroy();
+    }
 
     // ===== ROOM LAYOUTS =====
     const ROOM_LAYOUTS = {
@@ -674,6 +745,65 @@ function loadPixiJS() {
       ticker.add(onTick);
     }
 
+    // ===== MINIMAP (T-343) =====
+    const MINIMAP_SIZE = 112;       // canvas pixel size
+    const MINIMAP_PAD = 6;          // padding inside canvas
+    const MINIMAP_CELL = (MINIMAP_SIZE - MINIMAP_PAD * 2) / ROOM_SIZE; // px per tile
+
+    /** Draw the minimap — called every game loop frame (lightweight 2D canvas) */
+    function drawMinimap() {
+      const canvas = document.getElementById('minimapCanvas');
+      if (!canvas || agents.size === 0) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Clear
+      ctx.clearRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
+
+      // Grid background
+      ctx.fillStyle = 'rgba(20,26,40,0.9)';
+      ctx.fillRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i <= ROOM_SIZE; i++) {
+        const x = MINIMAP_PAD + i * MINIMAP_CELL;
+        const y = MINIMAP_PAD + i * MINIMAP_CELL;
+        ctx.beginPath(); ctx.moveTo(x, MINIMAP_PAD); ctx.lineTo(x, MINIMAP_SIZE - MINIMAP_PAD); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(MINIMAP_PAD, y); ctx.lineTo(MINIMAP_SIZE - MINIMAP_PAD, y); ctx.stroke();
+      }
+
+      // Agent dots
+      for (const agent of agents.values()) {
+        const ax = MINIMAP_PAD + (agent.x / ROOM_SIZE) * (MINIMAP_SIZE - MINIMAP_PAD * 2);
+        const ay = MINIMAP_PAD + (agent.y / ROOM_SIZE) * (MINIMAP_SIZE - MINIMAP_PAD * 2);
+        const radius = MINIMAP_CELL * 0.45;
+
+        // Drop shadow for visibility
+        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        ctx.shadowBlur = 2;
+
+        // Fill dot with agent color
+        ctx.fillStyle = agent.color || '#4a90e2';
+        ctx.beginPath();
+        ctx.arc(ax, ay, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Outline
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+      }
+
+      // Agent count label
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.font = '9px "Courier New", monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${agents.size} agents`, MINIMAP_SIZE - 4, 11);
+    }
+
     // ===== AGENT HOVER TOOLTIP (T-341) =====
     const MOOD_EMOJIS = {
       happy: '😊', excited: '🤩', curious: '🤔', bored: '😑',
@@ -848,18 +978,28 @@ function loadPixiJS() {
       }
 
       // === 3. Furniture ===
-      for (const [spriteName, fx, fy, scale] of layout.furniture) {
-        const texture = spriteTextures[spriteName];
-        if (!texture) continue;
+      // Prefer live DB furniture (T-344); fall back to hardcoded layout when DB is empty
+      if (roomFurniture.size > 0) {
+        // DB furniture: reset sprite references then re-render
+        for (const [, item] of roomFurniture) {
+          const sprite = addFurnitureSprite(item);
+          item.sprite = sprite; // store ref for later removal
+        }
+      } else {
+        // Fallback: hardcoded layout furniture
+        for (const [spriteName, fx, fy, scale] of layout.furniture) {
+          const texture = spriteTextures[spriteName];
+          if (!texture) continue;
 
-        const sprite = new PIXI.Sprite(texture);
-        const { sx, sy } = isoToScreen(fx, fy);
-        sprite.width = sprite.texture.width * scale;
-        sprite.height = sprite.texture.height * scale;
-        sprite.anchor.set(0.5, 1);
-        sprite.position.set(sx, sy + TILE_H/2);
-        sprite.zIndex = fx + fy; // Depth sorting
-        contentContainer.addChild(sprite);
+          const sprite = new PIXI.Sprite(texture);
+          const { sx, sy } = isoToScreen(fx, fy);
+          sprite.width = sprite.texture.width * scale;
+          sprite.height = sprite.texture.height * scale;
+          sprite.anchor.set(0.5, 1);
+          sprite.position.set(sx, sy + TILE_H/2);
+          sprite.zIndex = fx + fy; // Depth sorting
+          contentContainer.addChild(sprite);
+        }
       }
 
       // === 4. Agents ===
@@ -932,6 +1072,12 @@ function loadPixiJS() {
       if (now - lastSortTime >= SORT_THROTTLE_MS) {
         contentContainer.sortChildren();
         lastSortTime = now;
+      }
+
+      // T-343: Update minimap (throttled — every 200ms is plenty)
+      if (now - (gameLoop._lastMinimapDraw || 0) >= 200) {
+        drawMinimap();
+        gameLoop._lastMinimapDraw = now;
       }
     }
 
@@ -1102,6 +1248,7 @@ function loadPixiJS() {
         currentRoomId = roomId;
         currentRoomName = roomName || '';
         agents.clear();
+        roomFurniture.clear(); // T-344: clear previous room's furniture
         chatMessages = [];
 
         // Initialize audio system if not already done
@@ -1154,6 +1301,22 @@ function loadPixiJS() {
         
         const data = await res.json();
         
+        // T-344: Load DB furniture into roomFurniture map
+        if (data.furniture && data.furniture.length > 0) {
+          for (const item of data.furniture) {
+            roomFurniture.set(item.id, {
+              id: item.id,
+              itemDefId: item.itemDefId || item.item_def_id,
+              x: item.x || 0,
+              y: item.y || 0,
+              z: item.z || 0,
+              rotation: item.rotation || 0,
+              sprite: null,
+            });
+          }
+          console.log('[T-344] Loaded', roomFurniture.size, 'furniture items from DB');
+        }
+
         if (data.agents && data.agents.length > 0) {
           for (const a of data.agents) {
             const x = a.x ?? Math.floor(Math.random() * 10) + 1;
@@ -1222,6 +1385,7 @@ function loadPixiJS() {
         }
         currentRoomId = null;
         agents.clear();
+        roomFurniture.clear(); // T-344: clear furniture on leave
 
         document.getElementById('roomSelector').classList.remove('hidden');
         roomView.classList.remove('active', 'fade-out');
@@ -1513,6 +1677,51 @@ function loadPixiJS() {
             showEmoteEffect(emoteAgent, emoteValue);
           }
           setAgentStatus(msg.agentId, 'emote'); // T-340 status badge
+          break;
+        }
+
+        // ===== DYNAMIC FURNITURE EVENTS (T-344) =====
+        case 'furniture.placed': {
+          if (msg.item && msg.item.id) {
+            const newItem = {
+              id: msg.item.id,
+              itemDefId: msg.item.itemDefId || msg.item.item_def_id,
+              x: msg.item.x || 0,
+              y: msg.item.y || 0,
+              z: msg.item.z || 0,
+              rotation: msg.item.rotation || 0,
+              sprite: null,
+            };
+            // Render immediately if PixiJS is loaded, or wait until drawRoom
+            if (window.PIXI && contentContainer) {
+              newItem.sprite = addFurnitureSprite(newItem);
+            }
+            roomFurniture.set(newItem.id, newItem);
+            console.log('[T-344] furniture.placed:', newItem.itemDefId, 'at', newItem.x, newItem.y);
+          }
+          break;
+        }
+
+        case 'furniture.removed': {
+          const removedItem = roomFurniture.get(msg.itemId);
+          if (removedItem) {
+            removeFurnitureSprite(removedItem);
+            roomFurniture.delete(msg.itemId);
+            console.log('[T-344] furniture.removed:', msg.itemId);
+          }
+          break;
+        }
+
+        case 'furniture.moved': {
+          const movedItem = roomFurniture.get(msg.itemId || (msg.item && msg.item.id));
+          if (movedItem && msg.x !== undefined && msg.y !== undefined) {
+            // Update position
+            movedItem.x = msg.x;
+            movedItem.y = msg.y;
+            // Refresh sprite
+            removeFurnitureSprite(movedItem);
+            movedItem.sprite = window.PIXI && contentContainer ? addFurnitureSprite(movedItem) : null;
+          }
           break;
         }
 
@@ -2628,6 +2837,16 @@ function loadPixiJS() {
               e.preventDefault();
             }
           }
+      }
+    });
+
+    // T-343: Minimap click → reset view to center
+    document.getElementById('minimap').addEventListener('click', () => {
+      if (app && worldContainer) {
+        currentZoom = 1.0;
+        panX = 0; panY = 0;
+        worldContainer.scale.set(currentZoom);
+        worldContainer.position.set(panX, panY);
       }
     });
 
