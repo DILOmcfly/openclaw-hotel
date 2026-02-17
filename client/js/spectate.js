@@ -1331,6 +1331,7 @@ function loadPixiJS() {
             // Play whoosh sound on movement
             if (hasMoved) {
               playWhooshSound();
+              setAgentStatus(msg.agentId, 'moving'); // T-340 status badge
             }
           }
           break;
@@ -1350,6 +1351,7 @@ function loadPixiJS() {
             }
             chatter.bubble = createChatBubble(chatText);
             chatter.sprite.addChild(chatter.bubble);
+            setAgentStatus(msg.agentId, 'chat'); // T-340 status badge
           }
           addChatMessage(
             msg.displayName || chatter?.name || 'Agent',
@@ -1368,6 +1370,7 @@ function loadPixiJS() {
             agentName: msg.displayName || agent?.name,
             furnitureName: msg.furnitureName || msg.furniture || msg.itemName,
           });
+          setAgentStatus(msg.agentId, 'furniture'); // T-340 status badge
           break;
         }
 
@@ -1381,6 +1384,7 @@ function loadPixiJS() {
           });
           // Also add to chat as system msg for visibility
           addChatMessage('System', `🎮 ${msg.displayName || inviter?.name || 'Agent'} invited ${msg.targetDisplayName || invitee?.name || 'someone'} to play ${msg.game || 'a game'}!`, true);
+          setAgentStatus(msg.agentId, 'game'); // T-340 status badge
           break;
         }
 
@@ -1393,6 +1397,7 @@ function loadPixiJS() {
           });
           // Also add to chat
           addChatMessage('System', `💱 ${msg.displayName || trader?.name || 'Agent'} offered a trade to ${msg.targetDisplayName || tradee?.name || 'someone'}`, true);
+          setAgentStatus(msg.agentId, 'trade'); // T-340 status badge
           break;
         }
 
@@ -1408,6 +1413,7 @@ function loadPixiJS() {
           if (emoteAgent) {
             showEmoteEffect(emoteAgent, emoteValue);
           }
+          setAgentStatus(msg.agentId, 'emote'); // T-340 status badge
           break;
         }
 
@@ -1626,13 +1632,47 @@ function loadPixiJS() {
       return div.innerHTML;
     }
 
+    // ===== AGENT STATUS BADGES (T-340) =====
+    const AGENT_STATUS_ICONS = {
+      chat:       '💬',
+      furniture:  '🪑',
+      game:       '🎮',
+      trade:      '💱',
+      emote:      '🎭',
+      moving:     '🚶',
+    };
+    const STATUS_CLEAR_DELAY = 5000; // ms — status auto-clears after 5s
+
+    /** Set agent status and schedule auto-clear */
+    function setAgentStatus(agentId, status) {
+      const agent = agents.get(agentId);
+      if (!agent) return;
+      // Clear any pending timer
+      if (agent._statusTimer) clearTimeout(agent._statusTimer);
+      agent.status = status;
+      agent._statusTimer = setTimeout(() => {
+        const a = agents.get(agentId);
+        if (a && a.status === status) {
+          delete a.status;
+          delete a._statusTimer;
+          updateAgentList();
+        }
+      }, STATUS_CLEAR_DELAY);
+      updateAgentList();
+    }
+
     // ===== AGENT LIST =====
     function updateAgentList() {
       const list = document.getElementById('agentList');
       let html = '<h4>Agents in Room (' + agents.size + ')</h4>';
       for (const [id, agent] of agents) {
+        const badge = agent.status && AGENT_STATUS_ICONS[agent.status]
+          ? `<span class="agent-status-badge" title="${agent.status}">${AGENT_STATUS_ICONS[agent.status]}</span>`
+          : '';
         html += `<div class="agent-item" style="cursor: pointer;" onclick="showAgentInfo('${id}')">
-          <div class="agent-dot" style="background:${agent.color}"></div>${agent.name}
+          <div class="agent-dot" style="background:${agent.color}"></div>
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(agent.name)}</span>
+          ${badge}
         </div>`;
       }
       list.innerHTML = html;

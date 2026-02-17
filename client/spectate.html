@@ -617,6 +617,24 @@
     }
     .activity-empty .activity-empty-icon { font-size: 32px; margin-bottom: 8px; }
 
+    /* ===== AGENT STATUS BADGES (T-340) ===== */
+    .agent-item {
+      position: relative;
+    }
+    .agent-status-badge {
+      margin-left: auto;
+      font-size: 13px;
+      line-height: 1;
+      flex-shrink: 0;
+      animation: statusPop 0.3s ease;
+    }
+    @keyframes statusPop {
+      from { transform: scale(0.4); opacity: 0; }
+      to   { transform: scale(1); opacity: 1; }
+    }
+    /* Re-define agent-item to support flex layout */
+    .agent-item { display: flex; align-items: center; gap: 8px; }
+
     .readonly-badge {
       text-align: center;
       padding: 10px;
