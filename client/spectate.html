@@ -297,6 +297,29 @@
       transition: color 0.3s ease, background 0.3s ease;
       position: relative;
     }
+
+    /* Share button in room toolbar */
+    .share-room-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(0,212,170,0.1);
+      border: 1px solid rgba(0,212,170,0.3);
+      color: var(--accent);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .share-room-btn:hover {
+      background: rgba(0,212,170,0.2);
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .share-room-btn:active { transform: translateY(0); }
     /* Numeric count pill inside agent badge */
     .agent-count-pill {
       display: inline-flex;
@@ -2565,6 +2588,7 @@
       <div class="room-meta">
         <span>🤖 <span id="roomAgentCount">0</span> agents</span>
         <span>👁 <span id="roomSpectatorCount">0</span> spectators</span>
+        <button class="share-room-btn" onclick="shareRoom()" title="Copy shareable link to this room">🔗 Share</button>
       </div>
     </div>
     <div class="room-content">
