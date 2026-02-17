@@ -1292,6 +1292,17 @@ function loadPixiJS() {
         allRooms = [...roomsList]; // Store for filtering
         renderRoomList(roomsList);
         
+        // Deep-link: auto-enter room from URL param ?room=<roomId>
+        if (!currentRoomId) {
+          const urlRoom = getUrlRoomParam();
+          if (urlRoom) {
+            const targetRoom = roomsList.find(r => r.id === urlRoom);
+            if (targetRoom) {
+              enterRoom(targetRoom.id, targetRoom.name);
+            }
+          }
+        }
+        
         // Clear search input when refreshing
         const searchInput = document.getElementById('roomSearchInput');
         if (searchInput) {
@@ -1343,6 +1354,36 @@ function loadPixiJS() {
       return '🏠'; // Default
     }
 
+    /**
+     * Returns a CSS-gradient theme for the room based on its name/type.
+     * Used to give each room card a distinct visual identity.
+     */
+    function getRoomTheme(roomName) {
+      const name = roomName.toLowerCase();
+      // Gradient: [top-bar color, card glow rgba]
+      if (name.includes('lobby') || name.includes('main') || name.includes('entrance'))
+        return { bar: '#00D4AA', glow: 'rgba(0,212,170,0.08)', label: 'Lobby' };
+      if (name.includes('trading') || name.includes('trade') || name.includes('market'))
+        return { bar: '#fbbf24', glow: 'rgba(251,191,36,0.08)', label: 'Market' };
+      if (name.includes('garden') || name.includes('park') || name.includes('nature'))
+        return { bar: '#4ade80', glow: 'rgba(74,222,128,0.08)', label: 'Nature' };
+      if (name.includes('arcade') || name.includes('game') || name.includes('play'))
+        return { bar: '#f97316', glow: 'rgba(249,115,22,0.08)', label: 'Arcade' };
+      if (name.includes('library') || name.includes('study') || name.includes('book'))
+        return { bar: '#a78bfa', glow: 'rgba(167,139,250,0.08)', label: 'Library' };
+      if (name.includes('chill') || name.includes('lounge') || name.includes('relax'))
+        return { bar: '#60a5fa', glow: 'rgba(96,165,250,0.08)', label: 'Chill Zone' };
+      if (name.includes('arena') || name.includes('battle') || name.includes('combat'))
+        return { bar: '#ef4444', glow: 'rgba(239,68,68,0.08)', label: 'Arena' };
+      if (name.includes('cafe') || name.includes('coffee') || name.includes('restaurant'))
+        return { bar: '#d97706', glow: 'rgba(217,119,6,0.08)', label: 'Café' };
+      if (name.includes('art') || name.includes('gallery') || name.includes('museum'))
+        return { bar: '#ec4899', glow: 'rgba(236,72,153,0.08)', label: 'Gallery' };
+      if (name.includes('music') || name.includes('concert') || name.includes('band'))
+        return { bar: '#06b6d4', glow: 'rgba(6,182,212,0.08)', label: 'Stage' };
+      return { bar: '#6b7280', glow: 'rgba(107,114,128,0.06)', label: 'Room' };
+    }
+
     // Helper function to get room size (can be extracted from room data or estimated)
     function getRoomSize(room) {
       // If room has explicit size data, use it
@@ -1372,12 +1413,21 @@ function loadPixiJS() {
         const size = getRoomSize(room);
         const agentCount = room.agentCount || 0;
         const animationDelay = index * 0.05; // Stagger by 50ms
+        const theme = getRoomTheme(room.name);
+        const isHot = agentCount >= 3; // "hot" rooms have 3+ agents
         
         return `
           <div class="room-card ${isActive ? 'active' : ''}" 
-               style="animation-delay: ${animationDelay}s;"
+               style="animation-delay: ${animationDelay}s; background: linear-gradient(135deg, ${theme.glow}, transparent);"
                onclick="enterRoom('${room.id}', '${room.name.replace(/'/g, "\\'")}')">
-            <div class="room-card-header">
+            <!-- Theme accent bar -->
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${theme.bar};border-radius:10px 10px 0 0;opacity:${isActive ? 1 : 0.6}"></div>
+            <!-- Theme label -->
+            <div style="position:absolute;top:10px;right:10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:${theme.bar};opacity:0.8;${isActive ? 'display:none' : ''}">
+              ${theme.label}
+            </div>
+            ${isHot ? `<div style="position:absolute;top:8px;right:${isActive ? '160px' : '72px'};font-size:10px;animation:pulse 1.5s ease-in-out infinite">🔥</div>` : ''}
+            <div class="room-card-header" style="margin-top:8px">
               <div class="room-icon">${icon}</div>
               <div class="room-info">
                 <div class="room-name">
@@ -1443,6 +1493,7 @@ function loadPixiJS() {
         
         currentRoomId = roomId;
         currentRoomName = roomName || '';
+        pushRoomToUrl(roomId); // T-348: Update URL for sharing
         agents.clear();
         roomFurniture.clear(); // T-344: clear previous room's furniture
         chatMessages = [];
@@ -1794,6 +1845,33 @@ function loadPixiJS() {
           drawRoom();
           break;
 
+        // SimulationService emits 'agent.joined'; real WS handler emits 'presence.join'
+        case 'agent.joined':
+        case 'presence.join': {
+          const joinAgentId = msg.agentId || (msg.agent && msg.agent.id);
+          if (!joinAgentId) break;
+          const joinName = msg.displayName || (msg.agent && msg.agent.name) || 'Agent';
+          const joinX = msg.x ?? (msg.agent && msg.agent.x) ?? (Math.floor(Math.random() * 10) + 1);
+          const joinY = msg.y ?? (msg.agent && msg.agent.y) ?? (Math.floor(Math.random() * 10) + 1);
+          agents.set(joinAgentId, {
+            id: joinAgentId,
+            name: joinName,
+            x: joinX,
+            y: joinY,
+            targetX: joinX,
+            targetY: joinY,
+            direction: msg.rotation || 0,
+            color: getAgentColor(joinAgentId),
+            hairColor: getHairColor(joinAgentId),
+            sprite: null,
+            bubble: null
+          });
+          addChatMessage('System', `🤖 ${joinName} entered the room`, true);
+          updateAgentList();
+          drawRoom();
+          break;
+        }
+
         case 'agent.leave':
           const leaving = agents.get(msg.agentId);
           if (leaving && leaving.sprite) {
@@ -1803,6 +1881,21 @@ function loadPixiJS() {
           addChatMessage('System', `👋 ${leaving?.name || 'Agent'} left the room`, true);
           updateAgentList();
           break;
+
+        // SimulationService emits 'agent.left'; real WS handler emits 'presence.leave'
+        case 'agent.left':
+        case 'presence.leave': {
+          const leaveAgentId = msg.agentId;
+          const departingAgent = agents.get(leaveAgentId);
+          if (departingAgent && departingAgent.sprite && contentContainer) {
+            contentContainer.removeChild(departingAgent.sprite);
+            departingAgent.sprite.destroy({ children: true });
+          }
+          agents.delete(leaveAgentId);
+          addChatMessage('System', `👋 ${departingAgent?.name || 'Agent'} left the room`, true);
+          updateAgentList();
+          break;
+        }
 
         case 'agent.move':
         case 'agent.moved':
@@ -1831,14 +1924,16 @@ function loadPixiJS() {
           if (chatter) {
             chatter.lastMessage = chatText;
             chatter.lastMessageTime = Date.now();
-            
-            // Update bubble
-            if (chatter.bubble) {
-              chatter.sprite.removeChild(chatter.bubble);
-            }
-            chatter.bubble = createChatBubble(chatText);
-            chatter.sprite.addChild(chatter.bubble);
             setAgentStatus(msg.agentId, 'chat'); // T-340 status badge
+            
+            // Update speech bubble (sprite may be null if drawRoom() hasn't run yet)
+            if (chatter.sprite) {
+              if (chatter.bubble) {
+                chatter.sprite.removeChild(chatter.bubble);
+              }
+              chatter.bubble = createChatBubble(chatText);
+              chatter.sprite.addChild(chatter.bubble);
+            }
           }
           addChatMessage(
             msg.displayName || chatter?.name || 'Agent',
@@ -3201,6 +3296,79 @@ function loadPixiJS() {
         drawRoom();
       }
     });
+
+    // ── Share Room / Deep-Link (T-348) ───────────────────────────────────────
+
+    /** Parse ?room=<roomId> from current URL */
+    function getUrlRoomParam() {
+      try {
+        return new URLSearchParams(window.location.search).get('room');
+      } catch (_) {
+        return null;
+      }
+    }
+
+    /** Update URL with current room without reloading the page */
+    function pushRoomToUrl(roomId) {
+      try {
+        const url = new URL(window.location.href);
+        if (roomId) {
+          url.searchParams.set('room', roomId);
+        } else {
+          url.searchParams.delete('room');
+        }
+        window.history.replaceState({}, '', url.toString());
+      } catch (_) {
+        // Silently ignore (e.g., cross-origin environments in tests)
+      }
+    }
+
+    /** Copy the share URL to clipboard and show toast feedback */
+    function shareRoom() {
+      if (!currentRoomId) return;
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('room', currentRoomId);
+        const shareUrl = url.toString();
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          showShareToast('🔗 Link copied!');
+        }).catch(() => {
+          // Fallback: select text from prompt
+          prompt('Copy this link:', shareUrl);
+        });
+      } catch (_) {
+        showShareToast('❌ Could not copy link');
+      }
+    }
+
+    function showShareToast(msg) {
+      const existing = document.getElementById('shareToast');
+      if (existing) existing.remove();
+
+      const toast = document.createElement('div');
+      toast.id = 'shareToast';
+      toast.textContent = msg;
+      Object.assign(toast.style, {
+        position: 'fixed',
+        bottom: '80px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        background: 'rgba(0,212,170,0.95)',
+        color: '#0a0a1a',
+        padding: '10px 20px',
+        borderRadius: '20px',
+        fontWeight: '700',
+        fontSize: '14px',
+        zIndex: '9999',
+        animation: 'fadeInUp 0.3s ease',
+        pointerEvents: 'none',
+      });
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2500);
+    }
+
+    // ── Expose share to global scope (called from HTML onclick) ───────────────
+    window.shareCurrentRoom = shareRoom;
 
     // Initial load
     loadThemePreference(); // Load saved theme setting
