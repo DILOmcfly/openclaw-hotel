@@ -2561,6 +2561,76 @@ function loadPixiJS() {
       document.querySelector('.chat-header').addEventListener('click', toggleChat);
     }
 
+    // ===== KEYBOARD NAVIGATION (T-342) =====
+    const PAN_STEP = 40; // pixels per keypress
+    const ZOOM_STEP = 0.15;
+    const ZOOM_MIN = 0.4;
+    const ZOOM_MAX = 3.0;
+
+    document.addEventListener('keydown', (e) => {
+      // Ignore when typing in input fields
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      switch (e.key) {
+        // ── Pan with arrow keys ──
+        case 'ArrowLeft':
+          if (app && worldContainer) { panX += PAN_STEP; worldContainer.position.set(panX, panY); e.preventDefault(); }
+          break;
+        case 'ArrowRight':
+          if (app && worldContainer) { panX -= PAN_STEP; worldContainer.position.set(panX, panY); e.preventDefault(); }
+          break;
+        case 'ArrowUp':
+          if (app && worldContainer) { panY += PAN_STEP; worldContainer.position.set(panX, panY); e.preventDefault(); }
+          break;
+        case 'ArrowDown':
+          if (app && worldContainer) { panY -= PAN_STEP; worldContainer.position.set(panX, panY); e.preventDefault(); }
+          break;
+
+        // ── Zoom with + / - (and = as alias for +) ──
+        case '+':
+        case '=':
+          if (app && worldContainer) {
+            currentZoom = Math.min(ZOOM_MAX, currentZoom + ZOOM_STEP);
+            worldContainer.scale.set(currentZoom);
+            e.preventDefault();
+          }
+          break;
+        case '-':
+          if (app && worldContainer) {
+            currentZoom = Math.max(ZOOM_MIN, currentZoom - ZOOM_STEP);
+            worldContainer.scale.set(currentZoom);
+            e.preventDefault();
+          }
+          break;
+
+        // ── Reset zoom to 1 with 0 ──
+        case '0':
+          if (app && worldContainer) {
+            currentZoom = 1.0;
+            panX = 0; panY = 0;
+            worldContainer.scale.set(currentZoom);
+            worldContainer.position.set(panX, panY);
+            e.preventDefault();
+          }
+          break;
+
+        // ── Escape → leave room ──
+        case 'Escape':
+          if (currentRoomId) { leaveRoom(); e.preventDefault(); }
+          break;
+
+        // ── Number keys 1-9 → jump to room N (sorted by activity) ──
+        default:
+          if (e.key >= '1' && e.key <= '9' && !currentRoomId) {
+            const idx = parseInt(e.key, 10) - 1;
+            if (roomsList[idx]) {
+              enterRoom(roomsList[idx].id, roomsList[idx].name);
+              e.preventDefault();
+            }
+          }
+      }
+    });
+
     // Handle window resize
     window.addEventListener('resize', () => {
       if (app && currentRoomId) {

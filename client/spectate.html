@@ -664,6 +664,37 @@
     }
     #fpsCounter.active { display: block; }
 
+    /* ===== KEYBOARD HINTS (T-342) ===== */
+    #keyboardHints {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 11px;
+      color: var(--text-muted, #888);
+      z-index: 900;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0.75;
+      transition: opacity 0.3s;
+    }
+    #keyboardHints:hover { opacity: 1; }
+    #keyboardHints kbd {
+      background: var(--bg-primary, #fff);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-family: 'Courier New', monospace;
+      font-size: 10px;
+      font-style: normal;
+      margin: 0 1px;
+    }
+    #roomView:not(.active) #keyboardHints { display: none; }
+
     /* Mobile Toggle Button */
     .mobile-toggle {
       display: none;
@@ -1943,6 +1974,15 @@
 
   <!-- FPS Counter -->
   <div id="fpsCounter">FPS: 0</div>
+
+  <!-- Keyboard Navigation Hints (T-342) -->
+  <div id="keyboardHints">
+    <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> Pan &nbsp;·&nbsp;
+    <kbd>+</kbd><kbd>−</kbd> Zoom &nbsp;·&nbsp;
+    <kbd>0</kbd> Reset &nbsp;·&nbsp;
+    <kbd>Esc</kbd> Leave room &nbsp;·&nbsp;
+    <kbd>1</kbd>–<kbd>9</kbd> Jump to room
+  </div>
 
   <!-- Connection Status Indicator -->
   <div id="connectionIndicator" class="connection-indicator disconnected" title="Disconnected"></div>
