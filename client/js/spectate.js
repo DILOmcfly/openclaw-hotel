@@ -1308,6 +1308,50 @@ function loadPixiJS() {
           addChatMessage('System', `✨ ${msg.displayName || 'Agent'}: ${msg.action}`, true);
           break;
 
+        // ===== ACTIVITY FEED EVENTS (T-337) =====
+        case 'furniture_use': {
+          const agent = agents.get(msg.agentId);
+          addActivityEvent('furniture_use', msg.agentId, {
+            agentName: msg.displayName || agent?.name,
+            furnitureName: msg.furnitureName || msg.furniture || msg.itemName,
+          });
+          break;
+        }
+
+        case 'game_invite': {
+          const inviter = agents.get(msg.agentId);
+          const invitee = agents.get(msg.targetId);
+          addActivityEvent('game_invite', msg.agentId, {
+            agentName: msg.displayName || inviter?.name,
+            targetName: msg.targetDisplayName || invitee?.name || msg.targetId,
+            game: msg.game || msg.gameType || 'TicTacToe',
+          });
+          // Also add to chat as system msg for visibility
+          addChatMessage('System', `🎮 ${msg.displayName || inviter?.name || 'Agent'} invited ${msg.targetDisplayName || invitee?.name || 'someone'} to play ${msg.game || 'a game'}!`, true);
+          break;
+        }
+
+        case 'trade_offer': {
+          const trader = agents.get(msg.agentId);
+          const tradee = agents.get(msg.targetId);
+          addActivityEvent('trade_offer', msg.agentId, {
+            agentName: msg.displayName || trader?.name,
+            targetName: msg.targetDisplayName || tradee?.name || msg.targetId,
+          });
+          // Also add to chat
+          addChatMessage('System', `💱 ${msg.displayName || trader?.name || 'Agent'} offered a trade to ${msg.targetDisplayName || tradee?.name || 'someone'}`, true);
+          break;
+        }
+
+        case 'emote': {
+          const emoteAgent = agents.get(msg.agentId);
+          addActivityEvent('emote', msg.agentId, {
+            agentName: msg.displayName || emoteAgent?.name,
+            emote: msg.emote || msg.action,
+          });
+          break;
+        }
+
         case 'room.update':
           if (msg.agentCount !== undefined) {
             document.getElementById('roomAgentCount').textContent = msg.agentCount;
@@ -1327,6 +1371,132 @@ function loadPixiJS() {
         default:
           console.log('[WS] Unknown message type:', msg.type, msg);
       }
+    }
+
+    // ===== SIDEBAR TABS (T-337) =====
+    function switchSidebarTab(tab) {
+      // Deactivate all tabs and panes
+      document.querySelectorAll('.sidebar-tab').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+      // Activate selected
+      const tabEl = document.getElementById('tab-' + tab);
+      const paneEl = document.getElementById('pane-' + tab);
+      if (tabEl) tabEl.classList.add('active');
+      if (paneEl) paneEl.classList.add('active');
+      // Badge: clear activity count when opening the feed
+      if (tab === 'activity') {
+        const badge = document.getElementById('activityBadge');
+        if (badge) badge.style.display = 'none';
+        _activityUnread = 0;
+      }
+    }
+
+    // ===== ACTIVITY FEED (T-337) =====
+    let activityEvents = [];
+    const MAX_ACTIVITY_EVENTS = 50;
+    let _activityUnread = 0;
+
+    const ACTIVITY_CONFIG = {
+      furniture_use: {
+        icon: '🪑',
+        cls:  'furniture',
+        label: (msg) => `used ${msg.furnitureName || 'furniture'}`,
+      },
+      game_invite: {
+        icon: '🎮',
+        cls:  'game',
+        label: (msg) => `invited ${msg.targetName || 'someone'} to play ${msg.game || 'a game'}`,
+      },
+      trade_offer: {
+        icon: '💱',
+        cls:  'trade',
+        label: (msg) => `offered a trade to ${msg.targetName || 'another agent'}`,
+      },
+      emote: {
+        icon: '🎭',
+        cls:  'emote',
+        label: (msg) => `performed emote: ${msg.emote || msg.action || '✨'}`,
+      },
+      move: {
+        icon: '🚶',
+        cls:  'system',
+        label: (msg) => `moved to (${msg.x ?? '?'}, ${msg.y ?? '?'})`,
+      },
+    };
+
+    function addActivityEvent(type, agentId, extra = {}) {
+      const cfg = ACTIVITY_CONFIG[type];
+      if (!cfg) return;
+
+      const agent = agents.get(agentId) || { name: extra.agentName || 'Agent' };
+      const entry = {
+        type,
+        agentId,
+        agentName: agent.name,
+        icon: cfg.icon,
+        cls: cfg.cls,
+        description: cfg.label({ ...extra, agentId }),
+        timestamp: Date.now(),
+      };
+
+      activityEvents.unshift(entry);
+      if (activityEvents.length > MAX_ACTIVITY_EVENTS) {
+        activityEvents = activityEvents.slice(0, MAX_ACTIVITY_EVENTS);
+      }
+
+      renderActivityFeed();
+
+      // Badge on chat tab if activity pane not visible
+      const actPane = document.getElementById('pane-activity');
+      if (!actPane || !actPane.classList.contains('active')) {
+        _activityUnread++;
+        let badge = document.getElementById('activityBadge');
+        if (!badge) {
+          const tabEl = document.getElementById('tab-activity');
+          if (tabEl) {
+            badge = document.createElement('span');
+            badge.id = 'activityBadge';
+            badge.style.cssText = 'display:inline-block;background:#f4a261;color:#000;border-radius:10px;font-size:10px;padding:1px 5px;margin-left:4px;font-weight:700;';
+            tabEl.appendChild(badge);
+          }
+        }
+        if (badge) {
+          badge.style.display = 'inline-block';
+          badge.textContent = _activityUnread > 9 ? '9+' : _activityUnread;
+        }
+      }
+    }
+
+    function renderActivityFeed() {
+      const feed = document.getElementById('activityFeed');
+      if (!feed) return;
+
+      if (activityEvents.length === 0) {
+        feed.innerHTML = `
+          <div class="activity-empty">
+            <div class="activity-empty-icon">📡</div>
+            <div>Waiting for agent activity…</div>
+          </div>`;
+        return;
+      }
+
+      // Rebuild only if changed (avoid thrashing)
+      const fragment = document.createDocumentFragment();
+      for (const ev of activityEvents) {
+        const div = document.createElement('div');
+        div.className = `activity-entry ${ev.cls}`;
+        const timeStr = new Date(ev.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        div.innerHTML = `
+          <div class="activity-icon">${escapeHtml(ev.icon)}</div>
+          <div class="activity-body">
+            <div class="activity-agent">${escapeHtml(ev.agentName)}</div>
+            <div class="activity-desc">${escapeHtml(ev.description)}</div>
+            <div class="activity-ts">${timeStr}</div>
+          </div>`;
+        fragment.appendChild(div);
+      }
+      feed.innerHTML = '';
+      feed.appendChild(fragment);
     }
 
     // ===== CHAT =====
