@@ -477,8 +477,8 @@ async function executeAction(
   try {
     switch (action) {
       case 'move': {
-        const x = Math.floor(Math.random() * 20);
-        const y = Math.floor(Math.random() * 20);
+        const x = Math.floor(Math.random() * 14) + 1;
+        const y = Math.floor(Math.random() * 14) + 1;
 
         // Update position in database
         await sql`
@@ -647,8 +647,8 @@ async function executeAction(
 
       case 'wander': {
         // Random movement similar to 'move' but explicitly wandering
-        const x = Math.floor(Math.random() * 20);
-        const y = Math.floor(Math.random() * 20);
+        const x = Math.floor(Math.random() * 14) + 1;
+        const y = Math.floor(Math.random() * 14) + 1;
 
         await sql`
           UPDATE presence
@@ -1028,8 +1028,8 @@ async function moveAgentToRoom(
   broadcast: (roomId: string, event: any) => void
 ): Promise<boolean> {
   try {
-    const x = Math.floor(Math.random() * 18) + 1;
-    const y = Math.floor(Math.random() * 18) + 1;
+    const x = Math.floor(Math.random() * 14) + 1; // 1-14, within 16x16 grid
+    const y = Math.floor(Math.random() * 14) + 1;
 
     // Update presence: switch rooms
     await sql`

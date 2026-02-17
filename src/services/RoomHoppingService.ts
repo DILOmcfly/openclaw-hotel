@@ -131,8 +131,8 @@ export async function hopAgent(agentId: string, config: Partial<RoomHoppingConfi
   }
 
   // Join new room at random position
-  const x = Math.floor(Math.random() * 20);
-  const y = Math.floor(Math.random() * 20);
+  const x = Math.floor(Math.random() * 14) + 1;
+  const y = Math.floor(Math.random() * 14) + 1;
   await presenceService.joinRoom(agentId, targetRoom, x, y, sql);
 
   return {

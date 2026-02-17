@@ -1353,7 +1353,7 @@ function loadPixiJS() {
         }
         
         const data = await res.json();
-        document.getElementById('totalAgents').textContent = data.totalAgents || 0;
+        document.getElementById('totalAgents').textContent = data.totalAgentsOnline || data.totalAgents || 0;
         document.getElementById('totalSpectators').textContent = data.totalSpectators || 0;
         document.getElementById('activeRooms').textContent = data.activeRooms || 0;
       } catch (err) {
