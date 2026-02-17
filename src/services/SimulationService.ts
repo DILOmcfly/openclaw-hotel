@@ -1182,15 +1182,20 @@ export async function tick(
       success = await executeAction(agentId, roomId, action, personality, sql, broadcast, context);
     } catch (execErr) {
       console.error(`[Simulation] executeAction threw for ${personality.name}/${action}:`, execErr);
-      // Still add a live event so the feed isn't empty
-      addLiveEvent({
-        type: action === 'chat' ? 'chat' : action === 'dance' ? 'dance' : action === 'wander' ? 'wander' : 'emote',
-        roomId,
-        agentId,
-        agentName: personality.name,
-        icon: action === 'chat' ? '💬' : action === 'dance' ? '💃' : '🚶',
-        message: `${personality.name} tried to ${action} (recovering...)`,
-      });
+    }
+    if (!success) {
+      // Action failed — log it so we can diagnose
+      if (metrics.totalTicks <= 10) {
+        addLiveEvent({
+          type: 'emote',
+          roomId,
+          agentId,
+          agentName: personality.name,
+          icon: '⚠️',
+          message: `${personality.name} failed: ${action}`,
+        });
+      }
+      continue;
     }
     if (success) {
       actionsExecuted++;

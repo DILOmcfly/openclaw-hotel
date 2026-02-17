@@ -19,7 +19,7 @@ export interface SocialGraphEdge {
   source: string;  // agent id
   target: string;  // agent id
   status: 'accepted' | 'pending';
-  strength: number; // 0.0–1.0 (placeholder for future interaction count)
+  strength: number; // 0.0–1.0; accepted=1.0, pending=0.4 (extendable with interaction count)
 }
 
 export interface SocialGraph {
