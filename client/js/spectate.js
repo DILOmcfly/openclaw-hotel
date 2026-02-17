@@ -72,6 +72,9 @@ function loadPixiJS() {
     function getRoomTheme() {
       return ROOM_THEMES[currentRoomName] || DEFAULT_THEME;
     }
+
+    // Clamp coordinates to room grid bounds
+    function clampCoord(v) { return Math.max(0, Math.min(ROOM_SIZE - 1, v)); }
     let selectedAgent = null;
 
     // FPS tracking & throttling
@@ -1260,6 +1263,10 @@ function loadPixiJS() {
           if (Math.abs(agent.x - agent.targetX) < 0.01) agent.x = agent.targetX;
           if (Math.abs(agent.y - agent.targetY) < 0.01) agent.y = agent.targetY;
 
+          // Clamp to room bounds — agents must stay on the grid
+          agent.x = Math.max(0, Math.min(ROOM_SIZE - 1, agent.x));
+          agent.y = Math.max(0, Math.min(ROOM_SIZE - 1, agent.y));
+
           // Update sprite position
           if (agent.sprite) {
             const { sx, sy } = isoToScreen(agent.x, agent.y);
@@ -1590,8 +1597,8 @@ function loadPixiJS() {
 
         if (data.agents && data.agents.length > 0) {
           for (const a of data.agents) {
-            const x = a.x ?? Math.floor(Math.random() * 10) + 1;
-            const y = a.y ?? Math.floor(Math.random() * 10) + 1;
+            const x = clampCoord(a.x ?? Math.floor(Math.random() * 10) + 1);
+            const y = clampCoord(a.y ?? Math.floor(Math.random() * 10) + 1);
             agents.set(a.id, {
               id: a.id,
               name: a.displayName || 'Agent',
@@ -1823,8 +1830,8 @@ function loadPixiJS() {
           if (msg.agents) {
             agents.clear();
             for (const a of msg.agents) {
-              const x = a.x || Math.floor(Math.random() * 12) + 2;
-              const y = a.y || Math.floor(Math.random() * 12) + 2;
+              const x = clampCoord(a.x || Math.floor(Math.random() * 12) + 2);
+              const y = clampCoord(a.y || Math.floor(Math.random() * 12) + 2);
               agents.set(a.id, {
                 id: a.id,
                 name: a.displayName || a.name || 'Agent',
@@ -1845,8 +1852,8 @@ function loadPixiJS() {
           break;
 
         case 'agent.join':
-          const x = msg.x || Math.floor(Math.random() * 10) + 1;
-          const y = msg.y || Math.floor(Math.random() * 10) + 1;
+          const x = clampCoord(msg.x || Math.floor(Math.random() * 10) + 1);
+          const y = clampCoord(msg.y || Math.floor(Math.random() * 10) + 1);
           agents.set(msg.agentId, {
             id: msg.agentId,
             name: msg.displayName || 'Agent',
@@ -1871,8 +1878,8 @@ function loadPixiJS() {
           const joinAgentId = msg.agentId || (msg.agent && msg.agent.id);
           if (!joinAgentId) break;
           const joinName = msg.displayName || (msg.agent && msg.agent.name) || 'Agent';
-          const joinX = msg.x ?? (msg.agent && msg.agent.x) ?? (Math.floor(Math.random() * 10) + 1);
-          const joinY = msg.y ?? (msg.agent && msg.agent.y) ?? (Math.floor(Math.random() * 10) + 1);
+          const joinX = clampCoord(msg.x ?? (msg.agent && msg.agent.x) ?? (Math.floor(Math.random() * 10) + 1));
+          const joinY = clampCoord(msg.y ?? (msg.agent && msg.agent.y) ?? (Math.floor(Math.random() * 10) + 1));
           agents.set(joinAgentId, {
             id: joinAgentId,
             name: joinName,
@@ -1928,8 +1935,8 @@ function loadPixiJS() {
             // Check if this is actual movement (not just rotation)
             const hasMoved = mover.targetX !== msg.x || mover.targetY !== msg.y;
             
-            mover.targetX = msg.x;
-            mover.targetY = msg.y;
+            mover.targetX = clampCoord(msg.x);
+            mover.targetY = clampCoord(msg.y);
             mover.direction = msg.rotation || msg.direction || mover.direction;
             
             // Play whoosh sound on movement
