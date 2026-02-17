@@ -31,7 +31,9 @@ export type LiveEventType =
   | 'room_enter'
   | 'room_leave'
   | 'furniture_use'
-  | 'game_invite';
+  | 'game_invite'
+  | 'wander'
+  | 'dance';
 
 const MAX_EVENTS = 50;
 const liveEvents: LiveEvent[] = [];
@@ -83,6 +85,8 @@ export const EVENT_ICONS: Record<LiveEventType, string> = {
   room_leave:    '👋',
   furniture_use: '🪑',
   game_invite:   '🎮',
+  wander:        '🚶',
+  dance:         '💃',
 };
 
 /**
