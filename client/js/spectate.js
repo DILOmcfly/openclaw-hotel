@@ -120,6 +120,7 @@ function loadPixiJS() {
     let floorContainer = null;
     let wallContainer = null;
     let contentContainer = null; // Furniture + agents (sorted by depth)
+    let tooltipContainer = null; // T-341: shared hover tooltip (stage-level)
 
     // Tile dimensions (isometric)
     const TILE_W = 64;
@@ -559,13 +560,26 @@ function loadPixiJS() {
       container.addChild(tagBg);
       container.addChild(nameText);
 
-      // Make agent clickable
+      // Make agent clickable + hoverable
       container.interactive = true;
       container.buttonMode = true;
       container.cursor = 'pointer';
       container.on('pointerdown', () => {
         showAgentInfo(agent.id);
       });
+
+      // T-341: Hover tooltip
+      container.on('pointerover', (e) => {
+        const pos = e.data.global;
+        showTooltip(agent, pos.x, pos.y);
+      });
+      container.on('pointermove', (e) => {
+        if (tooltipContainer && tooltipContainer.visible) {
+          const pos = e.data.global;
+          showTooltip(agent, pos.x, pos.y);
+        }
+      });
+      container.on('pointerout', () => hideTooltip());
 
       return container;
     }
@@ -660,6 +674,83 @@ function loadPixiJS() {
       ticker.add(onTick);
     }
 
+    // ===== AGENT HOVER TOOLTIP (T-341) =====
+    const MOOD_EMOJIS = {
+      happy: '😊', excited: '🤩', curious: '🤔', bored: '😑',
+      sad: '😢', angry: '😠', playful: '😄', calm: '😌', neutral: '😐',
+    };
+
+    /** Build/rebuild the shared tooltip graphics for a given agent */
+    function buildTooltip(agent) {
+      if (!tooltipContainer) return;
+      tooltipContainer.removeChildren();
+
+      const mood = agent.mood || 'neutral';
+      const moodEmoji = MOOD_EMOJIS[mood] || '😐';
+      const statusIcon = agent.status && AGENT_STATUS_ICONS[agent.status]
+        ? AGENT_STATUS_ICONS[agent.status] + ' '
+        : '';
+      const lastMsg = agent.lastMessage
+        ? (agent.lastMessage.length > 40 ? agent.lastMessage.slice(0, 40) + '…' : agent.lastMessage)
+        : null;
+
+      // Build text lines
+      const lines = [
+        `${moodEmoji} ${agent.name}`,
+        ...(agent.status ? [`${statusIcon}${agent.status}`] : []),
+        ...(lastMsg ? [`💬 "${lastMsg}"`] : []),
+      ];
+
+      const PAD = 8;
+      const LINE_H = 18;
+      const tooltipW = 200;
+      const tooltipH = lines.length * LINE_H + PAD * 2;
+
+      // Background
+      const bg = new PIXI.Graphics();
+      bg.beginFill(0x1a1a2e, 0.92);
+      bg.lineStyle(1, 0x4a90e2, 0.8);
+      bg.drawRoundedRect(0, 0, tooltipW, tooltipH, 6);
+      bg.endFill();
+      tooltipContainer.addChild(bg);
+
+      // Text lines
+      lines.forEach((line, i) => {
+        const t = new PIXI.Text(line, {
+          fontFamily: '"Courier New", monospace',
+          fontSize: i === 0 ? 13 : 11,
+          fontWeight: i === 0 ? 'bold' : 'normal',
+          fill: i === 0 ? 0xffffff : 0xbbbbcc,
+          wordWrap: true,
+          wordWrapWidth: tooltipW - PAD * 2,
+        });
+        t.position.set(PAD, PAD + i * LINE_H);
+        tooltipContainer.addChild(t);
+      });
+    }
+
+    /** Show tooltip for an agent sprite at given canvas coords */
+    function showTooltip(agent, canvasX, canvasY) {
+      if (!tooltipContainer || !window.PIXI) return;
+      buildTooltip(agent);
+      // Position: offset slightly above-right of cursor
+      const W = 210;
+      const H = tooltipContainer.height || 60;
+      const stageW = app ? app.renderer.width / (window.devicePixelRatio || 1) : 800;
+      const stageH = app ? app.renderer.height / (window.devicePixelRatio || 1) : 600;
+      let tx = canvasX + 12;
+      let ty = canvasY - H - 8;
+      if (tx + W > stageW) tx = canvasX - W - 12;
+      if (ty < 0) ty = canvasY + 12;
+      tooltipContainer.position.set(tx, ty);
+      tooltipContainer.visible = true;
+    }
+
+    /** Hide the tooltip */
+    function hideTooltip() {
+      if (tooltipContainer) tooltipContainer.visible = false;
+    }
+
     // ===== ROOM RENDERING =====
     function initPixiApp() {
       const container = document.getElementById('isoCanvas');
@@ -690,6 +781,12 @@ function loadPixiJS() {
       worldContainer.addChild(wallContainer);
       worldContainer.addChild(contentContainer);
       app.stage.addChild(worldContainer);
+
+      // T-341: Tooltip container — stage-level so it's always on top
+      tooltipContainer = new PIXI.Container();
+      tooltipContainer.visible = false;
+      tooltipContainer.zIndex = 99999;
+      app.stage.addChild(tooltipContainer);
 
       // Apply initial zoom and pan
       worldContainer.scale.set(currentZoom);
@@ -1117,9 +1214,11 @@ function loadPixiJS() {
       // Wait for transition to complete (400ms)
       setTimeout(() => {
         if (ws) { ws.close(); ws = null; }
+        hideTooltip(); // T-341: hide any visible tooltip
         if (app) {
           app.destroy(true, { children: true, texture: true });
           app = null;
+          tooltipContainer = null; // T-341: reset tooltip ref
         }
         currentRoomId = null;
         agents.clear();
