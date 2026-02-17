@@ -87,7 +87,7 @@ function loadPixiJS() {
     const particles = []; // Active particle objects
     let particleContainer = null; // PIXI.Container for particles (added to worldContainer)
     const MAX_PARTICLES = isMobile ? 25 : 60;
-    const PARTICLE_SPAWN_RATE = isMobile ? 0.35 : 0.7; // particles per frame (fractional)
+    const PARTICLE_SPAWN_RATE = isMobile ? 0 : 0.7; // Disabled on mobile — confusing dots
 
     // ===== UI STATE HELPERS =====
     function showLoading(text = 'Loading...', subtext = 'Please wait') {
@@ -1421,7 +1421,7 @@ function loadPixiJS() {
       const name = room.name.toLowerCase();
       if (name.includes('arena') || name.includes('large')) return '14×14';
       if (name.includes('chill') || name.includes('small')) return '10×10';
-      return '12×12'; // Default
+      return `${ROOM_SIZE}×${ROOM_SIZE}`; // Match actual grid size
     }
 
     function renderRoomList(rooms) {
@@ -2115,6 +2115,62 @@ function loadPixiJS() {
       // Load leaderboard on tab open (T-346)
       if (tab === 'leaderboard') {
         loadLeaderboard();
+      }
+      // Load sidebar rooms on tab open (T-350)
+      if (tab === 'rooms') {
+        loadSidebarRooms();
+      }
+    }
+
+    // ===== SIDEBAR ROOMS (T-350) =====
+    async function loadSidebarRooms() {
+      const list = document.getElementById('sidebarRoomsList');
+      const refreshBtn = document.querySelector('.sidebar-rooms-refresh');
+      if (!list) return;
+
+      if (refreshBtn) {
+        refreshBtn.classList.add('spinning');
+        setTimeout(() => refreshBtn.classList.remove('spinning'), 500);
+      }
+
+      list.innerHTML = '<div class="sidebar-rooms-loading">Loading rooms…</div>';
+
+      try {
+        const res = await fetch(`${API}/api/spectate/rooms`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const rooms = data.rooms || [];
+
+        if (rooms.length === 0) {
+          list.innerHTML = '<div class="sidebar-rooms-empty">No rooms available yet 🏨</div>';
+          return;
+        }
+
+        list.innerHTML = rooms.map(room => {
+          const isCurrent = room.id === currentRoomId;
+          const icon = getRoomIcon(room.name);
+          const agentCount = room.agentCount ?? room.agents ?? 0;
+          const capacity = room.capacity ?? '?';
+          return `
+            <div class="sidebar-room-row${isCurrent ? ' current-room' : ''}"
+                 onclick="${isCurrent ? '' : `enterRoom('${room.id.replace(/'/g,"\\'")}', '${room.name.replace(/'/g,"\\'")}')`}"
+                 title="${isCurrent ? 'You are here' : 'Switch to ' + room.name}">
+              <span class="sidebar-room-icon">${icon}</span>
+              <div class="sidebar-room-info">
+                <div class="sidebar-room-name">${escapeHtml(room.name)}</div>
+                <div class="sidebar-room-meta">
+                  <span class="sidebar-room-agents">🤖 ${agentCount}</span>
+                  <span>👁 ${room.spectatorCount ?? 0}</span>
+                  <span>${room.size ?? capacity}</span>
+                </div>
+              </div>
+              ${isCurrent ? '<span class="sidebar-room-current-tag">HERE</span>' : ''}
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        console.error('[Sidebar Rooms] Failed:', err);
+        list.innerHTML = '<div class="sidebar-rooms-error">⚠️ Failed to load rooms</div>';
       }
     }
 
@@ -2857,45 +2913,10 @@ function loadPixiJS() {
         }
       }, { passive: true });
 
-      container.addEventListener('touchend', (e) => {
-        // Detect swipe for room navigation
-        if (e.changedTouches.length === 1) {
-          const endX = e.changedTouches[0].clientX;
-          const swipeDist = endX - swipeStartX;
-          
-          if (Math.abs(swipeDist) > 100 && currentRoomId && roomsList.length > 1) {
-            // Find current room index
-            const currentIndex = roomsList.findIndex(r => r.id === currentRoomId);
-            if (currentIndex !== -1) {
-              let nextIndex;
-              if (swipeDist > 0) {
-                // Swipe right → previous room
-                nextIndex = currentIndex === 0 ? roomsList.length - 1 : currentIndex - 1;
-              } else {
-                // Swipe left → next room
-                nextIndex = currentIndex === roomsList.length - 1 ? 0 : currentIndex + 1;
-              }
-              
-              const nextRoom = roomsList[nextIndex];
-              console.log('[Touch] Swipe navigation:', nextRoom.name);
-              leaveRoom();
-              setTimeout(() => {
-                enterRoom(nextRoom.id, nextRoom.name);
-              }, 450); // Wait for fade-out transition
-            }
-          }
-        }
-      }, { passive: true });
+      // Swipe-to-change-room REMOVED: conflicted with pan gesture.
+      // Users can tap "back" button to return to room list instead.
 
-      // Double-tap to toggle FPS
-      let lastTap = 0;
-      container.addEventListener('touchend', (e) => {
-        const now = Date.now();
-        if (now - lastTap < 300) {
-          toggleFPS();
-        }
-        lastTap = now;
-      }, { passive: true });
+      // Double-tap FPS toggle REMOVED: confusing on mobile, FPS counter hidden anyway.
     }
 
     // ===== MOBILE UI HELPERS =====
