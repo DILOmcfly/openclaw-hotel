@@ -1164,11 +1164,37 @@ export async function tick(
     const profile = getOrCreateProfile(agentId);
     const moodEmoji = getMoodEmoji(profile.mood.current_mood);
 
-    const success = await executeAction(agentId, roomId, action, personality, sql, broadcast, context);
+    let success = false;
+    try {
+      success = await executeAction(agentId, roomId, action, personality, sql, broadcast, context);
+    } catch (execErr) {
+      console.error(`[Simulation] executeAction threw for ${personality.name}/${action}:`, execErr);
+      // Still add a live event so the feed isn't empty
+      addLiveEvent({
+        type: action === 'chat' ? 'chat' : action === 'dance' ? 'dance' : action === 'wander' ? 'wander' : 'emote',
+        roomId,
+        agentId,
+        agentName: personality.name,
+        icon: action === 'chat' ? '💬' : action === 'dance' ? '💃' : '🚶',
+        message: `${personality.name} tried to ${action} (recovering...)`,
+      });
+    }
     if (success) {
       actionsExecuted++;
       recordAction(agentId);
       
+      // Catch-all live event for actions not already tracked
+      if (!['chat', 'dance', 'emote'].includes(action)) {
+        addLiveEvent({
+          type: action === 'wander' ? 'wander' : 'emote',
+          roomId,
+          agentId,
+          agentName: personality.name,
+          icon: moodEmoji,
+          message: `${personality.name} is ${action === 'wander' ? 'exploring' : action === 'move' ? 'moving around' : action === 'follow' ? 'following someone' : action === 'idle' ? 'relaxing' : action}`,
+        });
+      }
+
       // Log personality-driven decision
       console.log(`[Simulation] ${moodEmoji} ${personality.name} → ${action} (${reason})`);
       
