@@ -235,16 +235,20 @@ async function decideBehaviorProbabilistic(
   const roomTheme = await getRoomTheme(roomId, sql);
 
   // Probability distribution (must sum to 100%)
+  // chat is the most visible action for spectators — given highest weight
   const rand = Math.random() * 100;
   
   if (rand < 5) {
     // 5% idle
     return { action: 'idle', reason: 'Taking a break' };
-  } else if (rand < 45) {
-    // 40% wander
-    return { action: 'wander', reason: 'Exploring the room' };
+  } else if (rand < 35) {
+    // 30% chat — most important for spectator visibility
+    return { action: 'chat', reason: 'Feeling chatty' };
   } else if (rand < 55) {
-    // 10% follow
+    // 20% wander (was 40%, reduced to make room for chat)
+    return { action: 'wander', reason: 'Exploring the room' };
+  } else if (rand < 63) {
+    // 8% follow
     if (nearbyAgents.length > 0) {
       const target = nearbyAgents[Math.floor(Math.random() * nearbyAgents.length)];
       return { 
@@ -255,11 +259,11 @@ async function decideBehaviorProbabilistic(
     }
     // Fallback to wander if no agents nearby
     return { action: 'wander', reason: 'Looking for someone to follow' };
-  } else if (rand < 60) {
+  } else if (rand < 68) {
     // 5% dance
     return { action: 'dance', reason: 'Feeling the music' };
-  } else if (rand < 75) {
-    // 15% useFurniture
+  } else if (rand < 78) {
+    // 10% useFurniture (was 15%)
     if (nearbyFurniture.length > 0) {
       const furniture = nearbyFurniture[Math.floor(Math.random() * nearbyFurniture.length)];
       return { 
@@ -270,8 +274,8 @@ async function decideBehaviorProbabilistic(
     }
     // Fallback to wander if no furniture nearby
     return { action: 'wander', reason: 'Looking for furniture to use' };
-  } else if (rand < 85) {
-    // 10% playGame
+  } else if (rand < 86) {
+    // 8% playGame (was 10%)
     if (nearbyAgents.length > 0) {
       const opponent = nearbyAgents[Math.floor(Math.random() * nearbyAgents.length)];
       return { 
@@ -280,10 +284,10 @@ async function decideBehaviorProbabilistic(
         context: { opponent }
       };
     }
-    // Fallback to idle if no agents nearby
-    return { action: 'idle', reason: 'No one to play with' };
-  } else if (rand < 95) {
-    // 10% tradeItem
+    // Fallback to chat if no agents nearby
+    return { action: 'chat', reason: 'No one to play with, chatting instead' };
+  } else if (rand < 93) {
+    // 7% tradeItem (was 10%)
     if (nearbyAgents.length > 0) {
       const tradingPartner = nearbyAgents[Math.floor(Math.random() * nearbyAgents.length)];
       return { 
@@ -292,10 +296,10 @@ async function decideBehaviorProbabilistic(
         context: { tradingPartner }
       };
     }
-    // Fallback to idle if no agents nearby
-    return { action: 'idle', reason: 'No one to trade with' };
+    // Fallback to chat if no agents nearby
+    return { action: 'chat', reason: 'No one to trade with, chatting instead' };
   } else {
-    // 5% emoteReact
+    // 7% emoteReact (was 5%)
     if (nearbyAgents.length > 0) {
       return { 
         action: 'emoteReact', 
@@ -478,14 +482,14 @@ async function executeAction(
           WHERE agent_id = ${agentId}::uuid AND room_id = ${roomId}::uuid
         `;
 
-        // Broadcast movement
+        // Broadcast movement — type must match client handler ('agent.moved')
         broadcast(roomId, {
-          type: 'move',
+          type: 'agent.moved',
           agentId,
           x,
           y,
           rotation: 0,
-        });
+        } as any);
 
         // Add memory of movement (graceful degradation)
         try {
@@ -522,14 +526,18 @@ async function executeAction(
           console.log(`[Simulation] 🤖 LLM message from ${personality.name}: "${result.message}"`);
         }
 
-        // Broadcast chat
+        // Broadcast chat — type 'message.new' matches client handler;
+        // include displayName + content so spectate.js renders bubble & chat panel
         broadcast(roomId, {
-          type: 'chat',
+          type: 'message.new',
           agentId,
-          sender: personality.name,
-          message: result.message,
+          displayName: personality.name,
+          content: result.message,
+          message: result.message,   // alias kept for ticker hook
           timestamp: new Date().toISOString(),
-        });
+          roomId,
+          signature: '',
+        } as any);
 
         // T-346: Capture chat in global live events (1 in 4 to avoid noise)
         if (Math.random() < 0.25) {
@@ -638,12 +646,12 @@ async function executeAction(
         `;
 
         broadcast(roomId, {
-          type: 'move',
+          type: 'agent.moved',
           agentId,
           x,
           y,
           rotation: 0,
-        });
+        } as any);
 
         try {
           await addMemory(
@@ -677,12 +685,12 @@ async function executeAction(
         `;
 
         broadcast(roomId, {
-          type: 'move',
+          type: 'agent.moved',
           agentId,
           x: targetX,
           y: targetY,
           rotation: 0,
-        });
+        } as any);
 
         try {
           await addMemory(

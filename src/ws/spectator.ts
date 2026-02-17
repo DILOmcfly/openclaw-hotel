@@ -2,6 +2,7 @@ import type { IncomingMessage, Server } from 'node:http';
 import WebSocket, { WebSocketServer } from 'ws';
 import { roomMembers, broadcastToRoom } from './handler.js';
 import type { ServerMessage } from './protocol.js';
+import { sql } from '../db/index.js';
 
 // Track spectators per room
 export const spectatorsByRoom = new Map<string, Set<WebSocket>>();
@@ -241,7 +242,7 @@ export function setupSpectatorWebSocket(server: Server): void {
     });
 
     // Handle spectator messages
-    ws.on('message', (rawData) => {
+    ws.on('message', async (rawData) => {
       const data = typeof rawData === 'string' ? rawData : rawData.toString();
       
       try {
@@ -253,23 +254,54 @@ export function setupSpectatorWebSocket(server: Server): void {
             serverTime: new Date().toISOString(),
           });
         } else if (msg.type === 'requestState') {
-          // Send current room state to spectator
-          const agents = roomMembers.get(roomId);
-          if (agents) {
-            const agentList = Array.from(agents.entries()).map(([agentId, data]) => ({
-              id: agentId,
-              displayName: (data as any).displayName || 'Agent',
-              x: (data as any).x || 0,
-              y: (data as any).y || 0,
-              direction: (data as any).direction || 0,
+          // Send current room state to spectator.
+          // Query the presence DB table so simulation agents (who are not
+          // WebSocket-connected and thus absent from roomMembers) are included.
+          try {
+            const presenceRows = await sql`
+              SELECT
+                p.agent_id::text   AS "agentId",
+                a.display_name     AS "displayName",
+                p.x,
+                p.y
+              FROM presence p
+              LEFT JOIN agents a ON a.id = p.agent_id
+              WHERE p.room_id = ${roomId}::uuid
+            `;
+
+            const agentList = presenceRows.map((row: any) => ({
+              id: row.agentId,
+              displayName: row.displayName || 'Agent',
+              x: row.x ?? 0,
+              y: row.y ?? 0,
+              direction: 0,
             }));
-            
+
             sendToSpectator(ws, {
               type: 'room.state',
               roomId,
               agents: agentList,
               spectatorCount: getSpectatorCount(roomId),
             } as any);
+          } catch (err) {
+            console.error('[Spectator] requestState DB query failed:', err);
+            // Fallback to in-memory roomMembers if DB fails
+            const agents = roomMembers.get(roomId);
+            if (agents) {
+              const agentList = Array.from(agents.entries()).map(([agentId, data]) => ({
+                id: agentId,
+                displayName: (data as any).displayName || 'Agent',
+                x: (data as any).x || 0,
+                y: (data as any).y || 0,
+                direction: (data as any).direction || 0,
+              }));
+              sendToSpectator(ws, {
+                type: 'room.state',
+                roomId,
+                agents: agentList,
+                spectatorCount: getSpectatorCount(roomId),
+              } as any);
+            }
           }
         } else if (msg.type === 'spectator.setUsername') {
           // Set spectator username (sanitize)
