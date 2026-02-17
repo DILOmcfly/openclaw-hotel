@@ -607,6 +607,59 @@ function loadPixiJS() {
       return container;
     }
 
+    // ===== EMOTE VISUAL EFFECTS (T-338) =====
+    const EMOTE_EMOJI_MAP = {
+      dance: '💃', wave: '👋', laugh: '😂', clap: '👏',
+      sad: '😢', angry: '😠', love: '❤️', cool: '😎',
+      happy: '😊', wink: '😉', surprised: '😲', think: '🤔',
+    };
+
+    function getEmoteEmoji(emote) {
+      if (!emote) return '✨';
+      const lower = String(emote).toLowerCase();
+      return EMOTE_EMOJI_MAP[lower] || '✨';
+    }
+
+    /**
+     * Show a floating emoji above an agent sprite (T-338)
+     * @param {Object} agentObj - agent entry from agents Map
+     * @param {string} emote    - emote name (e.g. 'dance', 'wave')
+     */
+    function showEmoteEffect(agentObj, emote) {
+      if (!window.PIXI || !contentContainer || !agentObj || !agentObj.sprite) return;
+
+      const emoji = getEmoteEmoji(emote);
+
+      // Create floating text
+      const fx = new PIXI.Text(emoji, { fontSize: 22, fontFamily: 'sans-serif' });
+      fx.anchor.set(0.5, 1);
+      // Position above the agent head (y offset ~-80px from sprite centre)
+      fx.position.set(agentObj.sprite.x, agentObj.sprite.y - 80);
+      fx.alpha = 1;
+      fx.zIndex = 9999;
+      contentContainer.addChild(fx);
+
+      // Animate: float up + fade over 1.8s using PIXI.Ticker
+      let elapsed = 0;
+      const DURATION = 1800; // ms
+      const RISE = 45; // px to rise
+      const startY = fx.position.y;
+
+      const ticker = PIXI.Ticker.shared;
+      function onTick(delta) {
+        elapsed += delta * (1000 / 60); // approx ms (60fps base)
+        const t = Math.min(elapsed / DURATION, 1);
+        fx.position.y = startY - RISE * t;
+        fx.alpha = 1 - t;
+        if (t >= 1) {
+          ticker.remove(onTick);
+          if (fx.parent) fx.parent.removeChild(fx);
+          fx.destroy();
+        }
+      }
+      ticker.add(onTick);
+    }
+
     // ===== ROOM RENDERING =====
     function initPixiApp() {
       const container = document.getElementById('isoCanvas');
@@ -1345,10 +1398,16 @@ function loadPixiJS() {
 
         case 'emote': {
           const emoteAgent = agents.get(msg.agentId);
+          const emoteValue = msg.emote || msg.action;
+          // Activity feed entry
           addActivityEvent('emote', msg.agentId, {
             agentName: msg.displayName || emoteAgent?.name,
-            emote: msg.emote || msg.action,
+            emote: emoteValue,
           });
+          // Visual floating emoji above sprite (T-338)
+          if (emoteAgent) {
+            showEmoteEffect(emoteAgent, emoteValue);
+          }
           break;
         }
 
