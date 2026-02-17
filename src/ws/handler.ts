@@ -143,8 +143,7 @@ export function broadcastToRoom(
 ): void {
   // Always broadcast to spectators first — they watch even simulation-only rooms
   // where no real WebSocket agents are connected.
-  const { broadcastToSpectators } = require('./spectator.js');
-  broadcastToSpectators(roomId, message);
+  import('./spectator.js').then(mod => mod.broadcastToSpectators(roomId, message)).catch(() => {});
 
   const members = roomMembers.get(roomId);
   if (!members || members.size === 0) {
