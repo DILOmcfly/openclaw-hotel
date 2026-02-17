@@ -523,7 +523,13 @@ async function executeAction(
       }
 
       case 'chat': {
-        const result = await generateChatMessage(agentId, personality, roomId, sql);
+        let result: { message: string; source: 'llm' | 'fallback' };
+        try {
+          result = await generateChatMessage(agentId, personality, roomId, sql);
+        } catch (chatErr) {
+          console.error(`[Simulation] Chat generation failed for ${personality.name}:`, chatErr);
+          result = { message: `Hello from ${personality.name}!`, source: 'fallback' };
+        }
         const nearbyAgents = await getNearbyAgents(agentId, roomId, sql);
 
         // Log LLM usage
@@ -544,8 +550,8 @@ async function executeAction(
           signature: '',
         } as any);
 
-        // T-346: Capture chat in global live events (1 in 4 to avoid noise)
-        if (Math.random() < 0.25) {
+        // T-346: Capture chat in global live events (1 in 2)
+        if (Math.random() < 0.5) {
           addLiveEvent({
             type: 'chat',
             roomId,
