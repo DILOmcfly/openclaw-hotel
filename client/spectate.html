@@ -2129,11 +2129,20 @@
         font-size: 12px;
       }
 
-      /* Mobile: help/feedback buttons smaller */
-      #helpButton, #feedbackButton {
-        width: 40px;
-        height: 40px;
-        font-size: 16px;
+      /* Mobile: hide help/feedback — they clutter the view */
+      #helpButton, #feedbackButton, #feedbackModal {
+        display: none !important;
+      }
+
+      /* Mobile: agent profile as bottom sheet, not floating panel */
+      #agentProfile {
+        width: 100% !important;
+        right: 0 !important;
+        left: 0 !important;
+        top: auto !important;
+        bottom: 0 !important;
+        max-height: 60vh;
+        border-radius: 16px 16px 0 0;
       }
     }
 

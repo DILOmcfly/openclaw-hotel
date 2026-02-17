@@ -3649,6 +3649,12 @@ function loadPixiJS() {
     fetchStats();
     checkFirstVisit(); // Check if we should show onboarding
 
+    // Retry after cold start (Render free tier sleeps after inactivity)
+    setTimeout(fetchRooms, 3000);
+    setTimeout(fetchStats, 3000);
+    setTimeout(fetchRooms, 8000);
+    setTimeout(fetchStats, 8000);
+
     setInterval(fetchStats, 10000);
     setInterval(() => { if (!currentRoomId) fetchRooms(); }, 15000);
 
