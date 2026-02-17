@@ -1138,6 +1138,19 @@ export async function tick(
   const agents = await getActiveAgents(sql);
   let actionsExecuted = 0;
 
+  // Debug: track tick execution in live events (every 3rd tick)
+  metrics.totalTicks++;
+  if (metrics.totalTicks % 3 === 0) {
+    addLiveEvent({
+      type: 'emote',
+      roomId: 'system',
+      agentId: 'system',
+      agentName: 'Hotel',
+      icon: '⚡',
+      message: `Tick #${metrics.totalTicks} — ${agents.length} agents active`,
+    });
+  }
+
   // ── Room wandering: every WANDER_EVERY_N_TICKS ticks, agents may roam ──
   simulationTickCount++;
   if (simulationTickCount % WANDER_EVERY_N_TICKS === 0) {

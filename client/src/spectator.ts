@@ -649,3 +649,253 @@ setInterval(() => {
     fetchRooms();
   }
 }, 10000);
+
+// ── T-349: Social Graph Overlay ───────────────────────────────────────────────
+
+interface SgNode { id: string; displayName: string; color: string; }
+interface SgEdge { source: string; target: string; status: 'accepted' | 'pending'; strength: number; }
+interface SgGraph { roomId: string; nodes: SgNode[]; edges: SgEdge[]; generatedAt: string; }
+
+// DOM refs
+const socialGraphPanel = document.getElementById('socialGraphPanel') as HTMLElement | null;
+const socialGraphSvg   = document.getElementById('socialGraphSvg')   as unknown as SVGSVGElement | null;
+const sgStatus         = document.getElementById('sgStatus')          as HTMLElement | null;
+const sgHeader         = document.getElementById('sgHeader')          as HTMLElement | null;
+
+// State
+let sgInterval: ReturnType<typeof setInterval> | null = null;
+let sgCollapsed = false;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const W = 196, H = 180; // viewBox dimensions
+
+/** Simple force-directed layout — spring/repulsion iterations */
+function layoutNodes(nodes: SgNode[]): Map<string, { x: number; y: number }> {
+  const pos = new Map<string, { x: number; y: number }>();
+  if (nodes.length === 0) return pos;
+
+  // Initial positions: evenly spaced on a circle
+  const cx = W / 2, cy = H / 2;
+  const r  = Math.min(cx, cy) * 0.7;
+  nodes.forEach((n, i) => {
+    const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
+    pos.set(n.id, { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+  });
+
+  // For small sets (1 or 2 nodes) no layout needed
+  if (nodes.length <= 2) return pos;
+
+  // Very small iteration count — this is a UI widget, not a physics engine
+  const ITERS = 30;
+  const REPULSE = 1800;
+  const SPRING_LEN = 70;
+  const SPRING_K = 0.04;
+
+  for (let iter = 0; iter < ITERS; iter++) {
+    const forces = new Map<string, { fx: number; fy: number }>();
+    for (const n of nodes) forces.set(n.id, { fx: 0, fy: 0 });
+
+    // Repulsion between all pairs
+    for (let a = 0; a < nodes.length; a++) {
+      for (let b = a + 1; b < nodes.length; b++) {
+        const pa = pos.get(nodes[a].id)!;
+        const pb = pos.get(nodes[b].id)!;
+        const dx = pb.x - pa.x, dy = pb.y - pa.y;
+        const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+        const f = REPULSE / (dist * dist);
+        const fx = (dx / dist) * f, fy = (dy / dist) * f;
+        forces.get(nodes[a].id)!.fx -= fx;
+        forces.get(nodes[a].id)!.fy -= fy;
+        forces.get(nodes[b].id)!.fx += fx;
+        forces.get(nodes[b].id)!.fy += fy;
+      }
+    }
+
+    // Spring attraction along accepted edges
+    // (We don't have edges here — layout is position-only; edges passed separately)
+    // Centre gravity
+    for (const n of nodes) {
+      const p = pos.get(n.id)!;
+      forces.get(n.id)!.fx += (cx - p.x) * 0.01;
+      forces.get(n.id)!.fy += (cy - p.y) * 0.01;
+    }
+
+    // Apply forces
+    for (const n of nodes) {
+      const p  = pos.get(n.id)!;
+      const f  = forces.get(n.id)!;
+      const damping = 0.5;
+      pos.set(n.id, {
+        x: Math.max(12, Math.min(W - 12, p.x + f.fx * damping)),
+        y: Math.max(12, Math.min(H - 12, p.y + f.fy * damping)),
+      });
+    }
+  }
+
+  return pos;
+}
+
+/** Render a social graph into the SVG element */
+function renderSocialGraph(graph: SgGraph): void {
+  if (!socialGraphSvg) return;
+
+  // Clear
+  while (socialGraphSvg.firstChild) socialGraphSvg.removeChild(socialGraphSvg.firstChild);
+
+  if (graph.nodes.length === 0) {
+    const txt = document.createElementNS(SVG_NS, 'text');
+    txt.setAttribute('x', String(W / 2));
+    txt.setAttribute('y', String(H / 2));
+    txt.setAttribute('text-anchor', 'middle');
+    txt.setAttribute('font-size', '11');
+    txt.setAttribute('fill', 'rgba(255,255,255,0.25)');
+    txt.textContent = 'No agents in room';
+    socialGraphSvg.appendChild(txt);
+    return;
+  }
+
+  const pos = layoutNodes(graph.nodes);
+
+  // Draw edges first (behind nodes)
+  for (const edge of graph.edges) {
+    const pa = pos.get(edge.source);
+    const pb = pos.get(edge.target);
+    if (!pa || !pb) continue;
+
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('x1', String(pa.x));
+    line.setAttribute('y1', String(pa.y));
+    line.setAttribute('x2', String(pb.x));
+    line.setAttribute('y2', String(pb.y));
+
+    if (edge.status === 'accepted') {
+      line.setAttribute('stroke', 'rgba(97,218,251,0.7)');
+      line.setAttribute('stroke-width', String(1 + edge.strength));
+    } else {
+      line.setAttribute('stroke', 'rgba(255,180,50,0.4)');
+      line.setAttribute('stroke-width', '1');
+      line.setAttribute('stroke-dasharray', '4 3');
+    }
+    socialGraphSvg.appendChild(line);
+  }
+
+  // Draw nodes on top
+  for (const node of graph.nodes) {
+    const p = pos.get(node.id);
+    if (!p) continue;
+
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('class', 'sg-node');
+
+    // Outer glow ring
+    const glow = document.createElementNS(SVG_NS, 'circle');
+    glow.setAttribute('cx', String(p.x));
+    glow.setAttribute('cy', String(p.y));
+    glow.setAttribute('r', '10');
+    glow.setAttribute('fill', node.color);
+    glow.setAttribute('opacity', '0.2');
+    g.appendChild(glow);
+
+    // Main circle
+    const circle = document.createElementNS(SVG_NS, 'circle');
+    circle.setAttribute('cx', String(p.x));
+    circle.setAttribute('cy', String(p.y));
+    circle.setAttribute('r', '7');
+    circle.setAttribute('fill', node.color);
+    circle.setAttribute('stroke', 'rgba(255,255,255,0.6)');
+    circle.setAttribute('stroke-width', '1');
+    g.appendChild(circle);
+
+    // Name label (truncated)
+    const maxChars = 7;
+    const label = node.displayName.length > maxChars
+      ? node.displayName.slice(0, maxChars) + '…'
+      : node.displayName;
+
+    const text = document.createElementNS(SVG_NS, 'text');
+    text.setAttribute('x', String(p.x));
+    text.setAttribute('y', String(p.y + 18));
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('font-size', '8');
+    text.setAttribute('fill', 'rgba(255,255,255,0.7)');
+    text.textContent = label;
+    g.appendChild(text);
+
+    socialGraphSvg.appendChild(g);
+  }
+}
+
+/** Fetch social graph from server and render */
+async function fetchAndRenderSocialGraph(roomId: string): Promise<void> {
+  try {
+    const res = await fetch(`${API_BASE}/api/spectate/social-graph/${roomId}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const graph: SgGraph = await res.json();
+
+    renderSocialGraph(graph);
+
+    const friendCount = graph.edges.filter(e => e.status === 'accepted').length;
+    const pendingCount = graph.edges.filter(e => e.status === 'pending').length;
+    if (sgStatus) {
+      sgStatus.textContent = `${graph.nodes.length} agents · ${friendCount} bonds${pendingCount ? ` · ${pendingCount} pending` : ''}`;
+    }
+  } catch (err) {
+    console.warn('[SocialGraph] Fetch failed:', err);
+    if (sgStatus) sgStatus.textContent = 'Graph unavailable';
+  }
+}
+
+/** Show the social graph panel for a given room */
+function showSocialGraph(roomId: string): void {
+  if (!socialGraphPanel) return;
+  socialGraphPanel.classList.remove('hidden');
+  fetchAndRenderSocialGraph(roomId);
+  // Refresh every 30 seconds (agents enter/leave, friendships form)
+  if (sgInterval) clearInterval(sgInterval);
+  sgInterval = setInterval(() => {
+    if (currentRoom) fetchAndRenderSocialGraph(currentRoom);
+  }, 30_000);
+}
+
+/** Hide the social graph panel */
+function hideSocialGraph(): void {
+  if (!socialGraphPanel) return;
+  socialGraphPanel.classList.add('hidden');
+  if (sgInterval) { clearInterval(sgInterval); sgInterval = null; }
+}
+
+// Toggle collapse on header click
+sgHeader?.addEventListener('click', () => {
+  sgCollapsed = !sgCollapsed;
+  if (sgCollapsed) {
+    socialGraphPanel?.classList.add('collapsed');
+  } else {
+    socialGraphPanel?.classList.remove('collapsed');
+  }
+});
+
+// Hook into joinRoom/leaveRoom
+const _origJoinRoom = (window as any).__sgOrigJoinRoom;
+
+// Patch: watch currentRoom changes by observing the HUD
+// We use a MutationObserver on spectatorHUD visibility instead of patching joinRoom
+// (to avoid double-patching if this code runs after joinRoom is defined)
+const hudObserver = new MutationObserver(() => {
+  const hudVisible = spectatorHUD && !spectatorHUD.classList.contains('hidden');
+  if (hudVisible && currentRoom) {
+    showSocialGraph(currentRoom);
+  } else {
+    hideSocialGraph();
+  }
+});
+if (spectatorHUD) {
+  hudObserver.observe(spectatorHUD, { attributes: true, attributeFilter: ['class'] });
+}
+
+// Export for tests
+(window as any).socialGraph = {
+  layoutNodes,
+  renderSocialGraph,
+  fetchAndRenderSocialGraph,
+  showSocialGraph,
+  hideSocialGraph,
+};
