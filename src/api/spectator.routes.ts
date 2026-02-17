@@ -2,6 +2,7 @@ import express from 'express';
 import { sql } from '../db/index.js';
 import { roomMembers } from '../ws/handler.js';
 import { getSpectatorCount } from '../ws/spectator.js';
+import * as personalityService from '../services/personality.js';
 
 const router = express.Router();
 
@@ -197,6 +198,144 @@ router.get('/api/spectate/stats', async (_req, res) => {
     });
   } catch (error) {
     console.error('[Spectator API] Error getting stats:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/spectate/agents/:agentId
+ * Get a public profile snapshot for an agent (for spectator info panel)
+ * Returns: profile, personality, friends, recent activity — no auth required
+ * Data is intentionally limited for privacy (no whispers, no private data)
+ */
+router.get('/api/spectate/agents/:agentId', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+
+    // Validate agentId format (basic UUID check)
+    if (!/^[0-9a-f-]{36}$/i.test(agentId)) {
+      return res.status(400).json({ error: 'Invalid agent ID format' });
+    }
+
+    // --- 1. Basic Profile ---
+    const [agent] = await sql`
+      SELECT
+        a.id,
+        a.display_name     AS "displayName",
+        a.platform,
+        a.created_at       AS "createdAt",
+        ap.bio,
+        ap.avatar_url      AS "avatarUrl"
+      FROM agents a
+      LEFT JOIN agent_profiles ap ON ap.agent_id = a.id
+      WHERE a.id = ${agentId}::uuid
+    `.catch(() => []);
+
+    if (!agent) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    // --- 2. Personality (OCEAN traits + archetype) ---
+    let personality: Record<string, any> | null = null;
+    try {
+      const raw = await personalityService.getPersonality(agentId, sql);
+      if (raw) {
+        personality = {
+          ...raw,
+          archetype: personalityService.calculateArchetype(raw),
+        };
+      }
+    } catch { /* personality not available */ }
+
+    // --- 3. Mood (current status) ---
+    let mood: string | null = null;
+    try {
+      const [status] = await sql`
+        SELECT mood FROM agent_status WHERE agent_id = ${agentId}::uuid
+      `;
+      mood = status?.mood ?? null;
+    } catch { /* status table may not exist */ }
+
+    // --- 4. Friends (public count + top 3 names) ---
+    let friendsData: { count: number; topFriends: { id: string; name: string }[] } = {
+      count: 0,
+      topFriends: [],
+    };
+    try {
+      const friends = await sql`
+        SELECT
+          CASE WHEN f.agent_id = ${agentId}::uuid THEN f.friend_id ELSE f.agent_id END AS "friendId",
+          a.display_name AS "friendName"
+        FROM friends f
+        JOIN agents a ON a.id = CASE WHEN f.agent_id = ${agentId}::uuid THEN f.friend_id ELSE f.agent_id END
+        WHERE (f.agent_id = ${agentId}::uuid OR f.friend_id = ${agentId}::uuid)
+          AND f.status = 'accepted'
+        LIMIT 20
+      `;
+      friendsData = {
+        count: friends.length,
+        topFriends: friends.slice(0, 3).map((f: any) => ({
+          id: f.friendId,
+          name: f.friendName,
+        })),
+      };
+    } catch { /* friends table may not exist */ }
+
+    // --- 5. Recent Activity (last 5 public activities) ---
+    let recentActivity: { type: string; description: string; timestamp: string }[] = [];
+    try {
+      const logs = await sql`
+        SELECT
+          event_type  AS "eventType",
+          details,
+          created_at  AS "timestamp"
+        FROM activity_log
+        WHERE agent_id = ${agentId}::uuid
+          AND public = true
+        ORDER BY created_at DESC
+        LIMIT 5
+      `;
+      recentActivity = logs.map((log: any) => ({
+        type: log.eventType,
+        description: (log.details as any)?.description || log.eventType,
+        timestamp: log.timestamp,
+      }));
+    } catch { /* activity_log table may not exist or have different schema */ }
+
+    // --- 6. Stats (rooms visited, messages sent) ---
+    let stats: Record<string, number> = {};
+    try {
+      const [agentStats] = await sql`
+        SELECT
+          messages_sent   AS "messagesSent",
+          rooms_visited   AS "roomsVisited",
+          trades_completed AS "tradesCompleted",
+          games_won       AS "gamesWon",
+          friends_count   AS "friendsCount"
+        FROM agent_analytics
+        WHERE agent_id = ${agentId}::uuid
+      `;
+      if (agentStats) {
+        stats = agentStats;
+      }
+    } catch { /* analytics table may not exist */ }
+
+    res.json({
+      id: agent.id,
+      displayName: agent.displayName,
+      platform: agent.platform,
+      bio: agent.bio || null,
+      avatarUrl: agent.avatarUrl || null,
+      createdAt: agent.createdAt,
+      mood,
+      personality,
+      friends: friendsData,
+      recentActivity,
+      stats,
+    });
+
+  } catch (error) {
+    console.error('[Spectator API] Error fetching agent profile:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

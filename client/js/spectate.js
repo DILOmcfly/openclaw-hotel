@@ -1431,82 +1431,142 @@ function loadPixiJS() {
       document.getElementById('agentActivity').innerHTML = '<div class="loading-spinner-small"></div>';
 
       try {
-        // Fetch profile data (bio, display name)
-        const profileRes = await fetch(`${API}/api/agents/${agentId}/profile`);
-        const profileData = profileRes.ok ? await profileRes.json() : null;
-
-        // Fetch personality data (OCEAN traits + archetype)
-        const personalityRes = await fetch(`${API}/api/agents/${agentId}/personality`);
-        const personalityData = personalityRes.ok ? await personalityRes.json() : null;
-
-        // Fetch status/mood data
-        const statusRes = await fetch(`${API}/api/status/${agentId}`);
-        const statusData = statusRes.ok ? await statusRes.json() : null;
+        // Single unified spectator endpoint — no auth required, returns all public data
+        const profileRes = await fetch(`${API}/api/spectate/agents/${agentId}`);
+        if (!profileRes.ok) {
+          throw new Error(`Agent profile fetch failed: ${profileRes.status}`);
+        }
+        const data = await profileRes.json();
 
         // Update name with emoji based on personality archetype
-        const emoji = getArchetypeEmoji(personalityData?.archetype);
-        document.getElementById('agentInfoName').textContent = `${emoji} ${profileData?.displayName || agent.name}`;
+        const emoji = getArchetypeEmoji(data.personality?.archetype);
+        document.getElementById('agentInfoName').textContent = `${emoji} ${data.displayName || agent.name}`;
 
         // Update mood
-        const moodEmoji = getMoodEmoji(statusData?.mood || 'neutral');
-        const moodText = capitalize(statusData?.mood || 'Neutral');
+        const moodEmoji = getMoodEmoji(data.mood || 'neutral');
+        const moodText = capitalize(data.mood || 'Neutral');
         document.getElementById('moodEmoji').textContent = moodEmoji;
         document.getElementById('moodText').textContent = moodText;
 
-        // Update bio
-        document.getElementById('agentInfoBio').textContent = profileData?.bio || 'No bio available.';
+        // Update bio + platform badge
+        const platformBadge = data.platform ? `<span class="platform-badge">${data.platform}</span>` : '';
+        document.getElementById('agentInfoBio').innerHTML =
+          `${platformBadge}${escapeHtml(data.bio || 'No bio available.')}`;
 
         // Update personality traits (OCEAN)
-        if (personalityData) {
+        const pd = data.personality;
+        if (pd) {
           const traits = [
-            { name: 'Openness (Curiosity)', value: personalityData.curiosity || 50, key: 'curiosity' },
-            { name: 'Conscientiousness', value: 50, key: 'conscientiousness' }, // Not in DB, use default
-            { name: 'Extraversion (Sociability)', value: personalityData.sociability || 50, key: 'sociability' },
-            { name: 'Agreeableness (Generosity)', value: personalityData.generosity || 50, key: 'generosity' },
-            { name: 'Neuroticism (Volatility)', value: personalityData.volatility || 50, key: 'volatility' },
+            { name: 'Openness (Curiosity)',       value: pd.curiosity    || 50 },
+            { name: 'Conscientiousness',           value: pd.conscientiousness || 50 },
+            { name: 'Extraversion (Sociability)', value: pd.sociability  || 50 },
+            { name: 'Agreeableness (Generosity)', value: pd.generosity   || 50 },
+            { name: 'Neuroticism (Volatility)',   value: pd.volatility   || 50 },
           ];
 
           let traitsHtml = '';
           for (const trait of traits) {
+            const pct = Math.round(trait.value);
             traitsHtml += `
               <div class="personality-trait">
                 <div class="trait-label">
-                  <span>${trait.name}</span>
-                  <span>${trait.value}%</span>
+                  <span>${escapeHtml(trait.name)}</span>
+                  <span>${pct}%</span>
                 </div>
                 <div class="trait-bar">
-                  <div class="trait-fill" style="width: ${trait.value}%"></div>
+                  <div class="trait-fill" style="width: ${pct}%"></div>
                 </div>
               </div>
             `;
           }
+          if (pd.archetype) {
+            traitsHtml += `<div class="agent-archetype">Archetype: <strong>${escapeHtml(pd.archetype)}</strong></div>`;
+          }
           document.getElementById('personalityTraits').innerHTML = traitsHtml;
         } else {
-          document.getElementById('personalityTraits').innerHTML = '<div class="error-message">Personality data not available</div>';
+          document.getElementById('personalityTraits').innerHTML =
+            '<div style="color:#888;font-size:13px;">Personality data not available</div>';
         }
 
-        // Update relationships (placeholder - needs friends/relationships API)
-        // For now, show placeholder data
-        document.getElementById('agentRelationships').innerHTML = '<div style="color: #888; font-size: 13px;">No relationships data available for spectators</div>';
+        // Update relationships (real friends data from API)
+        const friends = data.friends;
+        if (friends && friends.count > 0) {
+          let friendsHtml = `<div class="friends-count">🤝 ${friends.count} friend${friends.count !== 1 ? 's' : ''}</div>`;
+          if (friends.topFriends && friends.topFriends.length > 0) {
+            friendsHtml += '<div class="friends-list">';
+            for (const f of friends.topFriends) {
+              friendsHtml += `<div class="friend-item">• ${escapeHtml(f.name)}</div>`;
+            }
+            if (friends.count > 3) {
+              friendsHtml += `<div class="friend-item" style="color:#888;">...and ${friends.count - 3} more</div>`;
+            }
+            friendsHtml += '</div>';
+          }
+          document.getElementById('agentRelationships').innerHTML = friendsHtml;
+        } else {
+          document.getElementById('agentRelationships').innerHTML =
+            '<div style="color:#888;font-size:13px;">No friends yet</div>';
+        }
 
-        // Update recent activity (placeholder)
-        document.getElementById('agentActivity').innerHTML = `
+        // Update recent activity (real data + current room context)
+        const activityItems = [];
+
+        // Always show "currently in this room"
+        activityItems.push({
+          icon: '📍',
+          text: `Spectating in "${escapeHtml(currentRoomName)}"`,
+          time: 'Now',
+        });
+
+        // Show last message if available
+        if (agent.lastMessage) {
+          activityItems.push({
+            icon: '💬',
+            text: `Said: "${escapeHtml(truncate(agent.lastMessage, 35))}"`,
+            time: 'Recently',
+          });
+        }
+
+        // Add server-side activity logs
+        if (data.recentActivity && data.recentActivity.length > 0) {
+          for (const act of data.recentActivity.slice(0, 3)) {
+            activityItems.push({
+              icon: getActivityIcon(act.type),
+              text: escapeHtml(act.description),
+              time: formatRelativeTime(act.timestamp),
+            });
+          }
+        }
+
+        // Add stats summary if available
+        const stats = data.stats;
+        if (stats && Object.keys(stats).length > 0) {
+          const statsHtml = [
+            stats.messagesSent   ? `💬 ${stats.messagesSent} messages` : null,
+            stats.roomsVisited   ? `🚪 ${stats.roomsVisited} rooms visited` : null,
+            stats.tradesCompleted ? `🔄 ${stats.tradesCompleted} trades` : null,
+            stats.gamesWon       ? `🏆 ${stats.gamesWon} games won` : null,
+          ].filter(Boolean).join(' · ');
+          if (statsHtml) {
+            activityItems.push({ icon: '📊', text: statsHtml, time: '' });
+          }
+        }
+
+        document.getElementById('agentActivity').innerHTML = activityItems.map(item => `
           <div class="activity-item">
-            <div>Joined room "${escapeHtml(currentRoomName)}"</div>
-            <div class="activity-time">Just now</div>
+            <div>${item.icon} ${item.text}</div>
+            ${item.time ? `<div class="activity-time">${item.time}</div>` : ''}
           </div>
-          ${agent.lastMessage ? `
-          <div class="activity-item">
-            <div>Said: "${escapeHtml(truncate(agent.lastMessage, 30))}"</div>
-            <div class="activity-time">Recently</div>
-          </div>
-          ` : ''}
-        `;
+        `).join('');
 
       } catch (error) {
         console.error('Failed to load agent info:', error);
-        document.getElementById('personalityTraits').innerHTML = '<div class="error-message">Failed to load data</div>';
-        document.getElementById('agentInfoBio').innerHTML = '<div class="error-message">Failed to load bio</div>';
+        document.getElementById('personalityTraits').innerHTML =
+          '<div class="error-message">Failed to load personality</div>';
+        document.getElementById('agentInfoBio').innerHTML =
+          '<div class="error-message">Failed to load profile</div>';
+        document.getElementById('agentRelationships').innerHTML = '';
+        document.getElementById('agentActivity').innerHTML = '';
       }
     }
 
@@ -1550,6 +1610,33 @@ function loadPixiJS() {
 
     function truncate(str, maxLen) {
       return str.length > maxLen ? str.substring(0, maxLen) + '...' : str;
+    }
+
+    /** Map activity event type to an emoji icon */
+    function getActivityIcon(type) {
+      const icons = {
+        chat: '💬', move: '🚶', trade: '🔄', emote: '🎭',
+        join: '🚪', leave: '👋', game: '🎮', friend: '🤝',
+        craft: '⚒️', buy: '🛍️', achievement: '🏆',
+      };
+      return icons[type] || '📌';
+    }
+
+    /** Format ISO timestamp as relative "2h ago", "3d ago", etc. */
+    function formatRelativeTime(isoString) {
+      if (!isoString) return '';
+      try {
+        const diff = Date.now() - new Date(isoString).getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return 'Just now';
+        if (mins < 60) return `${mins}m ago`;
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return `${hrs}h ago`;
+        const days = Math.floor(hrs / 24);
+        return `${days}d ago`;
+      } catch {
+        return '';
+      }
     }
 
     // ===== COLORS =====
