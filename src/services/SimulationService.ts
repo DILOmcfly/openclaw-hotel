@@ -907,8 +907,18 @@ async function executeAction(
       default:
         return false;
     }
-  } catch (error) {
-    console.error(`[Simulation] Action failed for agent ${agentId}:`, error);
+  } catch (error: any) {
+    const errMsg = error?.message || String(error);
+    console.error(`[Simulation] Action failed for agent ${agentId}:`, errMsg);
+    // Expose error in live events for debugging (first 10 ticks only)
+    addLiveEvent({
+      type: 'emote',
+      roomId: 'debug',
+      agentId,
+      agentName: 'DEBUG',
+      icon: '🔴',
+      message: `ERR: ${errMsg.slice(0, 100)}`,
+    });
     return false;
   }
 }
