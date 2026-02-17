@@ -1356,6 +1356,24 @@ function loadPixiJS() {
       // Draw room
       setTimeout(drawRoom, 100);
 
+      // T-345: Populate chat history — prefer recentChat from API response (0 extra round-trips)
+      if (data.recentChat && data.recentChat.length > 0) {
+        addChatMessage('System', `── Last ${data.recentChat.length} messages ──`, true);
+        const ordered = [...data.recentChat].reverse();
+        for (const msg of ordered) {
+          const sender   = msg.agent_name || msg.agentName || 'Agent';
+          const text     = msg.message || msg.text || '';
+          const isSystem = msg.message_type === 'system' || msg.messageType === 'system';
+          if (text) addChatMessage(sender, text, isSystem);
+        }
+        console.log('[T-345] Prepopulated', data.recentChat.length, 'chat messages from room data');
+      } else {
+        // Fallback: dedicated endpoint if recentChat not in room data
+        loadChatHistory(roomId).catch(err => {
+          console.warn('[T-345] Could not load chat history:', err.message);
+        });
+      }
+
       // Connect WebSocket
       connectWS(roomId);
       addChatMessage('System', 'Watching for agent activity...', true);
@@ -1870,6 +1888,37 @@ function loadPixiJS() {
       }
       feed.innerHTML = '';
       feed.appendChild(fragment);
+    }
+
+    // ===== CHAT HISTORY (T-345) =====
+    /**
+     * Load recent chat messages for a room and prepend them to the chat panel.
+     * Gracefully skips if the endpoint is unavailable (DB not seeded, etc.)
+     */
+    async function loadChatHistory(roomId, limit = 20) {
+      try {
+        const res = await fetch(`${API}/api/rooms/${roomId}/chat/history?limit=${limit}`);
+        if (!res.ok) return; // Silently skip — endpoint might require auth or DB
+        const messages = await res.json();
+        if (!Array.isArray(messages) || messages.length === 0) return;
+
+        // Insert a divider before history
+        addChatMessage('System', `── Last ${messages.length} messages ──`, true);
+
+        // Messages come newest-first from the API; reverse to show oldest first
+        const ordered = [...messages].reverse();
+        for (const msg of ordered) {
+          const sender = msg.agent_name || msg.agentName || 'Agent';
+          const text   = msg.message || msg.text || '';
+          const isSystem = msg.message_type === 'system' || msg.messageType === 'system';
+          if (text) addChatMessage(sender, text, isSystem);
+        }
+
+        console.log('[T-345] Loaded', messages.length, 'chat history messages for room', roomId);
+      } catch (err) {
+        // Network error — don't crash the room view
+        console.warn('[T-345] loadChatHistory failed:', err.message || err);
+      }
     }
 
     // ===== CHAT =====

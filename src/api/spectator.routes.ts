@@ -3,6 +3,7 @@ import { sql } from '../db/index.js';
 import { roomMembers } from '../ws/handler.js';
 import { getSpectatorCount } from '../ws/spectator.js';
 import * as personalityService from '../services/personality.js';
+import { getRoomHistory } from '../services/chatHistory.js';
 
 const router = express.Router();
 
@@ -139,6 +140,14 @@ router.get('/api/spectate/rooms/:id', async (req, res) => {
       WHERE room_id = ${id}::uuid
     `;
 
+    // T-345: Include recent chat history (last 15 messages) for instant context
+    let recentChat: any[] = [];
+    try {
+      recentChat = await getRoomHistory(id, 15, undefined, sql);
+    } catch {
+      // Table may not exist in test/dev environments — skip gracefully
+    }
+
     res.json({
       id: room.id,
       name: room.name,
@@ -148,6 +157,7 @@ router.get('/api/spectate/rooms/:id', async (req, res) => {
       spectatorCount: getSpectatorCount(id),
       agents: agentsInside,
       furniture: furniture,
+      recentChat: recentChat,
       metadata: room.metadata,
     });
   } catch (error) {
