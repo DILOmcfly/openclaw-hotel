@@ -2093,6 +2093,33 @@ function loadPixiJS() {
         }
       }
 
+      // === 3b. Decorative fill for empty room areas ===
+      // When DB furniture is loaded but concentrated in a small area,
+      // add some themed decorative pieces in the lower/right areas
+      if (roomFurniture.size > 0 && layout.proceduralFurniture) {
+        // Check max y of DB furniture
+        let maxFurnitureY = 0;
+        for (const [, item] of roomFurniture) {
+          const fy = Math.round((item.y || 0) * 1.2 + 1);
+          if (fy > maxFurnitureY) maxFurnitureY = fy;
+        }
+        // If furniture doesn't reach past row 10, add decorative pieces
+        if (maxFurnitureY < 10) {
+          const decorativeItems = layout.proceduralFurniture.filter(
+            ([, , fy]) => fy >= 10
+          );
+          for (const [type, fx, fy] of decorativeItems) {
+            const furniture = createProceduralFurniture(type, theme);
+            furniture.scale.set(1.2);
+            furniture.alpha = 0.85; // Slightly transparent to distinguish from DB items
+            const { sx, sy } = isoToScreen(fx, fy);
+            furniture.position.set(sx, sy);
+            furniture.zIndex = fx + fy;
+            contentContainer.addChild(furniture);
+          }
+        }
+      }
+
       // === 4. Agents ===
       for (const agent of agents.values()) {
         if (!agent.sprite) {
