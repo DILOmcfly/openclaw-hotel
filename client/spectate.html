@@ -545,12 +545,12 @@
 
     /* ── T-348: Spectator Reaction System ───────────────────────────────────── */
     #reactionPanel {
+      display: none !important; /* Spectators observe, don't react */
       position: absolute;
       bottom: 16px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 50;
-      display: flex;
       gap: 8px;
       background: rgba(0, 0, 0, 0.55);
       backdrop-filter: blur(8px);
@@ -561,7 +561,7 @@
       pointer-events: auto;
       transition: opacity 0.3s;
     }
-    #reactionPanel.hidden { opacity: 0; pointer-events: none; }
+    #reactionPanel.hidden { display: none !important; }
     .reaction-btn {
       font-size: 24px;
       line-height: 1;
@@ -2826,7 +2826,7 @@
   </div>
 
   <!-- Spectator client JS (lazy-loads PixiJS on room entry) -->
-  <script src="/js/spectate.js?v=20260218d" defer></script>
+  <script src="/js/spectate.js?v=20260218e" defer></script>
 
   <!-- T-353: Live Event Toast Notification Script -->
   <script>

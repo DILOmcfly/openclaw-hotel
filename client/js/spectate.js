@@ -415,8 +415,11 @@ function loadPixiJS() {
 
     // ===== ISOMETRIC HELPERS =====
     function isoToScreen(x, y) {
+      // Center the 16×16 isometric room in viewport
+      // Total iso height = 16 * TILE_H = 512, width = 16 * TILE_W = 1024
+      const isoH = ROOM_SIZE * TILE_H;
       const offsetX = app.screen.width * 0.45;
-      const offsetY = 80;
+      const offsetY = Math.max(20, (app.screen.height - isoH) / 2);
       return {
         sx: offsetX + (x - y) * (TILE_W / 2),
         sy: offsetY + (x + y) * (TILE_H / 2)
