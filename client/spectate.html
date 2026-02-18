@@ -1231,9 +1231,10 @@
 
     /* Help Button */
     #helpButton {
+      display: none; /* Hidden: clutters the view, onboarding is enough */
       position: fixed;
       bottom: 20px;
-      left: 390px; /* Adjusted to not overlap with chat feed (350px + 20px + 20px margin) */
+      left: 390px;
       width: 48px;
       height: 48px;
       background: rgba(0, 212, 170, 0.2);
@@ -1259,6 +1260,7 @@
 
     /* Live Chat Feed Overlay */
     #liveChatFeed {
+      display: none; /* Hidden: sidebar chat already shows messages */
       position: fixed;
       bottom: 20px;
       left: 20px;
@@ -1267,7 +1269,6 @@
       background: var(--bg-secondary);
       border: 2px solid var(--accent);
       border-radius: 12px;
-      display: flex;
       flex-direction: column;
       z-index: 1000;
       box-shadow: 0 8px 24px var(--shadow-color);
@@ -1890,7 +1891,8 @@
     #themeToggle {
       position: fixed;
       top: 20px;
-      right: 130px; /* Next to audio controls */
+      right: 20px; /* Top-right corner */
+      top: 60px; /* Below toolbar */
       width: 48px;
       height: 48px;
       background: var(--bg-secondary);
@@ -1918,7 +1920,8 @@
     #audioButton {
       position: fixed;
       top: 20px;
-      right: 70px; /* Next to FPS counter */
+      right: 80px; /* Next to theme toggle */
+      top: 60px; /* Below toolbar */
       width: 48px;
       height: 48px;
       background: var(--bg-secondary);
@@ -1954,8 +1957,8 @@
 
     .audio-controls-container {
       position: fixed;
-      top: 20px;
-      right: 70px;
+      top: 60px;
+      right: 80px;
       z-index: 1001;
     }
 
