@@ -172,23 +172,6 @@ app.get('/health', (_req, res) => {
   });
 });
 
-app.get('/debug/presence', async (_req, res) => {
-  try {
-    const presenceCount = await sql`SELECT COUNT(*)::int AS cnt FROM presence`;
-    const agentCount = await sql`SELECT COUNT(*)::int AS cnt FROM agents`;
-    const roomCount = await sql`SELECT COUNT(*)::int AS cnt FROM rooms`;
-    const presenceRows = await sql`SELECT p.agent_id, a.display_name, p.room_id, r.name as room_name, p.x, p.y FROM presence p LEFT JOIN agents a ON a.id = p.agent_id LEFT JOIN rooms r ON r.id = p.room_id LIMIT 20`;
-    res.json({
-      presence: presenceCount[0].cnt,
-      agents: agentCount[0].cnt,
-      rooms: roomCount[0].cnt,
-      rows: presenceRows,
-    });
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
-  }
-});
-
 app.get('/ready', async (_req, res) => {
   try {
     // Check database connection
