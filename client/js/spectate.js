@@ -269,14 +269,14 @@ function loadPixiJS() {
           'lamp_garden': 'reading_lamp',
           // Library
           'bookshelf': 'tall_bookshelf', 'bookshelf_tall': 'tall_bookshelf',
-          'chair_reading': 'bench', 'lamp_desk': 'reading_lamp',
-          'rug_small': 'path_stone', 'globe': 'globe',
+          'chair_reading': 'reading_chair', 'lamp_desk': 'reading_lamp',
+          'rug_small': 'rug', 'globe': 'globe',
           'desk': 'reading_desk', 'reading_desk': 'reading_desk',
           // Arcade
           'arcade_machine': 'arcade_machine', 'arcade_cabinet': 'arcade_machine',
           'pinball_machine': 'pinball', 'claw_machine': 'claw_machine',
           'neon_sign': 'neon_sign', 'chair_gaming': 'racing_seat',
-          'speaker': 'neon_sign', 'table_small': 'reading_desk',
+          'speaker': 'speaker', 'table_small': 'small_table',
           // Trading
           'table_conference': 'trading_desk', 'chair_office': 'office_chair',
           'whiteboard': 'whiteboard', 'computer': 'trading_desk',
@@ -284,7 +284,7 @@ function loadPixiJS() {
           // Lobby
           'sofa_modern': 'bench', 'table_coffee': 'reading_desk',
           'plant_large': 'potted_palm', 'lamp_floor': 'reading_lamp',
-          'rug_large': 'red_carpet', 'reception_desk': 'reception_desk',
+          'rug_large': 'rug', 'reception_desk': 'reception_desk',
           // Generic
           'lamp': 'reading_lamp', 'chandelier': 'chandelier',
           'palm': 'potted_palm', 'potted_palm': 'potted_palm',
@@ -714,6 +714,73 @@ function loadPixiJS() {
           g.beginFill(0x9a7920);
           g.drawRect(-14, -20, 28, 2);
           g.drawRect(-14, -16, 28, 2);
+          g.endFill();
+          break;
+        }
+        case 'speaker': {
+          // Cabinet
+          g.beginFill(0x1a1a1a);
+          g.drawRect(-8, -30, 16, 30);
+          g.endFill();
+          // Woofer
+          g.beginFill(0x333333);
+          g.drawCircle(0, -10, 6);
+          g.endFill();
+          g.beginFill(0x222222);
+          g.drawCircle(0, -10, 3);
+          g.endFill();
+          // Tweeter
+          g.beginFill(0x333333);
+          g.drawCircle(0, -22, 4);
+          g.endFill();
+          g.beginFill(0x222222);
+          g.drawCircle(0, -22, 2);
+          g.endFill();
+          // LED
+          g.beginFill(0x00ff00);
+          g.drawCircle(0, -28, 1.5);
+          g.endFill();
+          break;
+        }
+        case 'small_table': {
+          // Table top
+          g.beginFill(0x6b4226);
+          g.drawRect(-10, -12, 20, 4);
+          g.endFill();
+          // Legs
+          g.beginFill(0x4a2e14);
+          g.drawRect(-8, -8, 2, 10);
+          g.drawRect(6, -8, 2, 10);
+          g.endFill();
+          break;
+        }
+        case 'rug': {
+          g.beginFill(0x8B2252, 0.5);
+          g.drawEllipse(0, 0, 18, 8);
+          g.endFill();
+          // Pattern
+          g.lineStyle(1, 0xffd700, 0.4);
+          g.drawEllipse(0, 0, 12, 5);
+          g.lineStyle(0);
+          break;
+        }
+        case 'reading_chair': {
+          // Seat cushion
+          g.beginFill(0x8B4513);
+          g.drawRect(-8, -8, 16, 8);
+          g.endFill();
+          // Back
+          g.beginFill(0x6b3410);
+          g.drawRect(-8, -22, 16, 16);
+          g.endFill();
+          // Cushion
+          g.beginFill(0x993333);
+          g.drawRect(-6, -20, 12, 12);
+          g.endFill();
+          // Armrests
+          g.beginFill(0x8B4513);
+          g.drawRect(-10, -12, 3, 6);
+          g.drawRect(7, -12, 3, 6);
           g.endFill();
           break;
         }
