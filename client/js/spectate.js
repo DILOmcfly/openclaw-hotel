@@ -239,7 +239,17 @@ function loadPixiJS() {
       const itemDefId = item.itemDefId || item.item_def_id || '';
       const spriteName = defIdToSprite(itemDefId);
       const texture = spriteName ? spriteTextures[spriteName] : null;
-      const { sx, sy } = isoToScreen(item.x || 0, item.y || 0);
+      // Scale up furniture positions from old small-grid DB coords to 16x16 grid
+      let fx = item.x || 0;
+      let fy = item.y || 0;
+      if (fx <= 12 && fy <= 12) {
+        // Furniture was placed in old 6-12 wide grids; spread to 16x16
+        fx = Math.round(fx * 1.2 + 1);
+        fy = Math.round(fy * 1.2 + 1);
+      }
+      fx = Math.min(fx, ROOM_SIZE - 1);
+      fy = Math.min(fy, ROOM_SIZE - 1);
+      const { sx, sy } = isoToScreen(fx, fy);
 
       let sprite;
       if (texture) {
