@@ -137,6 +137,170 @@ function loadPixiJS() {
       return { addXP, getData: () => ({ ..._data }) };
     })();
 
+    // ── T-371: Highlight Reel (best moments tracker) ──────────────────────────
+    const HighlightReel = (() => {
+      const KEY = 'highlightReel';
+
+      // Default state: each slot tracks the single best moment of its category
+      function _defaultState() {
+        return {
+          biggestTrade:  null, // { agentA, agentB, timestamp }
+          funniestMsg:   null, // { agentName, text, timestamp }
+          mostAchieve:   null, // { agentName, count, timestamp }
+          // Raw counters: agent → achievement count (to determine mostAchieve)
+          _achieveCounts: {},
+        };
+      }
+
+      function _load() {
+        try {
+          const raw = localStorage.getItem(KEY);
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p && typeof p === 'object') {
+              return {
+                biggestTrade:   p.biggestTrade   || null,
+                funniestMsg:    p.funniestMsg    || null,
+                mostAchieve:    p.mostAchieve    || null,
+                _achieveCounts: p._achieveCounts || {},
+              };
+            }
+          }
+        } catch { /* corrupt */ }
+        return _defaultState();
+      }
+
+      function _save(state) {
+        try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+      }
+
+      let _state = _load();
+
+      // ── Record events ────────────────────────────────────────────────────────
+
+      function recordTrade(agentA, agentB) {
+        // We don't have trade value right now, so we store most-recent big trade
+        const entry = { agentA: _truncate(agentA), agentB: _truncate(agentB), timestamp: Date.now() };
+        _state.biggestTrade = entry;
+        _save(_state);
+        _renderCard('biggestTrade');
+      }
+
+      function recordChat(agentName, text) {
+        // "Funniest message" = longest chat message witnessed (a proxy for spicy convos)
+        const current = _state.funniestMsg;
+        const incoming = _truncate(text, 80);
+        if (!current || incoming.length >= (current.text || '').length) {
+          _state.funniestMsg = { agentName: _truncate(agentName), text: incoming, timestamp: Date.now() };
+          _save(_state);
+          _renderCard('funniestMsg');
+        }
+      }
+
+      function recordAchievement(agentName) {
+        const name = _truncate(agentName);
+        _state._achieveCounts[name] = (_state._achieveCounts[name] || 0) + 1;
+        const cnt = _state._achieveCounts[name];
+        const current = _state.mostAchieve;
+        if (!current || cnt >= current.count) {
+          _state.mostAchieve = { agentName: name, count: cnt, timestamp: Date.now() };
+          _save(_state);
+          _renderCard('mostAchieve');
+        }
+      }
+
+      function reset() {
+        _state = _defaultState();
+        _save(_state);
+        _renderAll();
+      }
+
+      // ── DOM rendering ────────────────────────────────────────────────────────
+
+      function _truncate(str, max = 30) {
+        if (!str || typeof str !== 'string') return 'Unknown';
+        const s = str.trim().slice(0, max);
+        return s.length < str.trim().length ? s + '…' : s;
+      }
+
+      function _timeAgo(ts) {
+        if (!ts) return '';
+        const sec = Math.floor((Date.now() - ts) / 1000);
+        if (sec < 60)  return 'just now';
+        if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+        return Math.floor(sec / 3600) + 'h ago';
+      }
+
+      function _setCardContent(cardId, icon, label, value, meta) {
+        const container = document.getElementById('hlCards');
+        if (!container) return;
+
+        // Ensure card element exists
+        let card = document.getElementById('hl-card-' + cardId);
+        if (!card) {
+          card = document.createElement('div');
+          card.className = 'hl-card';
+          card.id = 'hl-card-' + cardId;
+          container.appendChild(card);
+        }
+
+        card.innerHTML =
+          `<div class="hl-card-icon">${icon}</div>` +
+          `<div class="hl-card-label">${label}</div>` +
+          `<div class="hl-card-value">${_escHtml(value)}</div>` +
+          `<div class="hl-card-meta">${meta}</div>`;
+
+        // Flash animation
+        card.classList.remove('hl-flash');
+        void card.offsetWidth;
+        card.classList.add('hl-flash');
+      }
+
+      function _escHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      function _renderCard(type) {
+        const empty = document.getElementById('hlEmpty');
+        if (empty) empty.style.display = 'none';
+
+        if (type === 'biggestTrade' && _state.biggestTrade) {
+          const { agentA, agentB, timestamp } = _state.biggestTrade;
+          _setCardContent('biggestTrade', '🤝', 'Biggest Trade', `${agentA} ↔ ${agentB}`, _timeAgo(timestamp));
+        } else if (type === 'funniestMsg' && _state.funniestMsg) {
+          const { agentName, text, timestamp } = _state.funniestMsg;
+          _setCardContent('funniestMsg', '💬', 'Notable Message', `"${text}"`, `— ${agentName} · ${_timeAgo(timestamp)}`);
+        } else if (type === 'mostAchieve' && _state.mostAchieve) {
+          const { agentName, count, timestamp } = _state.mostAchieve;
+          _setCardContent('mostAchieve', '🏅', 'Achievement Leader', agentName, `${count} unlock${count !== 1 ? 's' : ''} · ${_timeAgo(timestamp)}`);
+        }
+      }
+
+      function _renderAll() {
+        // Clear existing cards
+        const container = document.getElementById('hlCards');
+        if (container) {
+          container.querySelectorAll('.hl-card').forEach(el => el.remove());
+        }
+        const empty = document.getElementById('hlEmpty');
+        const hasAny = _state.biggestTrade || _state.funniestMsg || _state.mostAchieve;
+        if (empty) empty.style.display = hasAny ? 'none' : '';
+        if (_state.biggestTrade) _renderCard('biggestTrade');
+        if (_state.funniestMsg)  _renderCard('funniestMsg');
+        if (_state.mostAchieve)  _renderCard('mostAchieve');
+      }
+
+      // Initial render on page load (restore from localStorage)
+      _renderAll();
+
+      return { recordTrade, recordChat, recordAchievement, reset, getState: () => JSON.parse(JSON.stringify(_state)) };
+    })();
+
+    // Expose reset for the HTML button
+    window.resetHighlightReel = () => HighlightReel.reset();
+
     const ActivityPulse = (() => {
       const WINDOW_MS = 60_000;
       let _timestamps = [];
@@ -3391,6 +3555,7 @@ function loadPixiJS() {
             chatText
           );
           WitnessXP.addXP('chat'); // T-368
+          HighlightReel.recordChat(msg.displayName || chatter?.name || 'Agent', chatText); // T-371
           break;
 
         case 'agent.action':
@@ -3463,6 +3628,8 @@ function loadPixiJS() {
           WitnessXP.addXP('trade_complete');
           // T-370: Show dramatic trade banner
           showTradeBanner(tcTraderName, tcTargetName);
+          // T-371: Record highlight
+          HighlightReel.recordTrade(tcTraderName, tcTargetName);
           if (typeof window.showEventToast === 'function') {
             window.showEventToast('trade_complete', `Deal struck: ${tcTraderName} ↔ ${tcTargetName} ✅`);
           }
@@ -5480,6 +5647,7 @@ function loadPixiJS() {
           window.showEventToast('achievement', `${agentName} unlocked: ${achievement}`);
         }
         WitnessXP.addXP('achievement'); // T-368
+        HighlightReel.recordAchievement(agentName); // T-371
 
       // ── Trade offer — always toast ────────────────────────────────────────
       } else if (type === 'trade_offer' || type === 'trade.requested') {
