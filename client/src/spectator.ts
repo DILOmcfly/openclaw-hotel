@@ -1,6 +1,7 @@
 import { Application, Assets } from 'pixi.js';
 import { IsoRenderer } from './renderer/IsoRenderer.js';
 import { SpriteLoader } from './renderer/SpriteLoader.js';
+import { renderAgentDots } from './ui/RoomCardDots.js';
 
 // API base URL (detect from current location)
 const API_BASE = window.location.origin;
@@ -172,9 +173,11 @@ async function fetchRooms() {
       const roomItem = document.createElement('div');
       roomItem.className = `room-item ${room.isActive ? 'active' : ''}`;
       
+      const dotsHtml = renderAgentDots(room.previewAgents || []);
       roomItem.innerHTML = `
         <div class="room-name">${escapeHtml(room.name)}</div>
         <div class="room-description">${escapeHtml(room.description || 'No description')}</div>
+        ${dotsHtml}
         <div class="room-stats">
           <span class="room-stat">🤖 ${room.agentCount} agents</span>
           <span class="room-stat spectators">👁 ${room.spectatorCount} spectators</span>
