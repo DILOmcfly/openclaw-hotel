@@ -1451,11 +1451,69 @@ function loadPixiJS() {
       return graphics;
     }
 
+    // ── T-359: Mood Aura Helpers ─────────────────────────────────────────────
+    const MOOD_COLORS = {
+      happy:   0xFFD700, // gold
+      excited: 0xFF69B4, // hot pink
+      sad:     0x4169E1, // royal blue
+      anxious: 0xFF4500, // orange-red
+      neutral: 0x808080, // gray
+    };
+
+    const MOOD_PULSE_RATE = {
+      excited: 0.5,  // fast
+      anxious: 0.7,
+      happy:   1.0,
+      sad:     2.5,  // slow
+      neutral: 3.0,
+    };
+
+    const MOOD_OPACITY_RANGE = {
+      excited: { min: 0.40, max: 0.90 },
+      anxious: { min: 0.50, max: 0.95 },
+      happy:   { min: 0.30, max: 0.70 },
+      sad:     { min: 0.10, max: 0.40 },
+      neutral: { min: 0.05, max: 0.20 },
+    };
+
+    /**
+     * Compute aura opacity for the given mood at elapsed time (ms).
+     * Uses a sine wave between [min, max] at the mood's pulse rate.
+     */
+    function computeAuraOpacity(mood, elapsedMs) {
+      const range = MOOD_OPACITY_RANGE[mood] || MOOD_OPACITY_RANGE.neutral;
+      const period = (MOOD_PULSE_RATE[mood] || 3.0) * 1000;
+      const t = (elapsedMs % period) / period;
+      const sine = (Math.sin(t * Math.PI * 2) + 1) / 2; // 0..1
+      return range.min + sine * (range.max - range.min);
+    }
+
+    /**
+     * Return the hex number colour for a mood string (or gray if unknown).
+     */
+    function getMoodColor(mood) {
+      return MOOD_COLORS[mood] || MOOD_COLORS.neutral;
+    }
+
     function createAgentGraphics(agent) {
       const container = new PIXI.Container();
       const bodyH = 42;
       const bodyW = 22;
       const headR = 11;
+
+      // ── Mood aura ring (behind shadow, pulsing glow) ──────────────────────
+      const moodRing = new PIXI.Graphics();
+      const initMood = agent.mood || 'neutral';
+      const initColor = getMoodColor(initMood);
+      moodRing.beginFill(initColor, 0.25);
+      moodRing.drawEllipse(0, 2, 22, 9);
+      moodRing.endFill();
+      moodRing.lineStyle(2, initColor, 0.6);
+      moodRing.drawEllipse(0, 2, 22, 9);
+      moodRing._moodName = initMood;     // store for animation loop
+      moodRing._startTime = Date.now();  // for pulse phase
+      container.addChild(moodRing);
+      container._moodRing = moodRing;   // expose for updates
 
       // Shadow
       const shadow = new PIXI.Graphics();
@@ -2199,6 +2257,15 @@ function loadPixiJS() {
             const { sx, sy } = isoToScreen(agent.x, agent.y);
             agent.sprite.position.set(sx, sy + bobY);
             agent.sprite.zIndex = agent.x + agent.y;
+
+            // T-359: Animate mood aura ring opacity (pulsing glow)
+            const moodRing = agent.sprite._moodRing;
+            if (moodRing) {
+              const agentMood = agent.mood || 'neutral';
+              const elapsed = now - (moodRing._startTime || now);
+              const opacity = computeAuraOpacity(agentMood, elapsed);
+              moodRing.alpha = opacity;
+            }
           }
         }
 
@@ -2583,6 +2650,7 @@ function loadPixiJS() {
               direction: a.direction || 2,
               color: getAgentColor(a.id),
               hairColor: getHairColor(a.id),
+              mood: a.mood || 'neutral',        // T-359: Mood aura
               sprite: null,
               bubble: null,
               // T-358: Walk animation state
@@ -2836,6 +2904,7 @@ function loadPixiJS() {
                 direction: a.direction || 0,
                 color: getAgentColor(a.id),
                 hairColor: getHairColor(a.id),
+                mood: a.mood || 'neutral',        // T-359: Mood aura
                 sprite: null,
                 bubble: null,
                 // T-358: Walk animation state
@@ -2867,6 +2936,7 @@ function loadPixiJS() {
             direction: 0,
             color: getAgentColor(msg.agentId),
             hairColor: getHairColor(msg.agentId),
+            mood: msg.mood || 'neutral',          // T-359: Mood aura
             sprite: null,
             bubble: null,
             // T-358: Walk animation state
@@ -2906,6 +2976,7 @@ function loadPixiJS() {
             direction: msg.rotation || 0,
             color: getAgentColor(joinAgentId),
             hairColor: getHairColor(joinAgentId),
+            mood: msg.mood || 'neutral',          // T-359: Mood aura
             sprite: null,
             bubble: null,
             // T-358: Walk animation state
@@ -2994,6 +3065,24 @@ function loadPixiJS() {
             mover.targetX = newTargetX;
             mover.targetY = newTargetY;
             mover.direction = msg.rotation || msg.direction || mover.direction;
+
+            // T-359: Update mood aura when broadcast includes mood
+            if (msg.mood && msg.mood !== mover.mood) {
+              mover.mood = msg.mood;
+              // Redraw mood ring with new colour
+              const ring = mover.sprite?._moodRing;
+              if (ring) {
+                const newColor = getMoodColor(msg.mood);
+                ring.clear();
+                ring.beginFill(newColor, 0.25);
+                ring.drawEllipse(0, 2, 22, 9);
+                ring.endFill();
+                ring.lineStyle(2, newColor, 0.6);
+                ring.drawEllipse(0, 2, 22, 9);
+                ring._moodName = msg.mood;
+                ring._startTime = Date.now(); // reset pulse phase
+              }
+            }
           }
           break;
 

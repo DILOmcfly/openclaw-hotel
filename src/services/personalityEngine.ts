@@ -345,6 +345,60 @@ export function getMoodEmoji(mood: Mood): string {
 }
 
 /**
+ * Get a CSS hex colour for a mood — used by spectator mood aura rings.
+ * Returns a stable, visually distinct colour per mood state.
+ */
+export function getMoodColor(mood: Mood): string {
+  switch (mood) {
+    case 'happy':   return '#FFD700'; // gold
+    case 'excited': return '#FF69B4'; // hot pink
+    case 'sad':     return '#4169E1'; // royal blue
+    case 'anxious': return '#FF4500'; // orange-red
+    case 'neutral': return '#808080'; // gray
+  }
+}
+
+/**
+ * Get the pulse speed (seconds per cycle) for the mood aura animation.
+ * Excited agents pulse fast; sad agents pulse slow; neutral barely pulses.
+ */
+export function getMoodPulseRate(mood: Mood): number {
+  switch (mood) {
+    case 'excited': return 0.5;  // 2 Hz — energetic
+    case 'happy':   return 1.0;  // 1 Hz — cheerful
+    case 'anxious': return 0.7;  // ~1.4 Hz — nervous
+    case 'sad':     return 2.5;  // 0.4 Hz — lethargic
+    case 'neutral': return 3.0;  // very slow fade
+  }
+}
+
+/**
+ * Map mood to an opacity range [min, max] for the aura glow pulsing.
+ * Excited/anxious have high contrast; sad/neutral are subtle.
+ */
+export function getMoodOpacityRange(mood: Mood): { min: number; max: number } {
+  switch (mood) {
+    case 'excited': return { min: 0.4, max: 0.9 };
+    case 'happy':   return { min: 0.3, max: 0.7 };
+    case 'anxious': return { min: 0.5, max: 0.95 };
+    case 'sad':     return { min: 0.1, max: 0.4 };
+    case 'neutral': return { min: 0.05, max: 0.2 };
+  }
+}
+
+/**
+ * Compute the instantaneous aura opacity given mood + elapsed time (ms).
+ * Uses a sine wave between [min, max] at the mood's pulse rate.
+ */
+export function computeAuraOpacity(mood: Mood, elapsedMs: number): number {
+  const { min, max } = getMoodOpacityRange(mood);
+  const period = getMoodPulseRate(mood) * 1000; // convert s → ms
+  const t = (elapsedMs % period) / period;       // 0..1
+  const sine = (Math.sin(t * Math.PI * 2) + 1) / 2; // 0..1
+  return min + sine * (max - min);
+}
+
+/**
  * Calculate compatibility between two personality profiles
  * Returns 0-100 score (higher = more compatible)
  */

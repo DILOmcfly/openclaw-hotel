@@ -14,6 +14,7 @@ import {
   updateMood,
   applyMoodDecay,
   getMoodEmoji,
+  getMoodColor,
   type PersonalityProfile,
   type BehaviorAction,
   type Event,
@@ -479,6 +480,7 @@ async function executeAction(
       case 'move': {
         const x = Math.floor(Math.random() * 14) + 1;
         const y = Math.floor(Math.random() * 14) + 1;
+        const moveProfile = getOrCreateProfile(agentId);
 
         // Update position in database
         await sql`
@@ -494,6 +496,8 @@ async function executeAction(
           x,
           y,
           rotation: 0,
+          mood: moveProfile.mood.current_mood,
+          moodColor: getMoodColor(moveProfile.mood.current_mood),
         } as any);
 
         // Add memory of movement (graceful degradation)
@@ -649,6 +653,7 @@ async function executeAction(
         // Random movement similar to 'move' but explicitly wandering
         const x = Math.floor(Math.random() * 14) + 1;
         const y = Math.floor(Math.random() * 14) + 1;
+        const wanderProfile = getOrCreateProfile(agentId);
 
         await sql`
           UPDATE presence
@@ -662,6 +667,8 @@ async function executeAction(
           x,
           y,
           rotation: 0,
+          mood: wanderProfile.mood.current_mood,
+          moodColor: getMoodColor(wanderProfile.mood.current_mood),
         } as any);
 
         // Live event (1 in 3 wanders to avoid noise)
@@ -700,6 +707,7 @@ async function executeAction(
 
         const targetX = context.targetAgent.x;
         const targetY = context.targetAgent.y;
+        const followProfile = getOrCreateProfile(agentId);
 
         await sql`
           UPDATE presence
@@ -713,6 +721,8 @@ async function executeAction(
           x: targetX,
           y: targetY,
           rotation: 0,
+          mood: followProfile.mood.current_mood,
+          moodColor: getMoodColor(followProfile.mood.current_mood),
         } as any);
 
         try {
