@@ -19,6 +19,52 @@ const spectatorRateLimits = new WeakMap<WebSocket, { count: number; resetTime: n
 const RATE_LIMIT_MAX = 5; // Max 5 messages
 const RATE_LIMIT_WINDOW = 10000; // Per 10 seconds
 
+// ── Reaction rate limiting ─────────────────────────────────────────────────
+
+/** Max reactions a spectator may send per REACTION_RATE_WINDOW */
+export const REACTION_RATE_LIMIT = 3;
+/** Sliding window for reaction rate limiting (ms) */
+export const REACTION_RATE_WINDOW_MS = 5_000;
+
+/** Allowed reaction emojis (server-side allow-list) */
+export const ALLOWED_REACTION_EMOJIS = new Set(['❤️', '😂', '🔥', '👏', '😮', '💀']);
+
+// Per-connection reaction timestamps (sliding window)
+const reactionTimestamps = new WeakMap<WebSocket, number[]>();
+
+/**
+ * Check and record a reaction attempt for the given WebSocket connection.
+ * Returns `true` if the reaction is allowed, `false` if rate-limited.
+ * Exported for unit tests.
+ */
+export function checkReactionRateLimit(ws: WebSocket, now: number = Date.now()): boolean {
+  const cutoff = now - REACTION_RATE_WINDOW_MS;
+  let timestamps = reactionTimestamps.get(ws) ?? [];
+
+  // Prune expired entries
+  timestamps = timestamps.filter(t => t >= cutoff);
+
+  if (timestamps.length >= REACTION_RATE_LIMIT) {
+    reactionTimestamps.set(ws, timestamps);
+    return false;
+  }
+
+  timestamps.push(now);
+  reactionTimestamps.set(ws, timestamps);
+  return true;
+}
+
+/**
+ * Returns ms until the next reaction is allowed for this connection (0 = allowed now).
+ * Exported for unit tests.
+ */
+export function msUntilNextReaction(ws: WebSocket, now: number = Date.now()): number {
+  const cutoff = now - REACTION_RATE_WINDOW_MS;
+  const active = (reactionTimestamps.get(ws) ?? []).filter(t => t >= cutoff);
+  if (active.length < REACTION_RATE_LIMIT) return 0;
+  return active[0] + REACTION_RATE_WINDOW_MS - now;
+}
+
 /**
  * Get spectator count for a room
  */
@@ -314,6 +360,29 @@ export function setupSpectatorWebSocket(server: Server): void {
         } else if (msg.type === 'spectator.chat') {
           // Handle spectator chat messages
           handleSpectatorChat(ws, roomId, msg.message);
+        } else if (msg.type === 'spectator.reaction') {
+          // ── T-360: Emoji reactions ──────────────────────────────────────
+          const emoji = typeof msg.emoji === 'string' ? msg.emoji : '';
+
+          // Server-side allow-list check
+          if (!ALLOWED_REACTION_EMOJIS.has(emoji)) {
+            // Silently ignore invalid emojis
+          } else if (!checkReactionRateLimit(ws)) {
+            // Rate limited — notify sender only
+            sendToSpectator(ws, {
+              type: 'spectator.rateLimited',
+              message: 'Reaction rate limit exceeded. Max 3 reactions per 5 seconds.',
+              retryAfterMs: msUntilNextReaction(ws),
+            } as any);
+          } else {
+            // Broadcast reaction to all spectators in the room (not agents)
+            broadcastToSpectators(roomId, {
+              type: 'spectator.reaction',
+              emoji,
+              roomId,
+              timestamp: new Date().toISOString(),
+            } as any);
+          }
         }
         // Silently ignore all other message types
       } catch {

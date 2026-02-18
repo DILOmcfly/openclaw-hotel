@@ -20,6 +20,7 @@ vi.mock('../services/agentConversation.js', () => ({
 
 vi.mock('../services/agentMemory.js', () => ({
   addMemory: vi.fn(async () => {}),
+  getRecentMemories: vi.fn(async () => []),
 }));
 
 vi.mock('../services/reflectionService.js', () => ({

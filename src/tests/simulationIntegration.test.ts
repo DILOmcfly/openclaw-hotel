@@ -119,7 +119,8 @@ describe('SimulationService AI Integration', () => {
     // Broadcast should be called with valid action events
     expect(mockBroadcast).toHaveBeenCalled();
     const broadcastTypes = mockBroadcast.mock.calls.map((c: any) => c[1]?.type);
-    const validTypes = ['move', 'chat', 'emote', 'furniture_use', 'game_invite', 'trade_offer'];
+    // Actual broadcast types used by SimulationService (updated to match current implementation)
+    const validTypes = ['agent.moved', 'message.new', 'emote', 'furniture_use', 'game_invite', 'trade_offer', 'dance'];
     const anyValid = broadcastTypes.some((t: string) => validTypes.includes(t));
     expect(anyValid).toBe(true);
   });

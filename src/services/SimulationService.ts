@@ -1159,15 +1159,15 @@ export async function tick(
   let actionsExecuted = 0;
 
   // Debug: track tick execution in live events (every 3rd tick)
-  metrics.totalTicks++;
-  if (metrics.totalTicks % 3 === 0) {
+  // NOTE: totalTicks is incremented once at the end of the function; use +1 here for the check
+  if ((metrics.totalTicks + 1) % 3 === 0) {
     addLiveEvent({
       type: 'emote',
       roomId: 'system',
       agentId: 'system',
       agentName: 'Hotel',
       icon: '⚡',
-      message: `Tick #${metrics.totalTicks} — ${agents.length} agents active`,
+      message: `Tick #${metrics.totalTicks + 1} — ${agents.length} agents active`,
     });
   }
 
@@ -1284,6 +1284,7 @@ export function resetMetrics(): void {
   metrics.totalActions = 0;
   metrics.lastTickTime = null;
   metrics.actionsPerTick = [];
+  simulationTickCount = 0;
 }
 
 /**
