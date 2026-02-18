@@ -902,3 +902,319 @@ if (spectatorHUD) {
   showSocialGraph,
   hideSocialGraph,
 };
+
+// ── T-356: Live Event Ticker ─────────────────────────────────────────────────
+
+const tickerEl     = document.getElementById('eventTicker')  as HTMLElement | null;
+const tickerInner  = document.getElementById('tickerInner')   as HTMLElement | null;
+
+let _tickerInterval: ReturnType<typeof setInterval> | null = null;
+const TICKER_REFRESH_MS = 8_000;
+const TICKER_MAX_EVENTS = 15;
+
+/**
+ * Format a Unix-ms timestamp as "Xs / Xm / Xh ago"
+ */
+export function formatTickerTime(ms: number): string {
+  const diffSec = Math.floor((Date.now() - ms) / 1000);
+  if (diffSec < 60)   return `${diffSec}s`;
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m`;
+  return `${Math.floor(diffSec / 3600)}h`;
+}
+
+interface TickerEvent { icon: string; message: string; timestamp: number; }
+
+/**
+ * Build the inner HTML for the ticker track.
+ * Items are duplicated so the CSS animation loops seamlessly.
+ */
+export function buildTickerHtml(events: TickerEvent[]): string {
+  if (events.length === 0) {
+    return '<span class="ticker-empty">No recent events — agents are warming up…</span>';
+  }
+
+  const items = events
+    .map(ev => {
+      const t = formatTickerTime(ev.timestamp);
+      const msg = ev.message.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `<span class="ticker-item">` +
+               `<span class="t-icon">${ev.icon}</span>` +
+               `<span>${msg}</span>` +
+               `<span class="t-time">${t}</span>` +
+             `</span>` +
+             `<span class="ticker-sep" aria-hidden="true">·</span>`;
+    })
+    .join('');
+
+  // Duplicate for seamless loop — CSS animation is -50%
+  return items + items;
+}
+
+/**
+ * Calculate a CSS animation duration proportional to content length
+ * so each character takes the same time to scroll past.
+ * Base: 40 s for 15 events; min 20 s, max 90 s.
+ */
+export function calcTickerDuration(eventCount: number): number {
+  const base = Math.max(1, eventCount);
+  return Math.min(90, Math.max(20, base * 3));
+}
+
+/**
+ * Fetch events from /api/spectate/live-events and refresh the ticker DOM.
+ */
+async function refreshTicker(): Promise<void> {
+  try {
+    const res = await fetch(`${API_BASE}/api/spectate/live-events?limit=${TICKER_MAX_EVENTS}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const events: TickerEvent[] = (data.events ?? []).map((e: any) => ({
+      icon:      e.icon      ?? '📡',
+      message:   e.message   ?? '',
+      timestamp: e.timestamp ?? Date.now(),
+    }));
+
+    if (!tickerInner) return;
+
+    const html = buildTickerHtml(events);
+    tickerInner.innerHTML = html;
+
+    // Reset + restart animation
+    const shouldScroll = events.length > 0;
+    const dur = calcTickerDuration(events.length);
+    tickerInner.style.setProperty('--ticker-duration', `${dur}s`);
+    tickerInner.classList.toggle('scrolling', shouldScroll);
+  } catch (_) {
+    // Silently ignore — ticker is cosmetic
+  }
+}
+
+/**
+ * Start the live event ticker (call on room enter).
+ */
+export function showTicker(): void {
+  tickerEl?.classList.remove('hidden');
+  void refreshTicker();
+  if (!_tickerInterval) {
+    _tickerInterval = setInterval(() => void refreshTicker(), TICKER_REFRESH_MS);
+  }
+}
+
+/**
+ * Stop the live event ticker (call on room leave).
+ */
+export function hideTicker(): void {
+  tickerEl?.classList.add('hidden');
+  if (_tickerInterval) {
+    clearInterval(_tickerInterval);
+    _tickerInterval = null;
+  }
+}
+
+// Hook ticker into room lifecycle via HUD observer (reuse hudObserver pattern)
+const tickerHudObserver = new MutationObserver(() => {
+  const inRoom = spectatorHUD && !spectatorHUD.classList.contains('hidden');
+  if (inRoom) showTicker(); else hideTicker();
+});
+if (spectatorHUD) {
+  tickerHudObserver.observe(spectatorHUD, { attributes: true, attributeFilter: ['class'] });
+}
+
+// Export for tests
+(window as any).ticker = {
+  formatTickerTime,
+  buildTickerHtml,
+  calcTickerDuration,
+  showTicker,
+  hideTicker,
+};
+
+
+// ── T-357: TV Mode / Auto-Discovery ─────────────────────────────────────────
+
+const TV_MODE_SECONDS = 30;          // Seconds between auto-switches
+const TV_MODE_SKIP_EMPTY = true;     // Skip rooms with 0 agents
+
+const tvModeBtn       = document.getElementById('tvModeBtn')    as HTMLButtonElement | null;
+const tvCountdownEl   = document.getElementById('tvCountdown')  as HTMLElement | null;
+
+let _tvActive              = false;
+let _tvTickInterval: ReturnType<typeof setInterval> | null = null;
+let _tvSecondsLeft         = TV_MODE_SECONDS;
+let _tvRooms: Array<{ id: string; name: string; agentCount: number }> = [];
+
+/**
+ * Format countdown seconds as "0:SS"
+ */
+export function formatCountdown(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  return `0:${s.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Select next room to switch to.
+ * Strategy: pick the room with the most agents that isn't the current room.
+ * Falls back to any room if all except current have 0 agents.
+ */
+export function selectNextTvRoom(
+  rooms: Array<{ id: string; name: string; agentCount: number }>,
+  currentRoomId: string | null,
+): { id: string; name: string } | null {
+  const candidates = rooms.filter(r => r.id !== currentRoomId);
+  if (candidates.length === 0) return null;
+
+  // Sort by agent count desc
+  const sorted = [...candidates].sort((a, b) => b.agentCount - a.agentCount);
+
+  if (TV_MODE_SKIP_EMPTY) {
+    const withAgents = sorted.filter(r => r.agentCount > 0);
+    if (withAgents.length > 0) return withAgents[0];
+  }
+  return sorted[0] ?? null;
+}
+
+/**
+ * Fetch rooms for TV mode (reuse spectate/rooms endpoint).
+ */
+async function fetchTvRooms(): Promise<void> {
+  try {
+    const res = await fetch(`${API_BASE}/api/spectate/rooms`);
+    if (!res.ok) return;
+    const data = await res.json();
+    _tvRooms = (data.rooms ?? []).map((r: any) => ({
+      id:         r.id,
+      name:       r.name ?? 'Room',
+      agentCount: r.agentCount ?? 0,
+    }));
+  } catch (_) {}
+}
+
+/**
+ * Update the countdown display in the HUD button.
+ */
+function _updateTvCountdown(): void {
+  if (!tvCountdownEl) return;
+  tvCountdownEl.textContent = formatCountdown(_tvSecondsLeft);
+}
+
+/**
+ * Perform one TV tick (called every second while TV mode is active).
+ */
+async function _tvTick(): Promise<void> {
+  _tvSecondsLeft--;
+  _updateTvCountdown();
+
+  if (_tvSecondsLeft <= 0) {
+    _tvSecondsLeft = TV_MODE_SECONDS;
+    // Refresh room list before switching
+    await fetchTvRooms();
+    const next = selectNextTvRoom(_tvRooms, currentRoom);
+    if (next) {
+      console.log(`[TV Mode] Auto-switching to: ${next.name}`);
+      // Show brief toast (reuse event-toast style if available)
+      _showTvSwitchToast(next.name);
+      // Small delay for toast visibility
+      setTimeout(() => {
+        if (_tvActive) {
+          // Leave current room gracefully and join next
+          if (currentRoom) {
+            // We only destroy the canvas & WS; don't reset TV state
+            _softLeaveRoom();
+          }
+          joinRoom(next.id, next.name);
+        }
+      }, 800);
+    }
+  }
+}
+
+/**
+ * Leave current room without disabling TV mode (internal helper).
+ */
+function _softLeaveRoom(): void {
+  if (ws) { ws.close(); ws = null; }
+  if (app) { app.destroy(true); app = null; renderer = null; }
+  currentRoom = null;
+}
+
+/**
+ * Show a brief "TV Mode switching" toast notification.
+ */
+function _showTvSwitchToast(roomName: string): void {
+  const toast = document.createElement('div');
+  toast.style.cssText = [
+    'position:fixed', 'top:50%', 'left:50%',
+    'transform:translate(-50%,-50%)',
+    'background:rgba(10,12,26,0.92)',
+    'border:1px solid rgba(97,218,251,0.5)',
+    'border-radius:12px',
+    'padding:16px 28px',
+    'font-size:16px',
+    'font-weight:700',
+    'color:#61dafb',
+    'z-index:9999',
+    'text-align:center',
+    'backdrop-filter:blur(10px)',
+    'transition:opacity 0.4s',
+    'pointer-events:none',
+  ].join(';');
+  toast.textContent = `📺 Next up: ${roomName}`;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; }, 1200);
+  setTimeout(() => { toast.remove(); }, 1700);
+}
+
+/**
+ * Start TV mode.
+ */
+export function startTvMode(): void {
+  if (_tvActive) return;
+  _tvActive = true;
+  _tvSecondsLeft = TV_MODE_SECONDS;
+  tvModeBtn?.classList.add('active');
+  if (tvCountdownEl) { tvCountdownEl.style.display = ''; }
+  _updateTvCountdown();
+  // Prefetch rooms immediately
+  void fetchTvRooms();
+  // Tick every second
+  _tvTickInterval = setInterval(() => void _tvTick(), 1000);
+  console.log('[TV Mode] Started');
+}
+
+/**
+ * Stop TV mode.
+ */
+export function stopTvMode(): void {
+  if (!_tvActive) return;
+  _tvActive = false;
+  tvModeBtn?.classList.remove('active');
+  if (tvCountdownEl) { tvCountdownEl.style.display = 'none'; }
+  if (_tvTickInterval) { clearInterval(_tvTickInterval); _tvTickInterval = null; }
+  console.log('[TV Mode] Stopped');
+}
+
+/**
+ * Toggle TV mode on / off.
+ */
+export function toggleTvMode(): void {
+  if (_tvActive) stopTvMode(); else startTvMode();
+}
+
+tvModeBtn?.addEventListener('click', toggleTvMode);
+
+// TV mode state getters (for tests)
+export function isTvModeActive(): boolean { return _tvActive; }
+export function getTvSecondsLeft(): number { return _tvSecondsLeft; }
+export function getTvRooms(): typeof _tvRooms { return _tvRooms; }
+
+// Export for tests
+(window as any).tvMode = {
+  formatCountdown,
+  selectNextTvRoom,
+  startTvMode,
+  stopTvMode,
+  toggleTvMode,
+  isTvModeActive,
+  getTvSecondsLeft,
+  getTvRooms,
+};

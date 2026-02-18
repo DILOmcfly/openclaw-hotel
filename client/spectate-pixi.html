@@ -183,6 +183,169 @@
         gap: 5px;
       }
 
+      /* T-357: TV Mode button */
+      #tvModeBtn {
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(97, 218, 251, 0.12);
+        border: 1px solid rgba(97, 218, 251, 0.3);
+        border-radius: 6px;
+        color: #61dafb;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        letter-spacing: 0.03em;
+        width: 100%;
+        justify-content: center;
+      }
+
+      #tvModeBtn:hover {
+        background: rgba(97, 218, 251, 0.22);
+        border-color: rgba(97, 218, 251, 0.6);
+      }
+
+      #tvModeBtn.active {
+        background: rgba(97, 218, 251, 0.25);
+        border-color: #61dafb;
+        color: #fff;
+      }
+
+      #tvCountdown {
+        font-size: 10px;
+        background: rgba(97, 218, 251, 0.2);
+        border-radius: 4px;
+        padding: 1px 5px;
+        color: #61dafb;
+        font-variant-numeric: tabular-nums;
+        min-width: 28px;
+        text-align: center;
+      }
+
+      /* T-356: Live Event Ticker */
+      #eventTicker {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 36px;
+        background: rgba(10, 12, 26, 0.92);
+        border-top: 1px solid rgba(97, 218, 251, 0.18);
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+        z-index: 95;
+        backdrop-filter: blur(8px);
+        transition: opacity 0.3s;
+      }
+
+      #eventTicker.hidden {
+        display: none;
+      }
+
+      .ticker-label {
+        flex-shrink: 0;
+        padding: 0 14px;
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #61dafb;
+        border-right: 1px solid rgba(97, 218, 251, 0.18);
+        white-space: nowrap;
+      }
+
+      .ticker-live-dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #ff6b6b;
+        margin-right: 6px;
+        animation: ticker-blink 1.4s ease-in-out infinite;
+      }
+
+      @keyframes ticker-blink {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: 0.2; }
+      }
+
+      .ticker-track {
+        flex: 1;
+        overflow: hidden;
+        position: relative;
+        height: 100%;
+        display: flex;
+        align-items: center;
+      }
+
+      .ticker-inner {
+        display: flex;
+        white-space: nowrap;
+        will-change: transform;
+      }
+
+      .ticker-inner.scrolling {
+        animation: ticker-scroll var(--ticker-duration, 40s) linear infinite;
+      }
+
+      .ticker-inner:hover {
+        animation-play-state: paused;
+      }
+
+      @keyframes ticker-scroll {
+        0%   { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
+      }
+
+      .ticker-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 20px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.82);
+        cursor: default;
+        transition: color 0.15s;
+      }
+
+      .ticker-item:hover {
+        color: #fff;
+      }
+
+      .ticker-item .t-icon {
+        font-size: 13px;
+      }
+
+      .ticker-item .t-time {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.32);
+        margin-left: 2px;
+      }
+
+      .ticker-sep {
+        color: rgba(97, 218, 251, 0.22);
+        padding: 0 2px;
+        font-size: 16px;
+        user-select: none;
+      }
+
+      .ticker-empty {
+        padding: 0 20px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.3);
+        font-style: italic;
+      }
+
+      @media (max-width: 768px) {
+        #eventTicker { height: 30px; }
+        .ticker-label { padding: 0 8px; font-size: 9px; }
+        .ticker-item { font-size: 11px; padding: 0 12px; }
+      }
+
       .back-button {
         position: fixed;
         top: 10px;
@@ -651,6 +814,11 @@
             <span>spectators</span>
           </div>
         </div>
+        <!-- T-357: TV Mode toggle -->
+        <button id="tvModeBtn">
+          📺 TV Mode
+          <span id="tvCountdown" style="display:none">—</span>
+        </button>
       </div>
 
       <button class="back-button hidden" id="backButton">← Back to Rooms</button>
@@ -705,6 +873,18 @@
       <button id="chatToggleFloat" class="visible">
         💬 Chat
       </button>
+
+      <!-- T-356: Live Event Ticker -->
+      <div id="eventTicker" class="hidden">
+        <div class="ticker-label">
+          <span class="ticker-live-dot"></span>LIVE
+        </div>
+        <div class="ticker-track">
+          <div class="ticker-inner" id="tickerInner">
+            <span class="ticker-empty">Loading events…</span>
+          </div>
+        </div>
+      </div>
 
       <!-- T-349: Social Graph Overlay -->
       <div id="socialGraphPanel" class="hidden">
