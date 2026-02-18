@@ -1868,6 +1868,10 @@ function loadPixiJS() {
             bubble: null
           });
           addChatMessage('System', `🤖 ${msg.displayName || 'Agent'} entered the room`, true);
+          // T-353: Toast for agent arrival (only when 3+ agents already present, avoid spam on init)
+          if (agents.size >= 3 && typeof window.showEventToast === 'function') {
+            window.showEventToast('room_enter', `${msg.displayName || 'Agent'} entered the room`);
+          }
           updateAgentList();
           drawRoom();
           break;
@@ -1894,6 +1898,10 @@ function loadPixiJS() {
             bubble: null
           });
           addChatMessage('System', `🤖 ${joinName} entered the room`, true);
+          // T-353: Toast for agent arrival (suppress on initial room load to avoid spam)
+          if (agents.size >= 3 && typeof window.showEventToast === 'function') {
+            window.showEventToast('room_enter', `${joinName} entered the room`);
+          }
           updateAgentList();
           drawRoom();
           break;
@@ -1998,6 +2006,13 @@ function loadPixiJS() {
           // Also add to chat as system msg for visibility
           addChatMessage('System', `🎮 ${msg.displayName || inviter?.name || 'Agent'} invited ${msg.targetDisplayName || invitee?.name || 'someone'} to play ${msg.game || 'a game'}!`, true);
           setAgentStatus(msg.agentId, 'game'); // T-340 status badge
+          // T-353: Toast for game invite
+          if (typeof window.showEventToast === 'function') {
+            const gInviter = msg.displayName || inviter?.name || 'An agent';
+            const gTarget  = msg.targetDisplayName || invitee?.name || 'someone';
+            const gGame    = msg.game || msg.gameType || 'a game';
+            window.showEventToast('game_invite', `${gInviter} invited ${gTarget} to play ${gGame}!`);
+          }
           break;
         }
 
@@ -2011,6 +2026,12 @@ function loadPixiJS() {
           // Also add to chat
           addChatMessage('System', `💱 ${msg.displayName || trader?.name || 'Agent'} offered a trade to ${msg.targetDisplayName || tradee?.name || 'someone'}`, true);
           setAgentStatus(msg.agentId, 'trade'); // T-340 status badge
+          // T-353: Toast for trade offer
+          if (typeof window.showEventToast === 'function') {
+            const tTrader = msg.displayName || trader?.name || 'An agent';
+            const tTarget = msg.targetDisplayName || tradee?.name || 'another agent';
+            window.showEventToast('trade_offer', `${tTrader} offered a trade to ${tTarget}`);
+          }
           break;
         }
 
@@ -2027,6 +2048,12 @@ function loadPixiJS() {
             showEmoteEffect(emoteAgent, emoteValue);
           }
           setAgentStatus(msg.agentId, 'emote'); // T-340 status badge
+          // T-353: Toast for notable emotes only (heart, star, party, fire — not basic waves)
+          const NOTABLE_EMOTES = ['❤️', '🌟', '⭐', '🎉', '🔥', '💯', '🥳', '🎊', '😍', '👑'];
+          if (typeof window.showEventToast === 'function' && NOTABLE_EMOTES.includes(emoteValue)) {
+            const emoteName = msg.displayName || emoteAgent?.name || 'An agent';
+            window.showEventToast('emote', `${emoteName} reacted with ${emoteValue}`);
+          }
           break;
         }
 

@@ -2279,6 +2279,108 @@
       }
     }
 
+    /* ── T-353: Live Event Toast Notifications ──────────────────────────── */
+    #toastContainer {
+      position: fixed;
+      bottom: 80px;
+      left: 16px;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 8px;
+      max-width: 300px;
+      pointer-events: none;
+    }
+
+    .event-toast {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 14px 14px;
+      background: rgba(10, 10, 20, 0.92);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      pointer-events: auto;
+      cursor: pointer;
+      overflow: hidden;
+      position: relative;
+      animation: toastSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes toastSlideIn {
+      from { opacity: 0; transform: translateX(-24px) scale(0.95); }
+      to   { opacity: 1; transform: translateX(0) scale(1); }
+    }
+
+    .event-toast.dismissing {
+      animation: toastSlideOut 0.25s ease-in forwards;
+    }
+
+    @keyframes toastSlideOut {
+      from { opacity: 1; transform: translateX(0); max-height: 120px; margin-bottom: 0; }
+      to   { opacity: 0; transform: translateX(-24px); max-height: 0; padding: 0; margin: 0; }
+    }
+
+    .toast-icon { font-size: 22px; flex-shrink: 0; line-height: 1.2; }
+    .toast-body { flex: 1; min-width: 0; }
+    .toast-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .toast-msg {
+      font-size: 11px;
+      color: rgba(255,255,255,0.7);
+      line-height: 1.4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .toast-progress {
+      position: absolute;
+      bottom: 0; left: 0;
+      height: 3px;
+      background: var(--accent);
+      border-radius: 0 0 0 10px;
+      animation: toastProgress var(--toast-duration, 5s) linear forwards;
+    }
+    @keyframes toastProgress {
+      from { width: 100%; }
+      to   { width: 0%; }
+    }
+
+    /* Toast type accent borders */
+    .event-toast.toast-trade       { border-left: 3px solid #fbbf24; }
+    .event-toast.toast-game_invite { border-left: 3px solid #f97316; }
+    .event-toast.toast-game_win    { border-left: 3px solid #f97316; }
+    .event-toast.toast-achievement { border-left: 3px solid #c084fc; }
+    .event-toast.toast-room_enter  { border-left: 3px solid #34d399; }
+    .event-toast.toast-emote       { border-left: 3px solid #a78bfa; }
+    .event-toast.toast-chat        { border-left: 3px solid var(--accent); }
+
+    .event-toast:hover .toast-progress {
+      animation-play-state: paused;
+    }
+
+    @media (max-width: 768px) {
+      #toastContainer {
+        left: 50%;
+        transform: translateX(-50%);
+        width: calc(100% - 32px);
+        max-width: 360px;
+        bottom: 140px;
+      }
+    }
+
     /* ── T-346: Live Events Ticker ──────────────────────────────────────── */
     @keyframes tickerScroll {
       0%   { transform: translateX(0); }
@@ -2700,6 +2802,9 @@
     </div>
   </div>
 
+  <!-- T-353: Live Event Toast Container -->
+  <div id="toastContainer" role="log" aria-live="polite" aria-label="Live event notifications"></div>
+
   <!-- Success Toast -->
   <div class="success-toast" id="successToast">
     <span style="font-size: 24px;">🙏</span>
@@ -2719,6 +2824,101 @@
 
   <!-- Spectator client JS (lazy-loads PixiJS on room entry) -->
   <script src="/js/spectate.js" defer></script>
+
+  <!-- T-353: Live Event Toast Notification Script -->
+  <script>
+  (function() {
+    'use strict';
+
+    const MAX_TOASTS = 3;
+    const TOAST_DURATION_MS = 5000;
+
+    /** @type {HTMLElement[]} */
+    const activeToasts = [];
+
+    const TOAST_CONFIG = {
+      trade:        { icon: '💱', title: 'Trade Happening!' },
+      trade_offer:  { icon: '💱', title: 'Trade Offered' },
+      game_invite:  { icon: '🎮', title: 'Game Started!' },
+      game_win:     { icon: '🏆', title: 'Game Won!' },
+      achievement:  { icon: '🏅', title: 'Achievement!' },
+      room_enter:   { icon: '🚪', title: 'Agent Arrived' },
+      emote:        { icon: '🎭', title: 'Agent Emoting' },
+      chat:         { icon: '💬', title: 'Message' },
+    };
+
+    /**
+     * Show a live event toast.
+     * @param {string} type - Event type key (matches TOAST_CONFIG)
+     * @param {string} message - Human-readable event message
+     * @param {number} [durationMs] - Override duration in ms
+     */
+    window.showEventToast = function(type, message, durationMs) {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+
+      const duration = durationMs || TOAST_DURATION_MS;
+      const config = TOAST_CONFIG[type] || { icon: '✦', title: 'Event' };
+
+      // Remove oldest if over limit
+      while (activeToasts.length >= MAX_TOASTS) {
+        dismissToast(activeToasts[0]);
+      }
+
+      const toast = document.createElement('div');
+      toast.className = `event-toast toast-${type}`;
+      toast.setAttribute('role', 'status');
+      toast.style.setProperty('--toast-duration', duration + 'ms');
+      toast.innerHTML = `
+        <span class="toast-icon" aria-hidden="true">${config.icon}</span>
+        <div class="toast-body">
+          <div class="toast-title">${_escHtml(config.title)}</div>
+          <div class="toast-msg">${_escHtml(message)}</div>
+        </div>
+        <div class="toast-progress"></div>
+      `;
+
+      toast.addEventListener('click', () => dismissToast(toast));
+
+      container.prepend(toast);
+      activeToasts.push(toast);
+
+      const timer = setTimeout(() => dismissToast(toast), duration);
+      toast._toastTimer = timer;
+    };
+
+    /** Dismiss a toast with slide-out animation */
+    function dismissToast(toast) {
+      const idx = activeToasts.indexOf(toast);
+      if (idx === -1) return; // already removed
+      activeToasts.splice(idx, 1);
+      clearTimeout(toast._toastTimer);
+      toast.classList.add('dismissing');
+      const onEnd = () => { if (toast.parentNode) toast.remove(); };
+      toast.addEventListener('animationend', onEnd, { once: true });
+      // Failsafe: remove even if animationend never fires
+      setTimeout(onEnd, 400);
+    }
+
+    /** Escape HTML for safe insertion */
+    function _escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // Expose internals for testing
+    window._toastInternals = {
+      activeToasts,
+      TOAST_CONFIG,
+      dismissToast,
+      MAX_TOASTS,
+      TOAST_DURATION_MS,
+    };
+  })();
+  </script>
 
   <!-- T-346: Live Events Ticker Script -->
   <script>
