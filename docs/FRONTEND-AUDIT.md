@@ -4,42 +4,33 @@
 
 ### 🔴 CRÍTICO (rompe la experiencia)
 
-1. **✅ FIXED — Swipe cambia de room al mover mapa** — touchend detectaba swipe >100px y cambiaba de room. Eliminado.
-
-2. **✅ FIXED — Stats siempre 0** — Campo `totalAgents` vs `totalAgentsOnline` mismatch.
-
-3. **✅ FIXED — Agentes fuera del mapa** — Server generaba coords 0-19, grid es 16x16. Clamped a 1-14.
-
-4. **✅ FIXED — Dos iconos chat duplicados en móvil** — liveChatFeed + mobileToggle ambos visibles.
+1. **✅ FIXED** — Swipe cambia de room al mover mapa (eliminado)
+2. **✅ FIXED** — Stats siempre 0 (`totalAgents` vs `totalAgentsOnline`)
+3. **✅ FIXED** — Agentes fuera del mapa (server coords 0-19, grid 16)
+4. **✅ FIXED** — Dos iconos chat duplicados en móvil
 
 ### 🟡 IMPORTANTE (se ve mal pero funciona)
 
-5. **Double-tap toggle FPS en móvil** — Innecesario, puede confundir. Considerar eliminar.
+5. **✅ FIXED** — Double-tap FPS toggle eliminado
+6. **✅ FIXED** — Back button prominente en móvil (fixed position, top-left)
+7. **✅ FIXED** — Room cards ya mostraban agent count (verified)
+8. **✅ FIXED** — Partículas desactivadas en móvil
+9. **✅ FIXED** — Room size muestra 16×16 (real)
+10. **✅ FIXED** — Help/feedback/audio/theme buttons hidden on mobile
+11. **✅ FIXED** — liveChatFeed hidden on mobile (redundant with sidebar)
 
-6. **Botón ? (help) aún visible en room view** — Debería estar hidden en mobile (fix desplegando).
+### 🔵 PENDIENTE (verificar en próximo test de Diego)
 
-7. **Room cards sin indicador de agentes** — Las cards muestran "12×12" pero no cuántos agentes hay dentro. El ticker muestra actividad pero las cards no.
+12. **Minimap overlap** — Reducido a 80px, 60% opacity. Verificar si molesta.
+13. **Sidebar tabs en desktop** — Verificar que no se solapan con nada.
+14. **Reaction panel** — ¿Se ve bien en móvil? Puede necesitar ajuste.
+15. **Agent sprites** — ¿Se ven bien con los nuevos colores de room?
+16. **Pan sensitivity** — El factor 0.5 en touchmove ¿es suficiente?
 
-8. **Minimap opaca los controles** — En la esquina inferior derecha, puede solapar con el botón de chat.
+## Resumen de cambios (commits)
 
-9. **Partículas decorativas** — Puntos de colores flotando sobre el mapa. En móvil solo confunden. Considerar desactivar.
-
-### 🟢 MENOR (nice to have)
-
-10. **No hay botón visible de "volver" en room view** — Solo el gesto de back del browser.
-
-11. **Room sizes dicen 12×12 pero ROOM_SIZE es 16** — Inconsistencia.
-
-12. **Sidebar tabs (Chat/Activity/Rooms) se solapan con iconos en desktop** — Los tabs de la barra superior tienen la luna y el altavoz encima.
-
-## Plan de Acción (1 por 1, en orden)
-
-- [x] Fix 1: Swipe eliminado
-- [x] Fix 2: Stats field name
-- [x] Fix 3: Agent positions
-- [x] Fix 4: Duplicate chat icons
-- [ ] Fix 5: Remove double-tap FPS on mobile
-- [ ] Fix 6: Add visible "back" button in room view for mobile
-- [ ] Fix 7: Show agent count in room cards
-- [ ] Fix 8: Disable particles on mobile
-- [ ] Fix 9: Fix room size display (12×12 → actual size)
+- `aa1b3f9` — Room themes, hide icons mobile, stats retry
+- `2272cff` — Agent position clamp, mobile declutter
+- `daa9f12` — Hide help/feedback, bottom-sheet profile, cold-start retry
+- `89205cb` — Stats field fix, server position bounds, duplicate chat fix
+- `95f97f9` — Remove swipe-room-change, disable particles, prominent back btn
