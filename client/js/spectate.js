@@ -1683,42 +1683,46 @@ function loadPixiJS() {
     function leaveRoom() {
       const roomView = document.getElementById('roomView');
       
-      // Stop ambient sound
-      stopAmbientHum();
+      try { stopAmbientHum(); } catch(e) { console.warn('leaveRoom: stopAmbientHum', e); }
       
-      // Trigger fade-out transition
-      roomView.classList.remove('fade-in');
-      roomView.classList.add('fade-out');
+      // Close WebSocket immediately
+      try { if (ws) { ws.close(); ws = null; } } catch(e) { console.warn('leaveRoom: ws close', e); }
       
-      // Hide live chat feed
-      document.getElementById('liveChatFeed').style.display = 'none';
-
-      // Hide LIVE badge
-      const liveBadge = document.getElementById('liveBadge');
-      if (liveBadge) liveBadge.classList.remove('visible');
-      
-      // Wait for transition to complete (400ms)
-      setTimeout(() => {
-        if (ws) { ws.close(); ws = null; }
-        hideTooltip(); // T-341: hide any visible tooltip
+      // Destroy PixiJS app
+      try {
         if (app) {
-          clearParticles(); // clean up particle graphics before destroying app
+          try { clearParticles(); } catch(e) {}
           app.destroy(true, { children: true, texture: true });
           app = null;
-          tooltipContainer = null; // T-341: reset tooltip ref
-          particleContainer = null; // reset particle container ref
+          tooltipContainer = null;
+          particleContainer = null;
+          floorContainer = null;
+          wallContainer = null;
+          contentContainer = null;
+          worldContainer = null;
         }
-        currentRoomId = null;
-        agents.clear();
-        roomFurniture.clear(); // T-344: clear furniture on leave
+      } catch(e) { console.warn('leaveRoom: app destroy', e); app = null; }
+      
+      // Hide live chat feed & LIVE badge
+      try { document.getElementById('liveChatFeed').style.display = 'none'; } catch(e) {}
+      try { document.getElementById('liveBadge')?.classList.remove('visible'); } catch(e) {}
+      try { hideTooltip(); } catch(e) {}
+      
+      // Reset state
+      currentRoomId = null;
+      agents.clear();
+      roomFurniture.clear();
 
-        document.getElementById('roomSelector').classList.remove('hidden');
-        roomView.classList.remove('active', 'fade-out');
+      // Switch views — immediate, no fade animation (was causing stuck states)
+      document.getElementById('roomSelector').classList.remove('hidden');
+      roomView.classList.remove('active', 'fade-in', 'fade-out');
 
-        // Re-render room list to update "currently viewing" indicator
-        fetchRooms();
-        fetchStats();
-      }, 400);
+      // Re-render room list
+      fetchRooms();
+      fetchStats();
+      
+      // Update URL
+      history.pushState(null, '', window.location.pathname);
     }
 
     // ===== WEBSOCKET WITH RESILIENCE =====
