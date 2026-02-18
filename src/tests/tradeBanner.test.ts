@@ -1,317 +1,430 @@
 /**
  * T-370: Live Trade Announcement Banner — Unit Tests
  *
- * 25+ tests covering:
- *   - TradeBannerController: show(), hide(), isVisible(), getAgents()
- *   - Text sanitization (XSS prevention)
- *   - Auto-hide timer logic
- *   - Reset / re-trigger behaviour
- *   - Edge cases (empty names, special chars, rapid fire)
+ * Tests for:
+ * - show()      — banner creation, message format, items, return value
+ * - Queue       — FIFO ordering, no overlap, sequential playback
+ * - Auto-dismiss — timer fires after durationMs, advances queue
+ * - Manual dismiss — immediate teardown, queue advance
+ * - getState()  — idle / showing / dismissed transitions
+ * - getQueue()  — snapshot of pending entries
+ * - clearQueue() — drains pending without affecting current
+ * - destroy()   — full teardown
+ * - Edge cases  — empty strings, special chars, unicode, no items
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { TradeBannerManager, BannerEntry, TradeItem } from '../tradeBanner.js';
 
-// ── Pure TradeBannerController (no DOM dependency) ────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-interface TradeBannerState {
-  visible: boolean;
-  agentA: string;
-  agentB: string;
-  shownAt: number | null;
+function makeMgr(durationMs = 3_000) {
+  return new TradeBannerManager(durationMs);
 }
 
-class TradeBannerController {
-  private _state: TradeBannerState = {
-    visible: false,
-    agentA: '',
-    agentB: '',
-    shownAt: null,
-  };
+// ─────────────────────────────────────────────────────────────────────────────
 
-  private _hideTimer: ReturnType<typeof setTimeout> | null = null;
-  private _displayMs: number;
-
-  constructor(displayMs = 3200) {
-    this._displayMs = displayMs;
-  }
-
-  /** Show banner for a trade between agentA and agentB. */
-  show(agentA: string, agentB: string): void {
-    const safeA = this._sanitize(agentA);
-    const safeB = this._sanitize(agentB);
-
-    // Cancel any running timer first
-    if (this._hideTimer !== null) {
-      clearTimeout(this._hideTimer);
-      this._hideTimer = null;
-    }
-
-    this._state = { visible: true, agentA: safeA, agentB: safeB, shownAt: Date.now() };
-
-    this._hideTimer = setTimeout(() => {
-      this._state.visible = false;
-      this._hideTimer = null;
-    }, this._displayMs);
-  }
-
-  /** Force-hide the banner immediately. */
-  hide(): void {
-    if (this._hideTimer !== null) {
-      clearTimeout(this._hideTimer);
-      this._hideTimer = null;
-    }
-    this._state.visible = false;
-  }
-
-  /** Returns true if the banner is currently shown. */
-  isVisible(): boolean {
-    return this._state.visible;
-  }
-
-  /** Returns the current agent names. */
-  getAgents(): { agentA: string; agentB: string } {
-    return { agentA: this._state.agentA, agentB: this._state.agentB };
-  }
-
-  /** Returns timestamp of last show() call (null if never shown or after hide). */
-  getShownAt(): number | null {
-    return this._state.visible ? this._state.shownAt : null;
-  }
-
-  /** Returns the formatted display string. */
-  getDisplayText(): string {
-    if (!this._state.visible) return '';
-    return `${this._state.agentA} ↔ ${this._state.agentB}`;
-  }
-
-  /** Sanitize a string to prevent XSS (strip HTML tags). */
-  private _sanitize(name: string): string {
-    if (!name || typeof name !== 'string') return 'Unknown';
-    return name
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#x27;')
-      .trim()
-      .slice(0, 40); // max 40 chars
-  }
-}
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
-describe('TradeBannerController — show()', () => {
-  let ctrl: TradeBannerController;
+describe('T-370: TradeBannerManager — show() basics', () => {
+  let mgr: TradeBannerManager;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    ctrl = new TradeBannerController(3200);
+    mgr = makeMgr();
   });
 
+  afterEach(() => {
+    mgr.destroy();
+    vi.useRealTimers();
+  });
+
+  it('returns a BannerEntry with correct agentA and agentB', () => {
+    const entry = mgr.show('AgentAlpha', 'AgentBeta');
+    expect(entry.agentA).toBe('AgentAlpha');
+    expect(entry.agentB).toBe('AgentBeta');
+  });
+
+  it('formats message as "DEAL STRUCK: AgentA ↔ AgentB"', () => {
+    const entry = mgr.show('Luna', 'Rex');
+    expect(entry.message).toBe('DEAL STRUCK: Luna ↔ Rex');
+  });
+
+  it('assigns a unique id to every banner', () => {
+    const e1 = mgr.show('A', 'B');
+    const e2 = mgr.show('C', 'D');
+    expect(e1.id).not.toBe(e2.id);
+  });
+
+  it('id is a non-empty string', () => {
+    const entry = mgr.show('X', 'Y');
+    expect(typeof entry.id).toBe('string');
+    expect(entry.id.length).toBeGreaterThan(0);
+  });
+
+  it('records createdAt as a recent timestamp', () => {
+    const before = Date.now();
+    const entry = mgr.show('A', 'B');
+    const after = Date.now();
+    expect(entry.createdAt).toBeGreaterThanOrEqual(before);
+    expect(entry.createdAt).toBeLessThanOrEqual(after);
+  });
+
+  it('stores optional items on the entry', () => {
+    const items: TradeItem[] = [{ name: 'Gold', quantity: 5 }];
+    const entry = mgr.show('A', 'B', items);
+    expect(entry.items).toEqual(items);
+  });
+
+  it('items is undefined when not provided', () => {
+    const entry = mgr.show('A', 'B');
+    expect(entry.items).toBeUndefined();
+  });
+
+  it('items can be an empty array', () => {
+    const entry = mgr.show('A', 'B', []);
+    expect(entry.items).toEqual([]);
+  });
+
+  it('handles agent names with spaces', () => {
+    const entry = mgr.show('Agent One', 'Agent Two');
+    expect(entry.message).toBe('DEAL STRUCK: Agent One ↔ Agent Two');
+  });
+
+  it('handles unicode / emoji in agent names', () => {
+    const entry = mgr.show('🤖 RoboA', '🦾 RoboB');
+    expect(entry.message).toContain('🤖 RoboA');
+    expect(entry.message).toContain('🦾 RoboB');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('T-370: TradeBannerManager — getState()', () => {
+  let mgr: TradeBannerManager;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mgr = makeMgr();
+  });
+
+  afterEach(() => {
+    mgr.destroy();
+    vi.useRealTimers();
+  });
+
+  it('starts in "idle" state', () => {
+    expect(mgr.getState().status).toBe('idle');
+  });
+
+  it('transitions to "showing" after show()', () => {
+    mgr.show('A', 'B');
+    expect(mgr.getState().status).toBe('showing');
+  });
+
+  it('"showing" state contains the current banner', () => {
+    const entry = mgr.show('Luna', 'Rex');
+    const state = mgr.getState();
+    expect(state.status).toBe('showing');
+    if (state.status === 'showing') {
+      expect(state.current).toBe(entry);
+    }
+  });
+
+  it('"showing" queueLength is 0 when only one banner shown', () => {
+    mgr.show('A', 'B');
+    const state = mgr.getState();
+    if (state.status === 'showing') {
+      expect(state.queueLength).toBe(0);
+    }
+  });
+
+  it('"showing" queueLength reflects pending banners', () => {
+    mgr.show('A', 'B');
+    mgr.show('C', 'D');
+    mgr.show('E', 'F');
+    const state = mgr.getState();
+    if (state.status === 'showing') {
+      expect(state.queueLength).toBe(2);
+    }
+  });
+
+  it('transitions to "dismissed" after auto-dismiss timer fires', () => {
+    mgr.show('A', 'B');
+    vi.advanceTimersByTime(3_000);
+    expect(mgr.getState().status).toBe('dismissed');
+  });
+
+  it('"dismissed" last references the banner that was shown', () => {
+    const entry = mgr.show('Luna', 'Rex');
+    vi.advanceTimersByTime(3_000);
+    const state = mgr.getState();
+    expect(state.status).toBe('dismissed');
+    if (state.status === 'dismissed') {
+      expect(state.last).toBe(entry);
+    }
+  });
+
+  it('returns to "showing" when queue advances after dismiss', () => {
+    mgr.show('A', 'B');
+    mgr.show('C', 'D');
+    vi.advanceTimersByTime(3_000);
+    // First banner dismissed → second should now be showing
+    expect(mgr.getState().status).toBe('showing');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('T-370: TradeBannerManager — auto-dismiss timing', () => {
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('should be invisible on init', () => {
-    expect(ctrl.isVisible()).toBe(false);
+  it('banner is still visible at 2 999 ms (not yet dismissed)', () => {
+    vi.useFakeTimers();
+    const mgr = makeMgr(3_000);
+    mgr.show('A', 'B');
+    vi.advanceTimersByTime(2_999);
+    expect(mgr.getState().status).toBe('showing');
+    mgr.destroy();
   });
 
-  it('should become visible after show()', () => {
-    ctrl.show('AlphaBot', 'BetaBot');
-    expect(ctrl.isVisible()).toBe(true);
+  it('banner is dismissed exactly at 3 000 ms', () => {
+    vi.useFakeTimers();
+    const mgr = makeMgr(3_000);
+    mgr.show('A', 'B');
+    vi.advanceTimersByTime(3_000);
+    expect(mgr.getState().status).not.toBe('showing');
+    mgr.destroy();
   });
 
-  it('should store agent names correctly', () => {
-    ctrl.show('AlphaBot', 'BetaBot');
-    expect(ctrl.getAgents()).toEqual({ agentA: 'AlphaBot', agentB: 'BetaBot' });
+  it('respects custom durationMs passed to constructor', () => {
+    vi.useFakeTimers();
+    const mgr = makeMgr(1_000);
+    mgr.show('A', 'B');
+    vi.advanceTimersByTime(999);
+    expect(mgr.getState().status).toBe('showing');
+    vi.advanceTimersByTime(1);
+    expect(mgr.getState().status).not.toBe('showing');
+    mgr.destroy();
   });
 
-  it('should return correct display text', () => {
-    ctrl.show('Trader99', 'Seller42');
-    expect(ctrl.getDisplayText()).toBe('Trader99 ↔ Seller42');
-  });
-
-  it('should auto-hide after displayMs', () => {
-    ctrl.show('A', 'B');
-    expect(ctrl.isVisible()).toBe(true);
-    vi.advanceTimersByTime(3200);
-    expect(ctrl.isVisible()).toBe(false);
-  });
-
-  it('should still be visible just before auto-hide', () => {
-    ctrl.show('A', 'B');
-    vi.advanceTimersByTime(3199);
-    expect(ctrl.isVisible()).toBe(true);
-  });
-
-  it('should reset timer on re-trigger', () => {
-    ctrl.show('A', 'B');
-    vi.advanceTimersByTime(2000);
-    ctrl.show('C', 'D'); // re-trigger
-    vi.advanceTimersByTime(2000); // 2s after re-trigger (4s total)
-    expect(ctrl.isVisible()).toBe(true); // should still be visible
-  });
-
-  it('should update agents on re-trigger', () => {
-    ctrl.show('A', 'B');
-    ctrl.show('C', 'D');
-    expect(ctrl.getAgents()).toEqual({ agentA: 'C', agentB: 'D' });
-  });
-
-  it('should auto-hide after the new timer when re-triggered', () => {
-    ctrl.show('A', 'B');
-    vi.advanceTimersByTime(2000);
-    ctrl.show('C', 'D');
-    vi.advanceTimersByTime(3200); // full timer after re-trigger
-    expect(ctrl.isVisible()).toBe(false);
-  });
-
-  it('should record shownAt timestamp when visible', () => {
-    ctrl.show('A', 'B');
-    expect(ctrl.getShownAt()).not.toBeNull();
-    expect(typeof ctrl.getShownAt()).toBe('number');
-  });
-
-  it('should return null shownAt when not visible', () => {
-    expect(ctrl.getShownAt()).toBeNull();
-  });
-
-  it('getDisplayText should return empty string when not visible', () => {
-    expect(ctrl.getDisplayText()).toBe('');
+  it('durationMs is exposed on the instance', () => {
+    const mgr = makeMgr(5_000);
+    expect(mgr.durationMs).toBe(5_000);
+    mgr.destroy();
   });
 });
 
-describe('TradeBannerController — hide()', () => {
-  let ctrl: TradeBannerController;
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('T-370: TradeBannerManager — queue system', () => {
+  let mgr: TradeBannerManager;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    ctrl = new TradeBannerController(3200);
+    mgr = makeMgr();
   });
 
   afterEach(() => {
+    mgr.destroy();
     vi.useRealTimers();
   });
 
-  it('should hide immediately on hide()', () => {
-    ctrl.show('A', 'B');
-    ctrl.hide();
-    expect(ctrl.isVisible()).toBe(false);
-  });
-
-  it('should cancel auto-hide timer on hide()', () => {
-    ctrl.show('A', 'B');
-    ctrl.hide();
-    vi.advanceTimersByTime(4000); // timer would have fired
-    expect(ctrl.isVisible()).toBe(false); // already hidden
-  });
-
-  it('hide() on already-hidden banner should be a no-op', () => {
-    expect(() => ctrl.hide()).not.toThrow();
-    expect(ctrl.isVisible()).toBe(false);
-  });
-
-  it('should allow show() after hide()', () => {
-    ctrl.show('A', 'B');
-    ctrl.hide();
-    ctrl.show('X', 'Y');
-    expect(ctrl.isVisible()).toBe(true);
-    expect(ctrl.getAgents()).toEqual({ agentA: 'X', agentB: 'Y' });
-  });
-});
-
-describe('TradeBannerController — XSS sanitization', () => {
-  let ctrl: TradeBannerController;
-
-  beforeEach(() => {
-    ctrl = new TradeBannerController(3200);
-  });
-
-  it('should escape < and > characters', () => {
-    ctrl.show('<script>alert(1)</script>', 'Safe');
-    const { agentA } = ctrl.getAgents();
-    expect(agentA).not.toContain('<script>');
-    expect(agentA).toContain('&lt;');
-    expect(agentA).toContain('&gt;');
-  });
-
-  it('should escape double quotes', () => {
-    ctrl.show('"injection"', 'B');
-    expect(ctrl.getAgents().agentA).toContain('&quot;');
-  });
-
-  it('should escape single quotes', () => {
-    ctrl.show("it's a trap", 'B');
-    expect(ctrl.getAgents().agentA).toContain('&#x27;');
-  });
-
-  it('should truncate names longer than 40 chars', () => {
-    const longName = 'A'.repeat(50);
-    ctrl.show(longName, 'B');
-    expect(ctrl.getAgents().agentA.length).toBeLessThanOrEqual(40);
-  });
-
-  it('should trim whitespace from names', () => {
-    ctrl.show('  Alpha  ', '  Beta  ');
-    expect(ctrl.getAgents().agentA).toBe('Alpha');
-    expect(ctrl.getAgents().agentB).toBe('Beta');
-  });
-
-  it('should replace empty/null agentA with "Unknown"', () => {
-    ctrl.show('', 'B');
-    expect(ctrl.getAgents().agentA).toBe('Unknown');
-  });
-
-  it('should handle undefined-like input gracefully', () => {
-    ctrl.show(null as unknown as string, 'B');
-    expect(ctrl.getAgents().agentA).toBe('Unknown');
-  });
-
-  it('should allow normal Unicode names', () => {
-    ctrl.show('Ñoño🤖', 'BéBop');
-    expect(ctrl.getAgents().agentA).toBe('Ñoño🤖');
-    expect(ctrl.getAgents().agentB).toBe('BéBop');
-  });
-});
-
-describe('TradeBannerController — edge cases', () => {
-  let ctrl: TradeBannerController;
-
-  beforeEach(() => {
-    vi.useFakeTimers();
-    ctrl = new TradeBannerController(3200);
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('should handle very rapid successive show() calls', () => {
-    for (let i = 0; i < 10; i++) {
-      ctrl.show(`AgentA-${i}`, `AgentB-${i}`);
+  it('second show() while one is active does not change current banner', () => {
+    const e1 = mgr.show('A', 'B');
+    mgr.show('C', 'D');
+    const state = mgr.getState();
+    if (state.status === 'showing') {
+      expect(state.current).toBe(e1);
     }
-    expect(ctrl.isVisible()).toBe(true);
-    const agents = ctrl.getAgents();
-    expect(agents.agentA).toBe('AgentA-9'); // last call wins
   });
 
-  it('should work with a custom short displayMs', () => {
-    const quick = new TradeBannerController(500);
-    quick.show('A', 'B');
-    expect(quick.isVisible()).toBe(true);
-    vi.advanceTimersByTime(500);
-    expect(quick.isVisible()).toBe(false);
+  it('queued banners are processed in FIFO order', () => {
+    mgr.show('first', 'X');
+    mgr.show('second', 'X');
+    mgr.show('third', 'X');
+
+    vi.advanceTimersByTime(3_000); // dismiss first
+    const s1 = mgr.getState();
+    expect(s1.status).toBe('showing');
+    if (s1.status === 'showing') expect(s1.current.agentA).toBe('second');
+
+    vi.advanceTimersByTime(3_000); // dismiss second
+    const s2 = mgr.getState();
+    expect(s2.status).toBe('showing');
+    if (s2.status === 'showing') expect(s2.current.agentA).toBe('third');
   });
 
-  it('should format display text with ↔ separator', () => {
-    ctrl.show('A', 'B');
-    expect(ctrl.getDisplayText()).toContain('↔');
+  it('each queued banner stays for a full durationMs', () => {
+    mgr.show('A', 'B');
+    mgr.show('C', 'D');
+
+    vi.advanceTimersByTime(3_000);       // first dismisses
+    expect(mgr.getState().status).toBe('showing');
+    vi.advanceTimersByTime(2_999);       // second nearly done
+    expect(mgr.getState().status).toBe('showing');
+    vi.advanceTimersByTime(1);           // second dismisses
+    expect(mgr.getState().status).toBe('dismissed');
   });
 
-  it('should not expose state mutation through getAgents()', () => {
-    ctrl.show('Alice', 'Bob');
-    const agents = ctrl.getAgents();
-    agents.agentA = 'MUTATED';
-    // Internal state should be unchanged
-    expect(ctrl.getAgents().agentA).toBe('Alice');
+  it('getQueue() returns pending entries (not current)', () => {
+    mgr.show('A', 'B');
+    mgr.show('C', 'D');
+    mgr.show('E', 'F');
+    const q = mgr.getQueue();
+    expect(q).toHaveLength(2);
+    expect(q[0].agentA).toBe('C');
+    expect(q[1].agentA).toBe('E');
+  });
+
+  it('getQueue() returns a copy — mutating it does not affect internal queue', () => {
+    mgr.show('A', 'B');
+    mgr.show('C', 'D');
+    const q = mgr.getQueue();
+    q.pop(); // mutate copy
+    expect(mgr.getQueue()).toHaveLength(1);
+  });
+
+  it('clearQueue() empties pending without affecting current', () => {
+    const e1 = mgr.show('A', 'B');
+    mgr.show('C', 'D');
+    mgr.show('E', 'F');
+    mgr.clearQueue();
+    expect(mgr.getQueue()).toHaveLength(0);
+    const state = mgr.getState();
+    expect(state.status).toBe('showing');
+    if (state.status === 'showing') expect(state.current).toBe(e1);
+  });
+
+  it('after clearQueue, banner finishes and goes to dismissed (no next)', () => {
+    mgr.show('A', 'B');
+    mgr.show('C', 'D');
+    mgr.clearQueue();
+    vi.advanceTimersByTime(3_000);
+    expect(mgr.getState().status).toBe('dismissed');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('T-370: TradeBannerManager — manual dismiss()', () => {
+  let mgr: TradeBannerManager;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mgr = makeMgr();
+  });
+
+  afterEach(() => {
+    mgr.destroy();
+    vi.useRealTimers();
+  });
+
+  it('dismiss() while showing immediately clears current banner', () => {
+    mgr.show('A', 'B');
+    mgr.dismiss();
+    expect(mgr.getState().status).not.toBe('showing');
+  });
+
+  it('dismiss() is safe to call when nothing is showing', () => {
+    expect(() => mgr.dismiss()).not.toThrow();
+  });
+
+  it('dismiss() advances to the next queued banner', () => {
+    mgr.show('A', 'B');
+    const e2 = mgr.show('C', 'D');
+    mgr.dismiss();
+    const state = mgr.getState();
+    expect(state.status).toBe('showing');
+    if (state.status === 'showing') expect(state.current).toBe(e2);
+  });
+
+  it('dismiss() after auto-dismiss does not throw', () => {
+    mgr.show('A', 'B');
+    vi.advanceTimersByTime(3_000); // auto-dismissed
+    expect(() => mgr.dismiss()).not.toThrow();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('T-370: TradeBannerManager — destroy()', () => {
+  it('destroy() cancels pending timer (no state change after)', () => {
+    vi.useFakeTimers();
+    const mgr = makeMgr();
+    mgr.show('A', 'B');
+    mgr.destroy();
+    vi.advanceTimersByTime(5_000); // timer would have fired
+    // After destroy, state reflects destroyed manager (null current)
+    expect(mgr.getState().status).not.toBe('showing');
+    vi.useRealTimers();
+  });
+
+  it('destroy() is idempotent — calling twice does not throw', () => {
+    const mgr = makeMgr();
+    expect(() => {
+      mgr.destroy();
+      mgr.destroy();
+    }).not.toThrow();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('T-370: TradeBannerManager — edge cases', () => {
+  let mgr: TradeBannerManager;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mgr = makeMgr();
+  });
+
+  afterEach(() => {
+    mgr.destroy();
+    vi.useRealTimers();
+  });
+
+  it('handles empty-string agent names without throwing', () => {
+    expect(() => mgr.show('', '')).not.toThrow();
+  });
+
+  it('message with empty agent names still contains ↔', () => {
+    const entry = mgr.show('', '');
+    expect(entry.message).toContain('↔');
+    expect(entry.message).toContain('DEAL STRUCK');
+  });
+
+  it('items with quantity=0 are preserved', () => {
+    const items: TradeItem[] = [{ name: 'Debt', quantity: 0 }];
+    const entry = mgr.show('A', 'B', items);
+    expect(entry.items![0].quantity).toBe(0);
+  });
+
+  it('many banners queued — all processed in order', () => {
+    const names = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'];
+    names.forEach(n => mgr.show(n, 'Z'));
+
+    for (let i = 0; i < names.length; i++) {
+      const state = mgr.getState();
+      expect(state.status).toBe('showing');
+      if (state.status === 'showing') {
+        expect(state.current.agentA).toBe(names[i]);
+      }
+      vi.advanceTimersByTime(3_000);
+    }
+    expect(mgr.getState().status).toBe('dismissed');
+  });
+
+  it('id counter increments across multiple show() calls', () => {
+    const ids = [mgr.show('A', 'B').id, mgr.show('C', 'D').id, mgr.show('E', 'F').id];
+    const nums = ids.map(id => Number(id.split('-')[1]));
+    expect(nums[0]).toBeLessThan(nums[1]);
+    expect(nums[1]).toBeLessThan(nums[2]);
+  });
+
+  it('agent names with special characters render correctly in message', () => {
+    const entry = mgr.show('<Hacker>', '"Agent"');
+    expect(entry.message).toContain('<Hacker>');
+    expect(entry.message).toContain('"Agent"');
   });
 });

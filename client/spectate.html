@@ -1314,6 +1314,88 @@
     .sg-dot-solid  { background: var(--accent); }
     .sg-dot-dashed { background: repeating-linear-gradient(to right, #888 0, #888 4px, transparent 4px, transparent 7px); }
 
+    /* ── T-371: Highlight Reel Panel ──────────────────────────────────── */
+    #pane-highlights { padding: 8px; display: flex; flex-direction: column; gap: 6px; height: 100%; overflow: hidden; }
+    .hl-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2px 4px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .hl-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+    }
+    .hl-reset-btn {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px;
+      color: var(--text-secondary);
+      font-size: 10px;
+      padding: 2px 7px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .hl-reset-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .hl-cards { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; flex: 1; }
+    .hl-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      transition: border-color 0.2s;
+    }
+    .hl-card:hover { border-color: rgba(0,212,170,0.3); }
+    .hl-card-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+    }
+    .hl-card-value {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .hl-card-meta {
+      font-size: 10px;
+      color: var(--text-secondary);
+    }
+    .hl-card-icon {
+      font-size: 18px;
+      line-height: 1;
+      margin-bottom: 2px;
+    }
+    .hl-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-align: center;
+      flex-direction: column;
+      gap: 8px;
+      padding: 20px;
+    }
+    /* new-highlight glow on update */
+    .hl-card.hl-flash {
+      animation: hlFlash 0.5s ease;
+    }
+    @keyframes hlFlash {
+      0%   { border-color: var(--accent); box-shadow: 0 0 8px rgba(0,212,170,0.5); }
+      100% { border-color: rgba(255,255,255,0.08); box-shadow: none; }
+    }
+
     /* ===== SIDEBAR ROOMS TAB (T-350) ===== */
     #sidebarRoomsPanel {
       display: flex;
@@ -3230,6 +3312,8 @@
           <div class="sidebar-tab" id="tab-rooms" onclick="switchSidebarTab('rooms')" title="Switch rooms">🏨 Rooms</div>
           <!-- T-366: Social Graph tab -->
           <div class="sidebar-tab" id="tab-graph" onclick="switchSidebarTab('graph')" title="Friend network">🕸 Graph</div>
+          <!-- T-371: Highlight Reel tab -->
+          <div class="sidebar-tab" id="tab-highlights" onclick="switchSidebarTab('highlights')" title="Best moments">🎬 Reel</div>
         </div>
         <!-- Chat tab -->
         <div class="tab-pane active" id="pane-chat">
@@ -3293,6 +3377,22 @@
             </div>
           </div>
         </div>
+        <!-- T-371: Highlight Reel panel -->
+        <div class="tab-pane" id="pane-highlights">
+          <div id="highlightReel">
+            <div class="hl-header">
+              <span class="hl-title">🎬 Highlight Reel</span>
+              <button class="hl-reset-btn" onclick="resetHighlightReel()" title="Clear highlights">↺ Reset</button>
+            </div>
+            <div class="hl-cards" id="hlCards">
+              <div class="hl-empty" id="hlEmpty">
+                <span style="font-size:24px">🎬</span>
+                <span>No highlights yet.<br>Watch events to fill the reel!</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="readonly-badge">👁 Spectator Mode — Read Only</div>
       </div>
     </div>
