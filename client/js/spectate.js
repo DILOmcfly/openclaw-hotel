@@ -1404,8 +1404,8 @@ function loadPixiJS() {
      * Returns a CSS-gradient theme for the room based on its name/type.
      * Used to give each room card a distinct visual identity.
      */
-    function getRoomTheme(roomName) {
-      const name = roomName.toLowerCase();
+    function getRoomCardTheme(roomName) {
+      const name = (roomName || '').toLowerCase();
       // Gradient: [top-bar color, card glow rgba]
       if (name.includes('lobby') || name.includes('main') || name.includes('entrance'))
         return { bar: '#00D4AA', glow: 'rgba(0,212,170,0.08)', label: 'Lobby' };
@@ -1459,7 +1459,7 @@ function loadPixiJS() {
         const size = getRoomSize(room);
         const agentCount = room.agentCount || 0;
         const animationDelay = index * 0.05; // Stagger by 50ms
-        const theme = getRoomTheme(room.name);
+        const theme = getRoomCardTheme(room.name);
         const isHot = agentCount >= 3; // "hot" rooms have 3+ agents
         
         return `
