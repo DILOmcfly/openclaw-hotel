@@ -461,9 +461,9 @@ export async function seedBeta(): Promise<void> {
 
     // Set agent bio in profile
     await sql`
-      INSERT INTO agent_profiles (agent_id, display_name, bio)
-      VALUES (${result.id}::text, ${agent.name}, ${agent.bio})
-      ON CONFLICT (agent_id) DO UPDATE SET bio = ${agent.bio}, display_name = ${agent.name}
+      INSERT INTO agent_profiles (agent_id, bio)
+      VALUES (${result.id}::uuid, ${agent.bio})
+      ON CONFLICT (agent_id) DO UPDATE SET bio = ${agent.bio}
     `;
 
     // Give starting balance (1000 credits)

@@ -464,6 +464,35 @@ const SIMULATION_INTERVAL_MS = parseInt(process.env.SIMULATION_INTERVAL_MS || '6
 const SIMULATION_ACTION_PROBABILITY = parseFloat(process.env.SIMULATION_ACTION_PROBABILITY || '0.5'); // Default: 50%
 
 if (SIMULATION_ENABLED) {
+  // Ensure agents are placed in rooms on startup (cold start recovery)
+  (async () => {
+    try {
+      const presenceCount = await sql`SELECT COUNT(*)::int AS cnt FROM presence`;
+      if (presenceCount[0].cnt === 0) {
+        logger.info('[ColdStart] No agents in rooms — seeding presence from DB agents...');
+        const agents = await sql`SELECT id FROM agents LIMIT 10`;
+        const rooms = await sql`SELECT id FROM rooms LIMIT 5`;
+        if (agents.length > 0 && rooms.length > 0) {
+          for (let i = 0; i < agents.length; i++) {
+            const roomId = rooms[i % rooms.length].id;
+            const x = 1 + Math.floor(Math.random() * 14);
+            const y = 1 + Math.floor(Math.random() * 14);
+            try {
+              await sql`
+                INSERT INTO presence (agent_id, room_id, x, y)
+                VALUES (${agents[i].id}, ${roomId}, ${x}, ${y})
+                ON CONFLICT (agent_id) DO NOTHING
+              `;
+            } catch (e) { /* ignore individual insert errors */ }
+          }
+          logger.info(`[ColdStart] Placed ${agents.length} agents into ${rooms.length} rooms`);
+        }
+      }
+    } catch (e) {
+      logger.error('[ColdStart] Failed to seed presence:', { error: String(e) });
+    }
+  })();
+
   simulationService.startLoop(
     {
       enabled: true,

@@ -1,8 +1,7 @@
 -- Populate agent bios for beta agents
--- This runs on server startup via migration system
 
-INSERT INTO agent_profiles (agent_id, display_name, bio)
-SELECT a.id, a.display_name, CASE a.display_name
+INSERT INTO agent_profiles (agent_id, bio)
+SELECT a.id, CASE a.display_name
   WHEN 'Luna' THEN 'A curious explorer always seeking new experiences and hidden corners of the hotel.'
   WHEN 'Rex' THEN 'A competitive gamer who plays to win and never backs down from a challenge.'
   WHEN 'Sage' THEN 'A wise philosopher who values order, knowledge, and meaningful conversations.'
@@ -17,7 +16,4 @@ SELECT a.id, a.display_name, CASE a.display_name
 END
 FROM agents a
 WHERE a.display_name IN ('Luna', 'Rex', 'Sage', 'Pixel', 'Drift', 'Blitz', 'Echo', 'Spark', 'Cipher', 'Nova')
-ON CONFLICT (agent_id) DO UPDATE SET 
-  bio = EXCLUDED.bio,
-  display_name = EXCLUDED.display_name
-WHERE agent_profiles.bio IS NULL OR agent_profiles.bio = '';
+ON CONFLICT (agent_id) DO UPDATE SET bio = EXCLUDED.bio;
