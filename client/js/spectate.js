@@ -253,19 +253,33 @@ function loadPixiJS() {
         // Fallback: procedural furniture
         // Map DB item_def_id to procedural type
         const proceduralMap = {
+          // Garden
           'tree': 'tree', 'bench_park': 'bench', 'fountain': 'fountain',
           'plant_potted': 'flower_bush', 'flowers': 'flower_bush',
-          'lamp_garden': 'reading_lamp', 'lamp': 'reading_lamp',
+          'lamp_garden': 'reading_lamp',
+          // Library
           'bookshelf': 'tall_bookshelf', 'bookshelf_tall': 'tall_bookshelf',
+          'chair_reading': 'bench', 'lamp_desk': 'reading_lamp',
+          'rug_small': 'path_stone', 'globe': 'globe',
           'desk': 'reading_desk', 'reading_desk': 'reading_desk',
-          'globe': 'globe', 'computer': 'trading_desk',
-          'arcade_cabinet': 'arcade_machine', 'pinball_machine': 'pinball',
-          'claw_machine': 'claw_machine', 'neon_sign': 'neon_sign',
-          'racing_seat': 'racing_seat', 'ticker_board': 'ticker_board',
-          'safe': 'safe', 'reception_desk': 'reception_desk',
-          'chandelier': 'chandelier', 'palm': 'potted_palm',
-          'potted_palm': 'potted_palm', 'red_carpet': 'red_carpet',
-          'luggage': 'luggage', 'rock': 'rock', 'pond': 'pond',
+          // Arcade
+          'arcade_machine': 'arcade_machine', 'arcade_cabinet': 'arcade_machine',
+          'pinball_machine': 'pinball', 'claw_machine': 'claw_machine',
+          'neon_sign': 'neon_sign', 'chair_gaming': 'racing_seat',
+          'speaker': 'neon_sign', 'table_small': 'reading_desk',
+          // Trading
+          'table_conference': 'trading_desk', 'chair_office': 'racing_seat',
+          'whiteboard': 'ticker_board', 'computer': 'trading_desk',
+          'safe': 'safe', 'ticker_board': 'ticker_board',
+          // Lobby
+          'sofa_modern': 'bench', 'table_coffee': 'reading_desk',
+          'plant_large': 'potted_palm', 'lamp_floor': 'reading_lamp',
+          'rug_large': 'red_carpet', 'reception_desk': 'reception_desk',
+          // Generic
+          'lamp': 'reading_lamp', 'chandelier': 'chandelier',
+          'palm': 'potted_palm', 'potted_palm': 'potted_palm',
+          'red_carpet': 'red_carpet', 'luggage': 'luggage',
+          'racing_seat': 'racing_seat', 'rock': 'rock', 'pond': 'pond',
           'sofa': 'bench', 'chair': 'bench', 'table': 'reading_desk',
           'tv': 'neon_sign', 'bed': 'bench', 'fridge': 'safe',
         };
