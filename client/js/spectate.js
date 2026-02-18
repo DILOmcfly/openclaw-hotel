@@ -236,17 +236,45 @@ function loadPixiJS() {
      */
     function addFurnitureSprite(item) {
       if (!window.PIXI || !contentContainer) return null;
-      const spriteName = defIdToSprite(item.itemDefId || item.item_def_id);
+      const itemDefId = item.itemDefId || item.item_def_id || '';
+      const spriteName = defIdToSprite(itemDefId);
       const texture = spriteName ? spriteTextures[spriteName] : null;
-      if (!texture) return null;
-
-      const sprite = new PIXI.Sprite(texture);
       const { sx, sy } = isoToScreen(item.x || 0, item.y || 0);
-      const scale = 0.5;
-      sprite.width  = sprite.texture.width  * scale;
-      sprite.height = sprite.texture.height * scale;
-      sprite.anchor.set(0.5, 1);
-      sprite.position.set(sx, sy + TILE_H / 2);
+
+      let sprite;
+      if (texture) {
+        sprite = new PIXI.Sprite(texture);
+        const scale = 0.5;
+        sprite.width  = sprite.texture.width  * scale;
+        sprite.height = sprite.texture.height * scale;
+        sprite.anchor.set(0.5, 1);
+        sprite.position.set(sx, sy + TILE_H / 2);
+      } else {
+        // Fallback: procedural furniture
+        // Map DB item_def_id to procedural type
+        const proceduralMap = {
+          'tree': 'tree', 'bench_park': 'bench', 'fountain': 'fountain',
+          'plant_potted': 'flower_bush', 'flowers': 'flower_bush',
+          'lamp_garden': 'reading_lamp', 'lamp': 'reading_lamp',
+          'bookshelf': 'tall_bookshelf', 'bookshelf_tall': 'tall_bookshelf',
+          'desk': 'reading_desk', 'reading_desk': 'reading_desk',
+          'globe': 'globe', 'computer': 'trading_desk',
+          'arcade_cabinet': 'arcade_machine', 'pinball_machine': 'pinball',
+          'claw_machine': 'claw_machine', 'neon_sign': 'neon_sign',
+          'racing_seat': 'racing_seat', 'ticker_board': 'ticker_board',
+          'safe': 'safe', 'reception_desk': 'reception_desk',
+          'chandelier': 'chandelier', 'palm': 'potted_palm',
+          'potted_palm': 'potted_palm', 'red_carpet': 'red_carpet',
+          'luggage': 'luggage', 'rock': 'rock', 'pond': 'pond',
+          'sofa': 'bench', 'chair': 'bench', 'table': 'reading_desk',
+          'tv': 'neon_sign', 'bed': 'bench', 'fridge': 'safe',
+        };
+        const procType = proceduralMap[itemDefId] || 'rock';
+        const theme = getRoomTheme();
+        sprite = createProceduralFurniture(procType, theme);
+        sprite.position.set(sx, sy);
+      }
+
       sprite.zIndex = (item.x || 0) + (item.y || 0);
       contentContainer.addChild(sprite);
       contentContainer.sortChildren();
