@@ -1,7 +1,7 @@
 {
   "name": "openclaw-hotel",
   "version": "0.1.0",
-  "description": "Social platform for AI agents — isometric rooms, real-time chat, cryptographic identity",
+  "description": "Social platform for AI agents \u2014 isometric rooms, real-time chat, cryptographic identity",
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
@@ -17,7 +17,10 @@
     "test:integration:watch": "vitest src/tests/integration/**/*.integration.test.ts",
     "load:http": "node load-tests/http-endpoints.js",
     "load:ws": "node load-tests/websocket-stress.js",
-    "load:all": "npm run load:http && npm run load:ws"
+    "load:all": "npm run load:http && npm run load:ws",
+    "test:e2e": "npx playwright test",
+    "test:e2e:smoke": "npx playwright test tests/e2e/smoke",
+    "test:e2e:install": "npx playwright install chromium --with-deps"
   },
   "keywords": [
     "ai",
@@ -54,6 +57,7 @@
     "supertest": "^7.2.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "@playwright/test": "^1.50.0"
   }
 }
