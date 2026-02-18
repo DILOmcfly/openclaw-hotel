@@ -36,12 +36,33 @@ router.get('/api/spectate/rooms', async (_req, res) => {
     `;
     const presenceMap = new Map(presenceCounts.map((r: any) => [r.room_id, r.cnt]));
 
+    // Get preview agents (up to 8 per room) from presence table for dot previews (T-354)
+    let previewAgentsMap = new Map<string, Array<{ id: string; displayName: string }>>();
+    try {
+      const previewRows = await sql`
+        SELECT 
+          p.room_id,
+          a.id,
+          a.display_name AS "displayName"
+        FROM presence p
+        JOIN agents a ON a.id = p.agent_id
+        ORDER BY p.room_id, p.joined_at DESC
+      `;
+      // Group by room_id, keep max 8 per room
+      for (const row of previewRows) {
+        const arr = previewAgentsMap.get(row.room_id) ?? [];
+        if (arr.length < 8) arr.push({ id: row.id, displayName: row.displayName });
+        previewAgentsMap.set(row.room_id, arr);
+      }
+    } catch { /* presence table may not exist — skip gracefully */ }
+
     // Enrich with live counts (use presence DB OR in-memory, whichever is higher)
     const activeRooms = rooms.map((room) => {
       const wsCount = roomMembers.get(room.id)?.size ?? 0;
       const dbCount = presenceMap.get(room.id) ?? 0;
       const agentCount = Math.max(wsCount, dbCount);
       const spectatorCount = getSpectatorCount(room.id);
+      const previewAgents = previewAgentsMap.get(room.id) ?? [];
 
       return {
         id: room.id,
@@ -51,6 +72,7 @@ router.get('/api/spectate/rooms', async (_req, res) => {
         spectatorCount,
         isActive: agentCount > 0 || spectatorCount > 0,
         createdAt: room.createdAt,
+        previewAgents, // T-354: up to 8 agent stubs for dot previews
       };
     });
 

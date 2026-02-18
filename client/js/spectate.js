@@ -262,19 +262,21 @@ function loadPixiJS() {
 
     // ===== ROOM LAYOUTS =====
     const ROOM_LAYOUTS = {
-      'default': {
+      // === THE LOBBY === Reception area, warm and welcoming
+      'The Lobby': {
         size: 16,
+        hasWalls: true,
         floor: [
           'wwwwwwwwwwwwwwww',
-          'wwwwwwwwwwwwwwww',
-          'wwwcccccccccwwww',
-          'wwwcccccccccwwww',
-          'wwwcccccccccwwww',
-          'wwwcccccccccwwww',
-          'wwwcccccccccwwww',
-          'wwwcccccccccwwww',
-          'wwwwwwwwwwwwwwww',
-          'wwwwwwwwwwwwwwww',
+          'wcccccccccccccww',
+          'wcccccccccccccww',
+          'wcccwwwwwwccccww',
+          'wcccwwwwwwccccww',
+          'wcccwwwwwwccccww',
+          'wcccwwwwwwccccww',
+          'wcccwwwwwwccccww',
+          'wcccccccccccccww',
+          'wcccccccccccccww',
           'wwwwwwwwwwwwwwww',
           'wwwwwwwwwwwwwwww',
           'wwwwwwwwwwwwwwww',
@@ -282,35 +284,21 @@ function loadPixiJS() {
           'wwwwwwwwwwwwwwww',
           'wwwwwwwwwwwwwwww',
         ],
-        furniture: [
-          ['sofa', 2, 3, 0.38],
-          ['rug', 3, 3, 0.28],
-          ['coffee_table', 3, 4, 0.5],
-          ['lounge_chair', 4, 3, 0.45],
-          ['sofa', 2, 7, 0.38],
-          ['rug', 3, 7, 0.28],
-          ['coffee_table', 3, 8, 0.5],
-          ['tv', 5, 5, 0.65],
-          ['side_table', 5, 4, 0.55],
-          ['bookshelf', 3, 1, 0.45],
-          ['bookshelf', 4, 1, 0.45],
-          ['desk', 8, 1, 0.45],
-          ['computer', 8, 1, 0.8],
-          ['chair', 8, 2, 0.65],
-          ['fridge', 12, 1, 0.4],
-          ['plant', 1, 1, 0.7],
-          ['plant', 1, 14, 0.7],
-          ['plant', 14, 14, 0.7],
-          ['lamp', 1, 5, 0.55],
-          ['lamp', 14, 5, 0.55],
-          ['coatrack', 13, 12, 0.55],
-          ['radio', 6, 1, 0.8],
-          ['speaker', 7, 1, 0.6],
-          ['sofa', 10, 3, 0.38],
-          ['lounge_chair', 12, 7, 0.45],
-          ['desk', 11, 10, 0.45],
-          ['lamp', 1, 10, 0.55],
-          ['lamp', 14, 10, 0.55],
+        proceduralFurniture: [
+          ['reception_desk', 7, 2],
+          ['potted_palm', 1, 1],
+          ['potted_palm', 13, 1],
+          ['potted_palm', 1, 9],
+          ['potted_palm', 13, 9],
+          ['chandelier', 7, 5],
+          ['red_carpet', 4, 5],
+          ['red_carpet', 7, 5],
+          ['red_carpet', 10, 5],
+          ['luggage', 12, 8],
+          ['bench', 3, 8],
+          ['bench', 11, 8],
+          ['reading_lamp', 2, 3],
+          ['reading_lamp', 12, 3],
         ],
         wallWindows: [
           { side: 'back', pos: 4 },
@@ -318,97 +306,258 @@ function loadPixiJS() {
           { side: 'back', pos: 12 },
           { side: 'left', pos: 3 },
           { side: 'left', pos: 7 },
-          { side: 'left', pos: 11 },
         ]
       },
-      'chill': {
+      // === LIBRARY === Cozy reading room with bookshelves
+      'Library': {
         size: 16,
+        hasWalls: true,
         floor: [
-          'cccccccccccccccc',
-          'cccccccccccccccc',
-          'ccwwwwwwwwwwwwcc',
-          'ccwwwwwwwwwwwwcc',
-          'ccwwwwwwwwwwwwcc',
-          'ccwwwwwwwwwwwwcc',
-          'ccwwwwwwwwwwwwcc',
-          'ccwwwwwwwwwwwwcc',
-          'cccccccccccccccc',
-          'cccccccccccccccc',
-          'cccccccccccccccc',
-          'cccccccccccccccc',
-          'cccccccccccccccc',
-          'cccccccccccccccc',
-          'cccccccccccccccc',
-          'cccccccccccccccc',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwcccccccccwwww',
+          'wwwcccccccccwwww',
+          'wwwcccccccccwwww',
+          'wwwcccccccccwwww',
+          'wwwcccccccccwwww',
+          'wwwcccccccccwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
         ],
-        furniture: [
-          ['sofa', 3, 3, 0.38],
-          ['sofa', 3, 5, 0.38],
-          ['coffee_table', 4, 4, 0.5],
-          ['rug', 4, 3, 0.32],
-          ['rug', 4, 5, 0.32],
-          ['bookshelf', 1, 1, 0.45],
-          ['lounge_chair', 2, 2, 0.45],
-          ['lamp', 1, 2, 0.55],
-          ['speaker', 7, 1, 0.6],
-          ['radio', 8, 1, 0.8],
-          ['plant', 1, 8, 0.7],
-          ['plant', 8, 8, 0.7],
-          ['plant', 8, 1, 0.6],
-          ['lamp', 8, 5, 0.55],
+        proceduralFurniture: [
+          // Bookshelves along walls
+          ['tall_bookshelf', 1, 1],
+          ['tall_bookshelf', 3, 1],
+          ['tall_bookshelf', 5, 1],
+          ['tall_bookshelf', 7, 1],
+          ['tall_bookshelf', 9, 1],
+          ['tall_bookshelf', 11, 1],
+          // Reading area
+          ['reading_desk', 4, 5],
+          ['reading_desk', 8, 5],
+          ['reading_desk', 4, 9],
+          ['reading_desk', 8, 9],
+          // Lamps
+          ['reading_lamp', 2, 5],
+          ['reading_lamp', 12, 5],
+          ['reading_lamp', 2, 9],
+          ['reading_lamp', 12, 9],
+          // Globe
+          ['globe', 13, 1],
+          ['globe', 1, 12],
+          // Chairs scattered
+          ['bench', 6, 12],
+          ['bench', 10, 12],
         ],
         wallWindows: [
-          { side: 'back', pos: 3 },
-          { side: 'back', pos: 6 },
-          { side: 'left', pos: 4 },
-          { side: 'left', pos: 7 },
-        ],
-      },
-      'arena': {
-        size: 16,
-        floor: [
-          'ssssssssssssssss',
-          'ssssssssssssssss',
-          'ssssccccccccssss',
-          'sssccccccccccss',
-          'ssccccccccccccss',
-          'ssccccccccccccss',
-          'ssccccccccccccss',
-          'ssccccccccccccss',
-          'ssccccccccccccss',
-          'ssccccccccccccss',
-          'ssccccccccccccss',
-          'ssccccccccccccss',
-          'sssccccccccccss',
-          'ssssccccccccssss',
-          'ssssssssssssssss',
-          'ssssssssssssssss',
-        ],
-        furniture: [
-          ['chair', 2, 2, 0.55],
-          ['chair', 2, 11, 0.55],
-          ['chair', 11, 2, 0.55],
-          ['chair', 11, 11, 0.55],
-          ['sofa', 1, 5, 0.35],
-          ['sofa', 1, 8, 0.35],
-          ['sofa', 12, 5, 0.35],
-          ['sofa', 12, 8, 0.35],
-          ['tv', 6, 1, 0.65],
-          ['computer', 7, 1, 0.7],
-          ['lamp', 1, 1, 0.55],
-          ['lamp', 1, 12, 0.55],
-          ['lamp', 12, 1, 0.55],
-          ['lamp', 12, 12, 0.55],
-          ['plant', 6, 12, 0.6],
-          ['plant', 7, 12, 0.6],
-        ],
-        wallWindows: [
-          { side: 'back', pos: 3 },
-          { side: 'back', pos: 6 },
-          { side: 'back', pos: 9 },
+          { side: 'back', pos: 4 },
+          { side: 'back', pos: 10 },
           { side: 'left', pos: 3 },
-          { side: 'left', pos: 6 },
           { side: 'left', pos: 9 },
+        ]
+      },
+      // === THE GARDEN === Open outdoor space, NO walls
+      'The Garden': {
+        size: 16,
+        hasWalls: false,  // Outdoor! No walls
+        floor: [
+          'gggggggggggggggg',
+          'gggggggggggggggg',
+          'ggggssssggggggg',
+          'gggssssssggggggg',
+          'gggssssssggggggg',
+          'ggggssssggggggg',
+          'gggggggggggggggg',
+          'gggggggggggggggg',
+          'gggggggggggggggg',
+          'gggggggggggggggg',
+          'gggggggsssgggggg',
+          'ggggggssssggggg',
+          'ggggggssssggggg',
+          'gggggggsssgggggg',
+          'gggggggggggggggg',
+          'gggggggggggggggg',
+        ],
+        proceduralFurniture: [
+          // Trees around edges
+          ['tree', 1, 1],
+          ['tree', 3, 0],
+          ['tree', 0, 4],
+          ['tree', 14, 1],
+          ['tree', 13, 3],
+          ['tree', 1, 13],
+          ['tree', 14, 14],
+          ['tree', 0, 8],
+          ['tree', 15, 7],
+          // Central fountain
+          ['fountain', 4, 4],
+          // Flower bushes
+          ['flower_bush', 2, 2],
+          ['flower_bush', 6, 1],
+          ['flower_bush', 10, 2],
+          ['flower_bush', 2, 10],
+          ['flower_bush', 12, 12],
+          ['flower_bush', 8, 14],
+          // Benches
+          ['bench', 7, 7],
+          ['bench', 11, 5],
+          ['bench', 3, 11],
+          // Rocks
+          ['rock', 5, 8],
+          ['rock', 12, 3],
+          ['rock', 9, 13],
+          // Pond
+          ['pond', 11, 11],
+          // Stone paths
+          ['path_stone', 6, 5],
+          ['path_stone', 5, 6],
+          ['path_stone', 7, 8],
+          ['path_stone', 8, 9],
+        ],
+        wallWindows: []
+      },
+      // === ARCADE === Dark neon game room
+      'Arcade': {
+        size: 16,
+        hasWalls: true,
+        floor: [
+          'ssssssssssssssss',
+          'ssssssssssssssss',
+          'ssccccccccccccss',
+          'ssccccccccccccss',
+          'ssccccccccccccss',
+          'ssccccccccccccss',
+          'ssccccccccccccss',
+          'ssccccccccccccss',
+          'ssccccccccccccss',
+          'ssccccccccccccss',
+          'ssccccccccccccss',
+          'ssccccccccccccss',
+          'ssssssssssssssss',
+          'ssssssssssssssss',
+          'ssssssssssssssss',
+          'ssssssssssssssss',
+        ],
+        proceduralFurniture: [
+          // Arcade machines along walls
+          ['arcade_machine', 2, 2],
+          ['arcade_machine', 4, 2],
+          ['arcade_machine', 6, 2],
+          ['arcade_machine', 8, 2],
+          ['arcade_machine', 10, 2],
+          ['arcade_machine', 12, 2],
+          // More machines on side
+          ['arcade_machine', 2, 6],
+          ['arcade_machine', 2, 8],
+          ['arcade_machine', 2, 10],
+          // Pinball machines
+          ['pinball', 12, 6],
+          ['pinball', 12, 8],
+          ['pinball', 12, 10],
+          // Claw machine (center attraction)
+          ['claw_machine', 7, 7],
+          // Racing seats
+          ['racing_seat', 5, 11],
+          ['racing_seat', 7, 11],
+          ['racing_seat', 9, 11],
+          // Neon signs
+          ['neon_sign', 7, 1],
+          ['neon_sign', 3, 1],
+          ['neon_sign', 11, 1],
+        ],
+        wallWindows: [
+          { side: 'back', pos: 5 },
+          { side: 'back', pos: 10 },
+        ]
+      },
+      // === TRADING FLOOR === Financial hub
+      'Trading Floor': {
+        size: 16,
+        hasWalls: true,
+        floor: [
+          'ssssssssssssssss',
+          'ssssssssssssssss',
+          'sswwwwwwwwwwwwss',
+          'sswwwwwwwwwwwwss',
+          'sswwwwwwwwwwwwss',
+          'sswwwwwwwwwwwwss',
+          'sswwwwwwwwwwwwss',
+          'sswwwwwwwwwwwwss',
+          'sswwwwwwwwwwwwss',
+          'sswwwwwwwwwwwwss',
+          'ssssssssssssssss',
+          'ssssssssssssssss',
+          'ssssssssssssssss',
+          'ssssssssssssssss',
+          'ssssssssssssssss',
+          'ssssssssssssssss',
+        ],
+        proceduralFurniture: [
+          // Trading desks in rows
+          ['trading_desk', 4, 4],
+          ['trading_desk', 8, 4],
+          ['trading_desk', 4, 7],
+          ['trading_desk', 8, 7],
+          ['trading_desk', 4, 10],
+          ['trading_desk', 8, 10],
+          // Ticker boards on walls
+          ['ticker_board', 3, 1],
+          ['ticker_board', 7, 1],
+          ['ticker_board', 11, 1],
+          // Safes
+          ['safe', 1, 1],
+          ['safe', 13, 1],
+          // Plants for decoration
+          ['potted_palm', 1, 12],
+          ['potted_palm', 13, 12],
+        ],
+        wallWindows: [
+          { side: 'back', pos: 5 },
+          { side: 'back', pos: 10 },
+          { side: 'left', pos: 4 },
+          { side: 'left', pos: 8 },
+        ]
+      },
+      // DEFAULT fallback for unknown rooms
+      'default': {
+        size: 16,
+        hasWalls: true,
+        floor: [
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwcccccccccwwww',
+          'wwwcccccccccwwww',
+          'wwwcccccccccwwww',
+          'wwwcccccccccwwww',
+          'wwwcccccccccwwww',
+          'wwwcccccccccwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+          'wwwwwwwwwwwwwwww',
+        ],
+        proceduralFurniture: [
+          ['bench', 4, 4],
+          ['bench', 10, 4],
+          ['potted_palm', 1, 1],
+          ['potted_palm', 13, 1],
+          ['reading_lamp', 7, 7],
+        ],
+        wallWindows: [
+          { side: 'back', pos: 4 },
+          { side: 'back', pos: 10 },
+          { side: 'left', pos: 4 },
+          { side: 'left', pos: 10 },
         ]
       }
     };
@@ -426,10 +575,535 @@ function loadPixiJS() {
       };
     }
 
+    // ===== PROCEDURAL FURNITURE SYSTEM =====
+    // Creates detailed PIXI.Graphics for each furniture type
+    // Each piece has unique visual identity per room theme
+    
+    function createProceduralFurniture(type, theme) {
+      const g = new PIXI.Graphics();
+      const accent = theme?.accent || 0x00D4AA;
+      
+      switch(type) {
+        // === GARDEN ITEMS ===
+        case 'tree': {
+          // Trunk
+          g.beginFill(0x6b4226);
+          g.drawRect(-4, -50, 8, 30);
+          g.endFill();
+          // Canopy (layered circles for volume)
+          g.beginFill(0x2d8a4e);
+          g.drawCircle(0, -55, 18);
+          g.endFill();
+          g.beginFill(0x3da05e);
+          g.drawCircle(-6, -58, 12);
+          g.drawCircle(8, -52, 11);
+          g.endFill();
+          g.beginFill(0x4db86a);
+          g.drawCircle(2, -60, 8);
+          g.endFill();
+          break;
+        }
+        case 'flower_bush': {
+          // Bush base
+          g.beginFill(0x2d6b3a);
+          g.drawEllipse(0, -8, 16, 10);
+          g.endFill();
+          g.beginFill(0x3a8a4e);
+          g.drawEllipse(0, -12, 12, 8);
+          g.endFill();
+          // Flowers
+          const flowerColors = [0xff6b9d, 0xffd700, 0xff4444, 0xaa66ff, 0xff8833];
+          for (let i = 0; i < 5; i++) {
+            g.beginFill(flowerColors[i % flowerColors.length]);
+            g.drawCircle(-8 + i * 4, -14 - Math.sin(i) * 4, 3);
+            g.endFill();
+          }
+          break;
+        }
+        case 'fountain': {
+          // Base pool
+          g.beginFill(0x4a90d9, 0.6);
+          g.drawEllipse(0, 0, 24, 12);
+          g.endFill();
+          // Stone rim
+          g.lineStyle(3, 0x999999);
+          g.drawEllipse(0, 0, 24, 12);
+          g.lineStyle(0);
+          // Center pillar
+          g.beginFill(0xbbbbbb);
+          g.drawRect(-3, -30, 6, 30);
+          g.endFill();
+          // Water spray (small dots)
+          g.beginFill(0x88ccff, 0.7);
+          g.drawCircle(-4, -32, 2);
+          g.drawCircle(0, -35, 2);
+          g.drawCircle(4, -32, 2);
+          g.drawCircle(-2, -28, 1.5);
+          g.drawCircle(3, -28, 1.5);
+          g.endFill();
+          break;
+        }
+        case 'bench': {
+          // Seat
+          g.beginFill(0x8B6914);
+          g.drawRect(-16, -12, 32, 6);
+          g.endFill();
+          // Back
+          g.beginFill(0x7a5c12);
+          g.drawRect(-16, -24, 32, 4);
+          g.endFill();
+          // Legs
+          g.beginFill(0x333333);
+          g.drawRect(-14, -6, 3, 8);
+          g.drawRect(11, -6, 3, 8);
+          g.endFill();
+          // Slats
+          g.beginFill(0x9a7920);
+          g.drawRect(-14, -20, 28, 2);
+          g.drawRect(-14, -16, 28, 2);
+          g.endFill();
+          break;
+        }
+        case 'rock': {
+          g.beginFill(0x888888);
+          g.drawEllipse(0, -4, 10, 6);
+          g.endFill();
+          g.beginFill(0x999999);
+          g.drawEllipse(-3, -6, 7, 4);
+          g.endFill();
+          break;
+        }
+        case 'pond': {
+          g.beginFill(0x3377aa, 0.5);
+          g.drawEllipse(0, 0, 20, 10);
+          g.endFill();
+          g.beginFill(0x55aadd, 0.3);
+          g.drawEllipse(-4, -2, 10, 5);
+          g.endFill();
+          break;
+        }
+        case 'path_stone': {
+          g.beginFill(0xaaaaaa, 0.6);
+          g.drawEllipse(0, 0, 8, 4);
+          g.drawEllipse(10, 2, 6, 3);
+          g.drawEllipse(-8, 3, 7, 3);
+          g.endFill();
+          break;
+        }
+        
+        // === ARCADE ITEMS ===
+        case 'arcade_machine': {
+          // Cabinet body
+          g.beginFill(0x2a1a3e);
+          g.drawRect(-10, -50, 20, 50);
+          g.endFill();
+          // Screen
+          g.beginFill(0x000000);
+          g.drawRect(-8, -45, 16, 16);
+          g.endFill();
+          // Screen glow
+          g.beginFill(0x00ff00, 0.8);
+          g.drawRect(-7, -44, 14, 14);
+          g.endFill();
+          // Screen content (simple space invader)
+          g.beginFill(0x000000);
+          g.drawRect(-4, -41, 2, 2);
+          g.drawRect(2, -41, 2, 2);
+          g.drawRect(-3, -38, 6, 2);
+          g.endFill();
+          // Controls
+          g.beginFill(0xff0000);
+          g.drawCircle(-3, -26, 2);
+          g.endFill();
+          g.beginFill(0x0000ff);
+          g.drawCircle(3, -26, 2);
+          g.endFill();
+          // Joystick
+          g.beginFill(0xffff00);
+          g.drawRect(-1, -28, 2, 4);
+          g.drawCircle(0, -29, 3);
+          g.endFill();
+          // Side stripe
+          g.beginFill(accent);
+          g.drawRect(-10, -50, 2, 50);
+          g.drawRect(8, -50, 2, 50);
+          g.endFill();
+          break;
+        }
+        case 'pinball': {
+          // Table body
+          g.beginFill(0x1a1a2e);
+          g.drawRect(-12, -8, 24, 14);
+          g.endFill();
+          // Glass top
+          g.beginFill(0x222244);
+          g.drawRect(-12, -40, 24, 34);
+          g.endFill();
+          // Playfield
+          g.beginFill(0x003366);
+          g.drawRect(-10, -38, 20, 30);
+          g.endFill();
+          // Bumpers
+          g.beginFill(0xff3333);
+          g.drawCircle(-4, -28, 3);
+          g.endFill();
+          g.beginFill(0x33ff33);
+          g.drawCircle(4, -24, 3);
+          g.endFill();
+          g.beginFill(0xffff33);
+          g.drawCircle(0, -18, 3);
+          g.endFill();
+          // Score display
+          g.beginFill(0xff6600);
+          g.drawRect(-6, -36, 12, 4);
+          g.endFill();
+          break;
+        }
+        case 'neon_sign': {
+          // Board
+          g.beginFill(0x111111);
+          g.drawRoundedRect(-18, -35, 36, 14, 3);
+          g.endFill();
+          // Neon text glow
+          g.beginFill(accent, 0.3);
+          g.drawRoundedRect(-16, -33, 32, 10, 2);
+          g.endFill();
+          // "PLAY" letters (simplified)
+          g.beginFill(accent);
+          g.drawRect(-12, -31, 2, 6);
+          g.drawRect(-12, -31, 6, 2);
+          g.drawRect(-12, -28, 6, 2);
+          g.drawRect(-4, -31, 2, 6);
+          g.drawRect(-4, -25, 6, 2);
+          g.drawRect(4, -31, 2, 8);
+          g.drawRect(4, -31, 6, 2);
+          g.drawRect(8, -31, 2, 4);
+          g.drawRect(4, -28, 6, 2);
+          g.endFill();
+          break;
+        }
+        case 'racing_seat': {
+          // Seat
+          g.beginFill(0x222222);
+          g.drawRect(-8, -6, 16, 8);
+          g.endFill();
+          // Back
+          g.beginFill(0x1a1a1a);
+          g.drawRect(-8, -28, 16, 24);
+          g.endFill();
+          // Racing stripe
+          g.beginFill(0xff0000);
+          g.drawRect(-1, -26, 2, 20);
+          g.endFill();
+          // Steering wheel
+          g.lineStyle(2, 0x888888);
+          g.drawCircle(0, -16, 6);
+          g.lineStyle(0);
+          break;
+        }
+        case 'claw_machine': {
+          // Body
+          g.beginFill(0x3344aa);
+          g.drawRect(-10, -45, 20, 45);
+          g.endFill();
+          // Glass front
+          g.beginFill(0x88bbff, 0.4);
+          g.drawRect(-8, -40, 16, 25);
+          g.endFill();
+          // Toys inside
+          g.beginFill(0xff6699);
+          g.drawCircle(-3, -20, 4);
+          g.endFill();
+          g.beginFill(0x66ff66);
+          g.drawCircle(4, -18, 3);
+          g.endFill();
+          g.beginFill(0xffcc00);
+          g.drawCircle(0, -22, 3);
+          g.endFill();
+          // Claw
+          g.lineStyle(2, 0xcccccc);
+          g.moveTo(0, -40);
+          g.lineTo(0, -30);
+          g.moveTo(-3, -30);
+          g.lineTo(0, -28);
+          g.lineTo(3, -30);
+          g.lineStyle(0);
+          break;
+        }
+        
+        // === LIBRARY ITEMS ===
+        case 'tall_bookshelf': {
+          // Frame
+          g.beginFill(0x5c3a1e);
+          g.drawRect(-12, -55, 24, 55);
+          g.endFill();
+          // Shelves
+          for (let i = 0; i < 4; i++) {
+            g.beginFill(0x4a2e14);
+            g.drawRect(-11, -50 + i * 14, 22, 2);
+            g.endFill();
+            // Books on each shelf
+            const bookColors = [0xcc3333, 0x3366cc, 0x339933, 0xcc9933, 0x9933cc, 0xcc6633];
+            for (let b = 0; b < 5; b++) {
+              const bw = 3 + Math.random() * 2;
+              const bh = 8 + Math.random() * 4;
+              g.beginFill(bookColors[(i * 5 + b) % bookColors.length]);
+              g.drawRect(-10 + b * 4.5, -48 + i * 14 - bh + 12, bw, bh);
+              g.endFill();
+            }
+          }
+          break;
+        }
+        case 'reading_desk': {
+          // Desk surface
+          g.beginFill(0x6b4226);
+          g.drawRect(-14, -20, 28, 6);
+          g.endFill();
+          // Legs
+          g.beginFill(0x4a2e14);
+          g.drawRect(-12, -14, 3, 16);
+          g.drawRect(9, -14, 3, 16);
+          g.endFill();
+          // Open book on desk
+          g.beginFill(0xfff8dc);
+          g.drawRect(-8, -24, 7, 5);
+          g.drawRect(1, -24, 7, 5);
+          g.endFill();
+          // Book text lines
+          g.beginFill(0x333333, 0.3);
+          for (let l = 0; l < 3; l++) {
+            g.drawRect(-6, -23 + l * 1.5, 4, 0.5);
+            g.drawRect(3, -23 + l * 1.5, 4, 0.5);
+          }
+          g.endFill();
+          break;
+        }
+        case 'reading_lamp': {
+          // Base
+          g.beginFill(0x8B6914);
+          g.drawEllipse(0, 0, 6, 3);
+          g.endFill();
+          // Pole
+          g.beginFill(0x8B6914);
+          g.drawRect(-1, -35, 2, 35);
+          g.endFill();
+          // Shade
+          g.beginFill(0x44aa44);
+          g.drawRect(-8, -38, 16, 5);
+          g.endFill();
+          // Light glow
+          g.beginFill(0xffffaa, 0.3);
+          g.drawEllipse(0, -28, 10, 6);
+          g.endFill();
+          break;
+        }
+        case 'globe': {
+          // Stand
+          g.beginFill(0x6b4226);
+          g.drawRect(-1, -12, 2, 12);
+          g.endFill();
+          // Globe
+          g.beginFill(0x3377aa);
+          g.drawCircle(0, -20, 8);
+          g.endFill();
+          // Continents
+          g.beginFill(0x44aa55);
+          g.drawEllipse(-3, -22, 3, 4);
+          g.drawEllipse(3, -18, 4, 3);
+          g.endFill();
+          // Frame ring
+          g.lineStyle(1, 0x8B6914);
+          g.drawCircle(0, -20, 9);
+          g.lineStyle(0);
+          break;
+        }
+        
+        // === TRADING FLOOR ITEMS ===
+        case 'trading_desk': {
+          // L-shaped desk
+          g.beginFill(0x2a2a2a);
+          g.drawRect(-16, -18, 32, 6);
+          g.drawRect(10, -18, 6, 20);
+          g.endFill();
+          // Monitors
+          g.beginFill(0x111111);
+          g.drawRect(-12, -32, 10, 8);
+          g.drawRect(-1, -34, 10, 10);
+          g.endFill();
+          // Screen content (green chart)
+          g.beginFill(0x003300);
+          g.drawRect(-11, -31, 8, 6);
+          g.drawRect(0, -33, 8, 8);
+          g.endFill();
+          // Chart line
+          g.lineStyle(1, 0x00ff88);
+          g.moveTo(-10, -27);
+          g.lineTo(-8, -29);
+          g.lineTo(-6, -28);
+          g.lineTo(-4, -30);
+          g.moveTo(1, -28);
+          g.lineTo(3, -30);
+          g.lineTo(5, -27);
+          g.lineTo(7, -31);
+          g.lineStyle(0);
+          break;
+        }
+        case 'ticker_board': {
+          // Board
+          g.beginFill(0x111111);
+          g.drawRect(-20, -40, 40, 12);
+          g.endFill();
+          // LED text
+          g.beginFill(0x00ff00);
+          g.drawRect(-16, -37, 3, 6);
+          g.drawRect(-11, -37, 3, 6);
+          g.drawRect(-6, -37, 3, 6);
+          g.endFill();
+          g.beginFill(0xff3333);
+          g.drawRect(2, -37, 3, 6);
+          g.drawRect(7, -37, 3, 6);
+          g.endFill();
+          // Arrows
+          g.beginFill(0x00ff00);
+          g.moveTo(-14, -38);
+          g.lineTo(-12, -40);
+          g.lineTo(-10, -38);
+          g.endFill();
+          g.beginFill(0xff3333);
+          g.moveTo(4, -32);
+          g.lineTo(6, -30);
+          g.lineTo(8, -32);
+          g.endFill();
+          break;
+        }
+        case 'safe': {
+          g.beginFill(0x444444);
+          g.drawRect(-8, -20, 16, 20);
+          g.endFill();
+          g.beginFill(0x333333);
+          g.drawRect(-7, -19, 14, 18);
+          g.endFill();
+          // Dial
+          g.beginFill(0xcccccc);
+          g.drawCircle(0, -10, 4);
+          g.endFill();
+          g.beginFill(0x222222);
+          g.drawCircle(0, -10, 2);
+          g.endFill();
+          // Handle
+          g.beginFill(0xdddddd);
+          g.drawRect(4, -12, 3, 4);
+          g.endFill();
+          break;
+        }
+        
+        // === LOBBY ITEMS ===
+        case 'reception_desk': {
+          // Main desk
+          g.beginFill(0x5c3a1e);
+          g.drawRect(-20, -18, 40, 8);
+          g.endFill();
+          // Front panel
+          g.beginFill(0x4a2e14);
+          g.drawRect(-20, -10, 40, 12);
+          g.endFill();
+          // Gold accent
+          g.beginFill(0xffd700);
+          g.drawRect(-20, -10, 40, 2);
+          g.endFill();
+          // Bell
+          g.beginFill(0xffd700);
+          g.drawCircle(8, -22, 3);
+          g.endFill();
+          g.beginFill(0xccaa00);
+          g.drawRect(7, -19, 3, 1);
+          g.endFill();
+          break;
+        }
+        case 'potted_palm': {
+          // Pot
+          g.beginFill(0x8B4513);
+          g.drawRect(-6, -4, 12, 8);
+          g.endFill();
+          g.beginFill(0x6b3410);
+          g.drawRect(-7, -4, 14, 3);
+          g.endFill();
+          // Trunk
+          g.beginFill(0x6b4226);
+          g.drawRect(-2, -30, 4, 28);
+          g.endFill();
+          // Leaves (fan pattern)
+          g.beginFill(0x228b22);
+          for (let a = 0; a < 5; a++) {
+            const angle = -0.8 + a * 0.4;
+            const lx = Math.sin(angle) * 18;
+            const ly = -30 - Math.cos(angle) * 14;
+            g.drawEllipse(lx, ly, 8, 3);
+          }
+          g.endFill();
+          break;
+        }
+        case 'red_carpet': {
+          g.beginFill(0x8B0000, 0.6);
+          g.drawRect(-20, -2, 40, 6);
+          g.endFill();
+          g.beginFill(0xffd700, 0.4);
+          g.drawRect(-20, -2, 40, 1);
+          g.drawRect(-20, 3, 40, 1);
+          g.endFill();
+          break;
+        }
+        case 'chandelier': {
+          // Chain
+          g.beginFill(0xccaa00);
+          g.drawRect(-1, -55, 2, 15);
+          g.endFill();
+          // Body
+          g.beginFill(0xffd700);
+          g.drawEllipse(0, -40, 14, 4);
+          g.endFill();
+          // Candles
+          for (let i = -2; i <= 2; i++) {
+            g.beginFill(0xffffff);
+            g.drawRect(i * 5 - 1, -48, 2, 6);
+            g.endFill();
+            g.beginFill(0xffaa00, 0.8);
+            g.drawCircle(i * 5, -49, 2);
+            g.endFill();
+          }
+          break;
+        }
+        case 'luggage': {
+          // Suitcase 1
+          g.beginFill(0x8B4513);
+          g.drawRoundedRect(-10, -14, 12, 14, 2);
+          g.endFill();
+          g.beginFill(0x6b3410);
+          g.drawRect(-9, -8, 10, 2);
+          g.endFill();
+          // Suitcase 2
+          g.beginFill(0x2a4a8a);
+          g.drawRoundedRect(0, -10, 10, 10, 2);
+          g.endFill();
+          break;
+        }
+        
+        // === GENERIC (fallback) ===
+        default: {
+          g.beginFill(0x888888);
+          g.drawRect(-6, -12, 12, 12);
+          g.endFill();
+          break;
+        }
+      }
+      
+      return g;
+    }
+
     // ===== PIXI GRAPHICS CREATION =====
     function createIsoTileGraphics(tileType) {
       const graphics = new PIXI.Graphics();
-      const floorMap = { 'w': 'floor_wood', 'c': 'floor_carpet', 's': 'floor_stone' };
+      const floorMap = { 'w': 'floor_wood', 'c': 'floor_carpet', 's': 'floor_stone', 'g': 'floor_grass' };
       const spriteName = floorMap[tileType] || 'floor_wood';
       const texture = spriteTextures[spriteName];
 
@@ -443,7 +1117,7 @@ function loadPixiJS() {
       } else {
         // Fallback: colored diamond
         const theme = getRoomTheme();
-        const colors = { 'w': theme.floor, 'c': theme.carpet, 's': 0x696969 };
+        const colors = { 'w': theme.floor, 'c': theme.carpet, 's': 0x696969, 'g': 0x4a7a3a };
         graphics.beginFill(colors[tileType] || theme.floor);
         graphics.moveTo(0, 0);
         graphics.lineTo(TILE_W/2, TILE_H/2);
@@ -1173,30 +1847,29 @@ function loadPixiJS() {
       wallContainer.removeChildren();
       contentContainer.removeChildren();
 
-      // Select layout
-      const roomNameLower = (currentRoomName || '').toLowerCase();
-      const layoutKey = roomNameLower.includes('chill') ? 'chill'
-        : roomNameLower.includes('arena') ? 'arena'
-        : 'default';
-      const layout = ROOM_LAYOUTS[layoutKey];
+      // Select layout by room name (exact match first, then default)
+      const layout = ROOM_LAYOUTS[currentRoomName] || ROOM_LAYOUTS['default'];
       const size = layout.size;
+      const theme = getRoomTheme();
 
       // Window positions
-      const backWindows = new Set(layout.wallWindows.filter(w => w.side === 'back').map(w => w.pos));
-      const leftWindows = new Set(layout.wallWindows.filter(w => w.side === 'left').map(w => w.pos));
+      const backWindows = new Set((layout.wallWindows || []).filter(w => w.side === 'back').map(w => w.pos));
+      const leftWindows = new Set((layout.wallWindows || []).filter(w => w.side === 'left').map(w => w.pos));
 
-      // === 1. Walls ===
-      for (let x = 0; x < size; x++) {
-        const { sx, sy } = isoToScreen(x, 0);
-        const wall = createWallGraphics('back', backWindows.has(x));
-        wall.position.set(sx, sy);
-        wallContainer.addChild(wall);
-      }
-      for (let y = 0; y < size; y++) {
-        const { sx, sy } = isoToScreen(0, y);
-        const wall = createWallGraphics('left', leftWindows.has(y));
-        wall.position.set(sx, sy);
-        wallContainer.addChild(wall);
+      // === 1. Walls (only for indoor rooms) ===
+      if (layout.hasWalls !== false) {
+        for (let x = 0; x < size; x++) {
+          const { sx, sy } = isoToScreen(x, 0);
+          const wall = createWallGraphics('back', backWindows.has(x));
+          wall.position.set(sx, sy);
+          wallContainer.addChild(wall);
+        }
+        for (let y = 0; y < size; y++) {
+          const { sx, sy } = isoToScreen(0, y);
+          const wall = createWallGraphics('left', leftWindows.has(y));
+          wall.position.set(sx, sy);
+          wallContainer.addChild(wall);
+        }
       }
 
       // === 2. Floor ===
@@ -1216,27 +1889,20 @@ function loadPixiJS() {
       addFloorGlowOverlay(size);
 
       // === 3. Furniture ===
-      // Prefer live DB furniture (T-344); fall back to hardcoded layout when DB is empty
+      // Priority: DB furniture > procedural layout furniture > legacy sprite furniture
       if (roomFurniture.size > 0) {
-        // DB furniture: reset sprite references then re-render
         for (const [, item] of roomFurniture) {
           const sprite = addFurnitureSprite(item);
-          item.sprite = sprite; // store ref for later removal
+          item.sprite = sprite;
         }
-      } else {
-        // Fallback: hardcoded layout furniture
-        for (const [spriteName, fx, fy, scale] of layout.furniture) {
-          const texture = spriteTextures[spriteName];
-          if (!texture) continue;
-
-          const sprite = new PIXI.Sprite(texture);
+      } else if (layout.proceduralFurniture) {
+        // Procedural furniture — unique per room theme
+        for (const [type, fx, fy] of layout.proceduralFurniture) {
+          const furniture = createProceduralFurniture(type, theme);
           const { sx, sy } = isoToScreen(fx, fy);
-          sprite.width = sprite.texture.width * scale;
-          sprite.height = sprite.texture.height * scale;
-          sprite.anchor.set(0.5, 1);
-          sprite.position.set(sx, sy + TILE_H/2);
-          sprite.zIndex = fx + fy; // Depth sorting
-          contentContainer.addChild(sprite);
+          furniture.position.set(sx, sy);
+          furniture.zIndex = fx + fy;
+          contentContainer.addChild(furniture);
         }
       }
 
@@ -1446,6 +2112,50 @@ function loadPixiJS() {
       return `${ROOM_SIZE}×${ROOM_SIZE}`; // Match actual grid size
     }
 
+        /**
+     * T-354: Generate a deterministic HSL color from a string (agent name or id).
+     * Uses simple char-code hash → hue. Saturation + lightness are fixed for readability.
+     */
+    function agentNameToColor(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = (hash << 5) - hash + str.charCodeAt(i);
+        hash |= 0;
+      }
+      const hue = Math.abs(hash) % 360;
+      return `hsl(${hue}, 70%, 58%)`;
+    }
+
+    /**
+     * T-354: Build HTML for agent dot row.
+     * @param {Array<{id:string,displayName:string}>} previewAgents
+     * @param {number} agentCount - Total count (may exceed previewAgents.length)
+     */
+    function buildAgentDotRow(previewAgents, agentCount) {
+      if (!agentCount || agentCount === 0) return '';
+      const MAX_DOTS = 8;
+      const dots = (previewAgents || []).slice(0, MAX_DOTS);
+      const overflow = agentCount - dots.length;
+
+      // If no preview agents but count > 0, generate placeholder dots
+      const dotHtml = dots.length > 0
+        ? dots.map(agent => {
+            const color = agentNameToColor(agent.displayName || agent.id || 'agent');
+            const safeTitle = escapeHtml(agent.displayName || 'Agent');
+            return `<span class="agent-dot-preview" style="background:${color}" title="${safeTitle}" aria-label="${safeTitle}"></span>`;
+          }).join('')
+        : Array.from({ length: Math.min(agentCount, MAX_DOTS) }, (_, i) => {
+            const color = agentNameToColor(`agent-${i}`);
+            return `<span class="agent-dot-preview" style="background:${color}" title="Agent" aria-label="Agent"></span>`;
+          }).join('');
+
+      const overflowHtml = overflow > 0
+        ? `<span class="agent-dot-overflow">+${overflow}</span>`
+        : '';
+
+      return `<div class="agent-dot-row" aria-label="${agentCount} agents in room">${dotHtml}${overflowHtml}</div>`;
+    }
+
     function renderRoomList(rooms) {
       const list = document.getElementById('roomList');
       if (rooms.length === 0) {
@@ -1464,6 +2174,7 @@ function loadPixiJS() {
         const animationDelay = index * 0.05; // Stagger by 50ms
         const theme = getRoomCardTheme(room.name);
         const isHot = agentCount >= 3; // "hot" rooms have 3+ agents
+        const dotRow = buildAgentDotRow(room.previewAgents, agentCount); // T-354
         
         return `
           <div class="room-card ${isActive ? 'active' : ''}" 
@@ -1486,6 +2197,7 @@ function loadPixiJS() {
                 <div class="room-desc">${escapeHtml(room.description || 'A virtual space for AI agents')}</div>
               </div>
             </div>
+            ${dotRow}
             <div class="room-meta">
               <span class="agent-badge">🤖 Agents<span class="agent-count-pill ${agentCount === 0 ? 'empty' : ''}">${agentCount}</span></span>
               <span>👁 ${room.spectatorCount || 0} watching</span>
@@ -1643,6 +2355,9 @@ function loadPixiJS() {
         }
         
         hideLoading();
+        // Show minimap
+        const mm = document.getElementById('minimap');
+        if (mm) mm.style.display = 'block';
       } catch (err) {
         console.error('Failed to enter room:', err);
         hideLoading();
@@ -1712,6 +2427,10 @@ function loadPixiJS() {
       currentRoomId = null;
       agents.clear();
       roomFurniture.clear();
+
+      // Hide minimap
+      const mm = document.getElementById('minimap');
+      if (mm) mm.style.display = 'none';
 
       // Switch views — immediate, no fade animation (was causing stuck states)
       document.getElementById('roomSelector').classList.remove('hidden');

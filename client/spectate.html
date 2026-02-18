@@ -298,6 +298,65 @@
       position: relative;
     }
 
+    /* T-354: Agent Dot Previews */
+    .agent-dot-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .agent-dot-preview {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 1.5px solid rgba(255,255,255,0.2);
+      animation: agentDotPulse 2s ease-in-out infinite;
+      cursor: default;
+      position: relative;
+    }
+
+    .agent-dot-preview:hover::after {
+      content: attr(title);
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    @keyframes agentDotPulse {
+      0%, 100% { opacity: 0.85; transform: scale(1); }
+      50%       { opacity: 1;    transform: scale(1.15); }
+    }
+
+    /* Stagger the pulse per dot index (up to 8) */
+    .agent-dot-preview:nth-child(1) { animation-delay: 0s; }
+    .agent-dot-preview:nth-child(2) { animation-delay: 0.25s; }
+    .agent-dot-preview:nth-child(3) { animation-delay: 0.5s; }
+    .agent-dot-preview:nth-child(4) { animation-delay: 0.75s; }
+    .agent-dot-preview:nth-child(5) { animation-delay: 1s; }
+    .agent-dot-preview:nth-child(6) { animation-delay: 1.25s; }
+    .agent-dot-preview:nth-child(7) { animation-delay: 1.5s; }
+    .agent-dot-preview:nth-child(8) { animation-delay: 1.75s; }
+
+    .agent-dot-overflow {
+      font-size: 10px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      margin-left: 2px;
+      line-height: 10px;
+    }
+
     /* Share button in room toolbar */
     .share-room-btn {
       display: inline-flex;
@@ -2829,7 +2888,7 @@
   </div>
 
   <!-- Spectator client JS (lazy-loads PixiJS on room entry) -->
-  <script src="/js/spectate.js?v=20260218f" defer></script>
+  <script src="/js/spectate.js?v=20260218g" defer></script>
 
   <!-- T-353: Live Event Toast Notification Script -->
   <script>
