@@ -205,6 +205,7 @@ async function joinRoom(roomId: string, roomName: string) {
   currentRoom = roomId;
   
   // Hide room selector, show spectator UI
+  document.body.classList.add('in-room');
   roomSelector.classList.add('hidden');
   spectatorHUD.classList.remove('hidden');
   backButton.classList.remove('hidden');
@@ -228,6 +229,9 @@ async function joinRoom(roomId: string, roomName: string) {
     
     // Connect WebSocket
     connectWebSocket(roomId);
+    
+    // Update sidebar room list with HERE badge
+    loadSidebarRooms();
   } catch (error) {
     console.error('Failed to join room:', error);
     alert('Failed to join room');
@@ -261,6 +265,7 @@ function leaveRoom() {
   chatMessagesArray = [];
   renderChatMessages();
   
+  document.body.classList.remove('in-room');
   roomSelector.classList.remove('hidden');
   spectatorHUD.classList.add('hidden');
   backButton.classList.add('hidden');
@@ -717,6 +722,59 @@ chatInput.addEventListener('keypress', (e) => {
     sendChatMessage();
   }
 });
+
+// Sidebar room rendering with HERE badge
+async function loadSidebarRooms() {
+  const sidebarList = document.getElementById('sidebarRoomsList');
+  if (!sidebarList) return;
+  try {
+    const response = await fetch(`${API_BASE}/api/spectate/rooms`);
+    const data = await response.json();
+    sidebarList.innerHTML = '';
+    for (const room of data.rooms) {
+      const isHere = room.id === currentRoom;
+      const item = document.createElement('div');
+      item.className = `sidebar-room-item${isHere ? ' here' : ''}`;
+      item.innerHTML = `
+        <span class="sidebar-room-icon">${room.icon || '🏨'}</span>
+        <div class="sidebar-room-info">
+          <span class="sidebar-room-name">${escapeHtml(room.name)}</span>
+          <span class="sidebar-room-stats">🤖 <span style="color:var(--accent)">${room.agentCount}</span> 👁 ${room.spectatorCount}</span>
+        </div>
+        ${isHere ? '<span class="sidebar-room-here">HERE</span>' : ''}
+      `;
+      if (!isHere) {
+        item.addEventListener('click', () => {
+          leaveRoom();
+          setTimeout(() => joinRoom(room.id, room.name), 100);
+        });
+        item.style.cursor = 'pointer';
+      }
+      sidebarList.appendChild(item);
+    }
+  } catch { sidebarList.innerHTML = '<div>Error loading rooms</div>'; }
+}
+
+// Expose to global scope for inline onclick handlers in spectate.html
+(window as any).refreshRooms = fetchRooms;
+(window as any).loadSidebarRooms = loadSidebarRooms;
+(window as any).toggleChat = toggleChat;
+(window as any).switchSidebarTab = (tabName: string) => {
+  document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById(`tab-${tabName}`)?.classList.add('active');
+  document.getElementById(`pane-${tabName}`)?.classList.add('active');
+  if (tabName === 'rooms') loadSidebarRooms();
+};
+(window as any).filterRooms = () => {
+  const input = document.getElementById('roomSearchInput') as HTMLInputElement;
+  if (!input) return;
+  const q = input.value.toLowerCase();
+  document.querySelectorAll('.room-item').forEach((el: any) => {
+    const name = el.querySelector('.room-name')?.textContent?.toLowerCase() || '';
+    el.style.display = name.includes(q) ? '' : 'none';
+  });
+};
 
 // Initialize
 loadUsername();

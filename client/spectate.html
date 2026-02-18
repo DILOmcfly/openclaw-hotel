@@ -581,6 +581,10 @@
         border: 2px solid var(--accent);
         z-index: 1100;
       }
+      /* Push toolbar content below fixed back-btn on mobile */
+      .room-toolbar {
+        padding-top: 50px;
+      }
     }
 
     .room-content { display: flex; flex: 1; }
@@ -1049,7 +1053,7 @@
     #minimap {
       position: fixed;
       bottom: 48px; /* above keyboard hints */
-      right: 14px;
+      left: 14px; /* Left side to avoid overlapping sidebar */
       width: 112px;
       height: 112px;
       background: rgba(10, 12, 20, 0.85);
@@ -1949,7 +1953,20 @@
       }
     }
 
-    /* Theme Toggle */
+    /* === VISIBILITY RULES: Only show floating controls when in a room === */
+    body:not(.in-room) #themeToggle,
+    body:not(.in-room) .audio-controls-container,
+    body:not(.in-room) #minimap,
+    body:not(.in-room) #keyboardHints,
+    body:not(.in-room) #liveBadge,
+    body:not(.in-room) #connectionIndicator,
+    body:not(.in-room) #feedbackButton,
+    body:not(.in-room) #liveChatFeed,
+    body:not(.in-room) .mobile-toggle,
+    body:not(.in-room) #liveEventsTicker {
+      display: none !important;
+    }
+    body.in-room #connectionIndicator { display: block; }
     #themeToggle {
       position: fixed;
       top: 20px;
@@ -2309,7 +2326,7 @@
         width: 80px;
         height: 80px;
         bottom: 42px;
-        right: 8px;
+        left: 8px;
         opacity: 0.6;
       }
       #minimapCanvas {
@@ -2463,7 +2480,7 @@
       border-top: 1px solid rgba(0, 212, 170, 0.3);
       display: flex;
       align-items: center;
-      z-index: 9000;
+      z-index: 800; /* Below sidebar (900+) and modals, above room content */
       overflow: hidden;
       backdrop-filter: blur(6px);
       font-size: 13px;
