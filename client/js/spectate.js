@@ -278,8 +278,8 @@ function loadPixiJS() {
           'neon_sign': 'neon_sign', 'chair_gaming': 'racing_seat',
           'speaker': 'neon_sign', 'table_small': 'reading_desk',
           // Trading
-          'table_conference': 'trading_desk', 'chair_office': 'racing_seat',
-          'whiteboard': 'ticker_board', 'computer': 'trading_desk',
+          'table_conference': 'trading_desk', 'chair_office': 'office_chair',
+          'whiteboard': 'whiteboard', 'computer': 'trading_desk',
           'safe': 'safe', 'ticker_board': 'ticker_board',
           // Lobby
           'sofa_modern': 'bench', 'table_coffee': 'reading_desk',
@@ -854,6 +854,35 @@ function loadPixiJS() {
           g.lineStyle(0);
           break;
         }
+        case 'office_chair': {
+          // Seat
+          g.beginFill(0x333333);
+          g.drawRect(-7, -8, 14, 6);
+          g.endFill();
+          // Back
+          g.beginFill(0x222222);
+          g.drawRect(-7, -24, 14, 18);
+          g.endFill();
+          // Armrests
+          g.beginFill(0x444444);
+          g.drawRect(-9, -14, 2, 8);
+          g.drawRect(7, -14, 2, 8);
+          g.endFill();
+          // Wheels (star base)
+          g.beginFill(0x555555);
+          g.drawRect(-8, 0, 16, 2);
+          g.endFill();
+          g.beginFill(0x444444);
+          g.drawCircle(-7, 2, 2);
+          g.drawCircle(7, 2, 2);
+          g.drawCircle(0, 2, 2);
+          g.endFill();
+          // Pole
+          g.beginFill(0x666666);
+          g.drawRect(-1, -2, 2, 4);
+          g.endFill();
+          break;
+        }
         case 'claw_machine': {
           // Body
           g.beginFill(0x3344aa);
@@ -1026,6 +1055,41 @@ function loadPixiJS() {
           g.moveTo(4, -32);
           g.lineTo(6, -30);
           g.lineTo(8, -32);
+          g.endFill();
+          break;
+        }
+        case 'whiteboard': {
+          // Board
+          g.beginFill(0xffffff);
+          g.drawRect(-16, -40, 32, 24);
+          g.endFill();
+          // Frame
+          g.lineStyle(2, 0x888888);
+          g.drawRect(-16, -40, 32, 24);
+          g.lineStyle(0);
+          // Written content (squiggly lines)
+          g.lineStyle(1.5, 0x2233aa, 0.6);
+          g.moveTo(-12, -35);
+          g.lineTo(0, -35);
+          g.moveTo(-12, -31);
+          g.lineTo(8, -31);
+          g.moveTo(-12, -27);
+          g.lineTo(4, -27);
+          g.moveTo(-12, -23);
+          g.lineTo(10, -23);
+          g.lineStyle(0);
+          // Red marker circle
+          g.beginFill(0xff3333, 0.5);
+          g.drawCircle(8, -34, 3);
+          g.endFill();
+          // Stand legs
+          g.beginFill(0x888888);
+          g.drawRect(-14, -16, 3, 18);
+          g.drawRect(11, -16, 3, 18);
+          g.endFill();
+          // Marker tray
+          g.beginFill(0xaaaaaa);
+          g.drawRect(-10, -16, 20, 3);
           g.endFill();
           break;
         }
