@@ -1170,7 +1170,9 @@ function loadPixiJS() {
       } else {
         // Fallback: colored diamond
         const theme = getRoomTheme();
-        const colors = { 'w': theme.floor, 'c': theme.carpet, 's': 0x696969, 'g': 0x4a7a3a };
+        const grassVariants = [0x4a7a3a, 0x3d6b30, 0x528a42, 0x457035, 0x4f8540];
+        const grassColor = grassVariants[Math.floor(Math.random() * grassVariants.length)];
+        const colors = { 'w': theme.floor, 'c': theme.carpet, 's': 0x696969, 'g': grassColor };
         graphics.beginFill(colors[tileType] || theme.floor);
         graphics.moveTo(0, 0);
         graphics.lineTo(TILE_W/2, TILE_H/2);
