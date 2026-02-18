@@ -481,7 +481,6 @@ if (SIMULATION_ENABLED) {
               await sql`
                 INSERT INTO presence (agent_id, room_id, x, y)
                 VALUES (${agents[i].id}, ${roomId}, ${x}, ${y})
-                ON CONFLICT (agent_id) DO NOTHING
               `;
             } catch (e) { /* ignore individual insert errors */ }
           }
