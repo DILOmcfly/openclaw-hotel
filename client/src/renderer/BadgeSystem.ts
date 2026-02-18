@@ -5,7 +5,17 @@
  * Updates in real-time when agents earn new achievements via WebSocket.
  */
 
-import { gridToScreen } from './IsoRenderer.js';
+// Isometric grid constants — must match IsoRenderer.ts
+const TILE_WIDTH = 64;
+const TILE_HEIGHT = 32;
+
+/** Convert grid coordinates to isometric screen coordinates */
+function gridToScreen(gridX: number, gridY: number): { x: number; y: number } {
+  return {
+    x: (gridX - gridY) * (TILE_WIDTH / 2),
+    y: (gridX + gridY) * (TILE_HEIGHT / 2),
+  };
+}
 
 export interface BadgeData {
   achievementId: string;

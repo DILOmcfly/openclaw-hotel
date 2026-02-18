@@ -520,6 +520,30 @@ app.get('/api/simulation/metrics', (_req, res) => {
 import { getAnalyticsSummary } from './services/analyticsService.js';
 import { broadcastToSpectators } from './ws/spectator.js';
 
+// ── Achievement WS broadcast ─────────────────────────────────────────────────
+// When an achievement is awarded, find the agent's current room and broadcast
+// agent.achievement to spectators watching that room.
+import { achievementEvents } from './services/achievements.js';
+achievementEvents.on('awarded', async (data: {
+  agentId: string;
+  achievement: { achievementId: string; name: string; description: string; icon: string; awardedAt: string };
+}) => {
+  try {
+    const rows = await sql`
+      SELECT room_id FROM presence WHERE agent_id = ${data.agentId} LIMIT 1
+    `;
+    if (rows.length > 0 && rows[0].room_id) {
+      broadcastToSpectators(rows[0].room_id, {
+        type: 'agent.achievement',
+        agentId: data.agentId,
+        achievement: data.achievement,
+      });
+    }
+  } catch (err) {
+    // Best-effort broadcast — don't crash
+  }
+});
+
 setInterval(async () => {
   try {
     const summary = await getAnalyticsSummary(sql);

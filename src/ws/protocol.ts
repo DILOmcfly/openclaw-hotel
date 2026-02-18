@@ -698,6 +698,20 @@ export type ServerMessage =
   | AgentKickedMsg
   | MarketplaceNewListingMsg
   | MarketplaceSoldMsg
+  | AgentAchievementMsg
+
+// Achievement Messages (Server → Client)
+export interface AgentAchievementMsg {
+  type: 'agent.achievement'
+  agentId: string
+  achievement: {
+    achievementId: string
+    name: string
+    description: string
+    icon: string
+    awardedAt: string
+  }
+}
 
 // Marketplace Messages (Server → Client)
 export interface MarketplaceNewListingMsg {

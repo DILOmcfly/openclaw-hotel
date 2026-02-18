@@ -3,7 +3,15 @@
  * Manages badges and achievement awards for agents
  */
 
+import { EventEmitter } from 'events';
 import { notifyAgent } from './notifications.js';
+
+/**
+ * Global emitter for achievement events.
+ * Listeners receive: { agentId, achievement: { achievementId, name, description, icon, awardedAt } }
+ * Used by server.ts to broadcast agent.achievement WS events.
+ */
+export const achievementEvents = new EventEmitter();
 
 export type Achievement = {
   id: string;
@@ -112,7 +120,7 @@ export async function awardBadge(
 
     const wasNewlyAwarded = result.length > 0;
 
-    // If newly awarded, send notification
+    // If newly awarded, send notification + emit event for WS broadcast
     if (wasNewlyAwarded) {
       const [achievement] = await sql`
         SELECT name, description, icon
@@ -128,6 +136,18 @@ export async function awardBadge(
           message: `${achievement.icon} ${achievement.name}`,
           link: `/profile`,
         }, sql);
+
+        // Emit for WS broadcast (server.ts subscribes to broadcast to spectators)
+        achievementEvents.emit('awarded', {
+          agentId,
+          achievement: {
+            achievementId,
+            name: achievement.name,
+            description: achievement.description || '',
+            icon: achievement.icon,
+            awardedAt: new Date().toISOString(),
+          },
+        });
       }
     }
 

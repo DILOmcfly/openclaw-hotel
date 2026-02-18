@@ -2,6 +2,7 @@ import { Application, Assets } from 'pixi.js';
 import { IsoRenderer } from './renderer/IsoRenderer.js';
 import { SpriteLoader } from './renderer/SpriteLoader.js';
 import { renderAgentDots } from './ui/RoomCardDots.js';
+import { BadgeSystem, type BadgeData } from './renderer/BadgeSystem.js';
 
 // API base URL (detect from current location)
 const API_BASE = window.location.origin;
@@ -39,6 +40,7 @@ let currentRoom: string | null = null;
 let ws: WebSocket | null = null;
 let app: Application | null = null;
 let renderer: IsoRenderer | null = null;
+let badgeSystem: BadgeSystem | null = null;
 let chatMessagesArray: Array<{ username: string; message: string; timestamp: string; isOwn: boolean }> = [];
 const MAX_CHAT_MESSAGES = 100;
 
@@ -242,6 +244,11 @@ function leaveRoom() {
     ws = null;
   }
   
+  if (badgeSystem) {
+    badgeSystem.destroy();
+    badgeSystem = null;
+  }
+
   if (app) {
     app.destroy(true);
     app = null;
@@ -291,6 +298,11 @@ async function initializeRenderer(roomData: any) {
   
   // Create isometric renderer
   renderer = new IsoRenderer(app, roomData.heightmap || '0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000', spriteLoader);
+
+  // Create badge system (HTML overlay — positioned with world offset)
+  const worldOffsetX = Math.round(window.innerWidth / 2);
+  const worldOffsetY = Math.round(window.innerHeight / 4);
+  badgeSystem = new BadgeSystem(worldOffsetX, worldOffsetY);
   
   // Render initial furniture
   if (roomData.furniture) {
@@ -299,7 +311,7 @@ async function initializeRenderer(roomData: any) {
     }
   }
   
-  // Render agents
+  // Render agents (and fetch their badges)
   if (roomData.agents) {
     for (const agent of roomData.agents) {
       renderer.addAgent({
@@ -308,6 +320,8 @@ async function initializeRenderer(roomData: any) {
         x: 5,
         y: 5,
       });
+      // Fetch initial badges for each agent (non-blocking)
+      fetchAndShowAgentBadges(agent.id, 5, 5);
     }
   }
   
@@ -316,7 +330,48 @@ async function initializeRenderer(roomData: any) {
     if (app) {
       app.renderer.resize(window.innerWidth, window.innerHeight);
     }
+    // Update badge overlay offset on resize
+    if (badgeSystem) {
+      badgeSystem.updateOffset(
+        Math.round(window.innerWidth / 2),
+        Math.round(window.innerHeight / 4)
+      );
+      badgeSystem.updateAllPositions();
+    }
   });
+}
+
+/**
+ * Fetch an agent's earned achievements and show badges in the room view.
+ */
+async function fetchAndShowAgentBadges(agentId: string, gridX: number, gridY: number): Promise<void> {
+  if (!badgeSystem) return;
+
+  // Skip if agentId is not a valid UUID (e.g. demo/bot IDs)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(agentId)) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/achievements/${agentId}`);
+    if (!res.ok) return;
+    const allAchievements = await res.json();
+
+    // Filter to only earned ones, sorted most recent first
+    const earned: BadgeData[] = allAchievements
+      .filter((a: any) => a.earned)
+      .sort((a: any, b: any) => new Date(b.awardedAt).getTime() - new Date(a.awardedAt).getTime())
+      .map((a: any) => ({
+        achievementId: a.id,
+        name: a.name,
+        description: a.description,
+        icon: a.icon,
+        awardedAt: a.awardedAt,
+      }));
+
+    badgeSystem.setAgentBadges(agentId, earned, gridX, gridY);
+  } catch {
+    // Non-critical — badges are best-effort
+  }
 }
 
 /**
@@ -391,21 +446,29 @@ function handleServerMessage(message: any) {
       hudSpectatorCountEl.textContent = message.count.toString();
       break;
       
-    case 'presence.join':
+    case 'presence.join': {
+      const joinX = message.agent.x ?? 5;
+      const joinY = message.agent.y ?? 5;
       if (renderer) {
         renderer.addAgent({
           id: message.agent.id,
           displayName: message.agent.name,
-          x: message.agent.x,
-          y: message.agent.y,
+          x: joinX,
+          y: joinY,
         });
       }
+      // Fetch and display badges for newly joined agent
+      fetchAndShowAgentBadges(message.agent.id, joinX, joinY);
       updateAgentCount(1);
       break;
+    }
       
     case 'presence.leave':
       if (renderer) {
         renderer.removeAgent(message.agentId);
+      }
+      if (badgeSystem) {
+        badgeSystem.removeAgent(message.agentId);
       }
       updateAgentCount(-1);
       break;
@@ -413,6 +476,21 @@ function handleServerMessage(message: any) {
     case 'agent.moved':
       if (renderer) {
         renderer.moveAgent(message.agentId, message.x, message.y);
+      }
+      if (badgeSystem) {
+        badgeSystem.updatePosition(message.agentId, message.x, message.y);
+      }
+      break;
+
+    case 'agent.achievement':
+      if (badgeSystem && message.agentId && message.achievement) {
+        badgeSystem.addBadge(message.agentId, {
+          achievementId: message.achievement.achievementId,
+          name: message.achievement.name,
+          description: message.achievement.description,
+          icon: message.achievement.icon,
+          awardedAt: message.achievement.awardedAt,
+        });
       }
       break;
       
