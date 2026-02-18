@@ -5,6 +5,7 @@ import { getSpectatorCount } from '../ws/spectator.js';
 import * as personalityService from '../services/personality.js';
 import { getRoomHistory } from '../services/chatHistory.js';
 import { getLiveEvents } from '../services/liveEventsStore.js';
+import { detectHotRooms } from '../services/hotRoomsDetector.js';
 
 const router = express.Router();
 
@@ -431,6 +432,110 @@ router.get('/api/spectate/agents/:agentId/room', async (req, res) => {
     res.json({ roomId: null, roomName: null });
   } catch (error) {
     console.error('[Spectator API] Error finding agent room:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/spectate/agents/:agentId/timeline
+ * T-367: Public agent event timeline — last N public activities.
+ * Returns chronological list of public events for the agent.
+ * No authentication required.
+ *
+ * Query params:
+ *   limit  (number, default 20, max 50)
+ */
+router.get('/api/spectate/agents/:agentId/timeline', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+
+    // Validate agentId format (basic UUID check)
+    if (!/^[0-9a-f-]{36}$/i.test(agentId)) {
+      return res.status(400).json({ error: 'Invalid agent ID format' });
+    }
+
+    const rawLimit = parseInt(String(req.query.limit ?? '20'), 10);
+    const limit = Number.isNaN(rawLimit) ? 20 : Math.min(Math.max(1, rawLimit), 50);
+
+    // Fetch from activity_log if it exists (try both column schemas)
+    let events: Array<{ type: string; description: string; roomName: string | null; timestamp: string }> = [];
+
+    try {
+      // Try schema with event_type column (newer schema)
+      const rows = await sql`
+        SELECT
+          al.event_type   AS "type",
+          al.details      AS "details",
+          r.name          AS "roomName",
+          al.created_at   AS "timestamp"
+        FROM activity_log al
+        LEFT JOIN rooms r ON r.id = al.room_id
+        WHERE al.agent_id = ${agentId}::uuid
+          AND (al.public = true OR al.public IS NULL)
+        ORDER BY al.created_at DESC
+        LIMIT ${limit}
+      `;
+      events = rows.map((row: any) => ({
+        type: row.type || 'activity',
+        description: (row.details as any)?.description || row.type || 'Activity',
+        roomName: row.roomName || null,
+        timestamp: row.timestamp,
+      }));
+    } catch {
+      try {
+        // Fallback: try schema with action column (older schema)
+        const rows = await sql`
+          SELECT
+            al.action       AS "type",
+            al.details      AS "details",
+            r.name          AS "roomName",
+            al.created_at   AS "timestamp"
+          FROM activity_log al
+          LEFT JOIN rooms r ON r.id = al.room_id
+          WHERE al.agent_id = ${agentId}::uuid
+          ORDER BY al.created_at DESC
+          LIMIT ${limit}
+        `;
+        events = rows.map((row: any) => ({
+          type: row.type || 'activity',
+          description: (row.details as any)?.description || row.type || 'Activity',
+          roomName: row.roomName || null,
+          timestamp: row.timestamp,
+        }));
+      } catch { /* activity_log may not exist — return empty */ }
+    }
+
+    res.json({
+      agentId,
+      events,
+      total: events.length,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[Spectator API] Error fetching agent timeline:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/spectate/hot-rooms
+ * T-368: Returns rooms with current activity spikes.
+ * Analyzes the in-memory event buffer (zero DB queries).
+ * Public endpoint — no authentication required.
+ *
+ * Query params:
+ *   limit  (number, default 5, max 10)
+ */
+router.get('/api/spectate/hot-rooms', (req, res) => {
+  try {
+    const rawLimit = parseInt(String(req.query.limit ?? '5'), 10);
+    const limit = Number.isNaN(rawLimit) ? 5 : Math.min(Math.max(1, rawLimit), 10);
+
+    const result = detectHotRooms(Date.now(), limit);
+
+    res.json(result);
+  } catch (error) {
+    console.error('[Spectator API] Error detecting hot rooms:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

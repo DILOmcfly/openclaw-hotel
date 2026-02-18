@@ -3,6 +3,7 @@ import { IsoRenderer } from './renderer/IsoRenderer.js';
 import { SpriteLoader } from './renderer/SpriteLoader.js';
 import { renderAgentDots } from './ui/RoomCardDots.js';
 import { BadgeSystem, type BadgeData } from './renderer/BadgeSystem.js';
+import { WitnessXPTracker } from '../../src/witnessXP.js';
 
 // API base URL (detect from current location)
 const API_BASE = window.location.origin;

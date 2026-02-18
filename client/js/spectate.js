@@ -27,7 +27,179 @@ function loadPixiJS() {
     const API = window.location.origin;
     const WS_URL = API.replace('http', 'ws');
 
-    // State
+    // ── T-369: Activity Pulse Tracker ────────────────────────────────────────────
+    // ── T-368: Witness XP Tracker (inline, no module import needed) ──────────
+    const WitnessXP = (() => {
+      const XP_AWARDS = {
+        trade_offer: 5, trade_complete: 15, achievement: 20,
+        game_win: 25, chat: 1, level_up: 30, emote: 3,
+      };
+      const LEVELS = [
+        { name: 'Newcomer', minXP: 0 },
+        { name: 'Observer', minXP: 100 },
+        { name: 'Watcher',  minXP: 250 },
+        { name: 'Witness',  minXP: 500 },
+        { name: 'Veteran',  minXP: 1000 },
+        { name: 'Sage',     minXP: 2500 },
+        { name: 'Legend',   minXP: 5000 },
+        { name: 'Mythic',   minXP: 10000 },
+      ];
+      const KEY = 'witnessXP';
+
+      function _load() {
+        try {
+          const raw = localStorage.getItem(KEY);
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (typeof p.totalXP === 'number' && typeof p.eventCounts === 'object' && p.eventCounts) {
+              return { totalXP: Math.max(0, p.totalXP), eventCounts: p.eventCounts, lastUpdated: p.lastUpdated || Date.now() };
+            }
+          }
+        } catch { /* corrupt — start fresh */ }
+        return { totalXP: 0, eventCounts: {}, lastUpdated: Date.now() };
+      }
+
+      function _save(data) {
+        try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* quota — ignore */ }
+      }
+
+      function _getLevelIdx(xp) {
+        let idx = 0;
+        for (let i = 0; i < LEVELS.length; i++) {
+          if (xp >= LEVELS[i].minXP) idx = i; else break;
+        }
+        return idx;
+      }
+
+      function _getProgress(xp) {
+        const idx   = _getLevelIdx(xp);
+        const cur   = LEVELS[idx];
+        const next  = LEVELS[idx + 1] || null;
+        if (!next) return { level: cur, idx, fraction: 1, nextLevel: null };
+        const into = xp - cur.minXP;
+        const band = next.minXP - cur.minXP;
+        return { level: cur, idx, fraction: Math.min(1, into / band), nextLevel: next };
+      }
+
+      // ── HUD update ─────────────────────────────────────────────────────────
+      function _updateHUD(data, prevIdx) {
+        const prog  = _getProgress(data.totalXP);
+        const badge = document.getElementById('witnessLevelBadge');
+        const fill  = document.getElementById('witnessXpBarFill');
+        const label = document.getElementById('witnessXpLabel');
+        const hud   = document.getElementById('witnessXpHud');
+        if (!badge || !fill || !label || !hud) return;
+
+        badge.textContent = prog.level.name;
+        badge.dataset.level = prog.level.name;
+        fill.style.width    = (prog.fraction * 100).toFixed(1) + '%';
+        label.textContent   = data.totalXP + ' XP';
+
+        // Level-up animation
+        if (prevIdx !== undefined && prog.idx > prevIdx) {
+          hud.classList.remove('xp-levelup');
+          void hud.offsetWidth; // force reflow
+          hud.classList.add('xp-levelup');
+          setTimeout(() => hud.classList.remove('xp-levelup'), 700);
+        }
+      }
+
+      // ── XP ping floater ────────────────────────────────────────────────────
+      function _showPing(amount) {
+        const hud = document.getElementById('witnessXpHud');
+        if (!hud) return;
+        const rect = hud.getBoundingClientRect();
+        const ping = document.createElement('span');
+        ping.className = 'xp-ping';
+        ping.textContent = '+' + amount + ' XP';
+        ping.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+        document.body.appendChild(ping);
+        setTimeout(() => ping.remove(), 1400);
+      }
+
+      // ── State ──────────────────────────────────────────────────────────────
+      let _data = _load();
+      _updateHUD(_data, undefined);
+
+      function addXP(eventType) {
+        const amount = XP_AWARDS[eventType] || 0;
+        if (!amount) return 0;
+        const prevIdx = _getLevelIdx(_data.totalXP);
+        _data.totalXP += amount;
+        _data.eventCounts[eventType] = (_data.eventCounts[eventType] || 0) + 1;
+        _data.lastUpdated = Date.now();
+        _save(_data);
+        _updateHUD(_data, prevIdx);
+        _showPing(amount);
+        return amount;
+      }
+
+      return { addXP, getData: () => ({ ..._data }) };
+    })();
+
+    const ActivityPulse = (() => {
+      const WINDOW_MS = 60_000;
+      let _timestamps = [];
+      let _updateTimer = null;
+
+      function _prune() {
+        const cutoff = Date.now() - WINDOW_MS;
+        let i = 0;
+        while (i < _timestamps.length && _timestamps[i] <= cutoff) i++;
+        if (i > 0) _timestamps = _timestamps.slice(i);
+      }
+
+      function recordEvent() {
+        _timestamps.push(Date.now());
+        _prune();
+        _updateUI();
+      }
+
+      function getEventsPerMinute() {
+        _prune();
+        return _timestamps.length;
+      }
+
+      function getHeatLevel() {
+        const n = getEventsPerMinute();
+        if (n >= 30) return 'hot';
+        if (n >= 15) return 'busy';
+        if (n >= 5)  return 'moderate';
+        return 'quiet';
+      }
+
+      function _updateUI() {
+        const dot   = document.getElementById('activityPulse');
+        const label = document.getElementById('activityPulseLabel');
+        if (!dot || !label) return;
+        const epm  = getEventsPerMinute();
+        const heat = getHeatLevel();
+        dot.setAttribute('data-heat', heat);
+        label.textContent = epm + '/min';
+        const colorMap = { quiet: '#3b82f6', moderate: '#22c55e', busy: '#f97316', hot: '#ef4444' };
+        label.style.color = colorMap[heat] || 'var(--text-secondary)';
+      }
+
+      function reset() {
+        _timestamps = [];
+        _updateUI();
+      }
+
+      function startDecayTimer() {
+        // Refresh the UI every 5 s so the counter decays as old events age out
+        stopDecayTimer();
+        _updateTimer = setInterval(_updateUI, 5_000);
+      }
+
+      function stopDecayTimer() {
+        if (_updateTimer) { clearInterval(_updateTimer); _updateTimer = null; }
+      }
+
+      return { recordEvent, getEventsPerMinute, getHeatLevel, reset, startDecayTimer, stopDecayTimer };
+    })();
+    // ─────────────────────────────────────────────────────────────────────────
+
+// State
     let currentRoomId = null;
     let currentRoomName = '';
     let roomsList = []; // For mobile swipe navigation
@@ -1755,6 +1927,30 @@ function loadPixiJS() {
      * @param {Object} agentObj - agent entry from agents Map
      * @param {string} emote    - emote name (e.g. 'dance', 'wave')
      */
+
+    // ── T-370: Live Trade Announcement Banner ─────────────────────────────────
+    let _tradeBannerTimer = null;
+    function showTradeBanner(agentA, agentB) {
+      const banner = document.getElementById('tradeBanner');
+      const label  = document.getElementById('tradeBannerAgents');
+      if (!banner || !label) return;
+
+      // Reset any running animation
+      banner.classList.remove('visible');
+      void banner.offsetWidth; // reflow
+
+      label.textContent = `${agentA} ↔ ${agentB}`;
+      banner.classList.add('visible');
+
+      // Clean up after animation (3.2s)
+      clearTimeout(_tradeBannerTimer);
+      _tradeBannerTimer = setTimeout(() => {
+        banner.classList.remove('visible');
+      }, 3300);
+    }
+    // Expose for testing
+    window.showTradeBanner = showTradeBanner;
+
     function showEmoteEffect(agentObj, emote) {
       if (!window.PIXI || !contentContainer || !agentObj || !agentObj.sprite) return;
 
@@ -2781,6 +2977,11 @@ function loadPixiJS() {
       // Connect WebSocket
       connectWS(roomId);
       addChatMessage('System', 'Watching for agent activity...', true);
+
+      // T-366: Notify social graph of room change
+      if (typeof window.onSocialGraphRoomChange === 'function') {
+        window.onSocialGraphRoomChange(roomId);
+      }
     }
 
     function leaveRoom() {
@@ -2959,6 +3160,19 @@ function loadPixiJS() {
     }
 
     function handleWSMessage(msg) {
+      // T-369: Record every meaningful room event for the activity pulse
+      const _PULSE_EVENT_TYPES = new Set([
+        'agent.join','agent.joined','presence.join',
+        'agent.leave','agent.left','presence.leave',
+        'agent.move','agent.moved',
+        'agent.chat','chat.message','message.new',
+        'agent.action','furniture_use','game_invite','trade_offer','emote',
+        'furniture.placed','furniture.removed','furniture.moved',
+      ]);
+      if (_PULSE_EVENT_TYPES.has(msg.type)) {
+        ActivityPulse.recordEvent();
+      }
+
       switch (msg.type) {
         case 'room.state':
           if (msg.agents) {
@@ -3176,6 +3390,7 @@ function loadPixiJS() {
             msg.displayName || chatter?.name || 'Agent',
             chatText
           );
+          WitnessXP.addXP('chat'); // T-368
           break;
 
         case 'agent.action':
@@ -3230,10 +3445,32 @@ function loadPixiJS() {
             const tTarget = msg.targetDisplayName || tradee?.name || 'another agent';
             window.showEventToast('trade_offer', `${tTrader} offered a trade to ${tTarget}`);
           }
+          WitnessXP.addXP('trade_offer'); // T-368
+          break;
+        }
+
+        case 'trade_complete':
+        case 'trade.completed':
+        case 'trade_completed': {
+          const tcTrader = agents.get(msg.agentId);
+          const tcTarget = agents.get(msg.targetId);
+          const tcTraderName = msg.displayName || tcTrader?.name || 'Agent';
+          const tcTargetName = msg.targetDisplayName || tcTarget?.name || msg.targetName || 'another agent';
+          addActivityEvent('trade_complete', msg.agentId, { agentName: tcTraderName, targetName: tcTargetName });
+          addChatMessage('System', `✅ Trade complete: ${tcTraderName} ↔ ${tcTargetName}`, true);
+          setAgentStatus(msg.agentId, 'trade');
+          // T-368: Award XP
+          WitnessXP.addXP('trade_complete');
+          // T-370: Show dramatic trade banner
+          showTradeBanner(tcTraderName, tcTargetName);
+          if (typeof window.showEventToast === 'function') {
+            window.showEventToast('trade_complete', `Deal struck: ${tcTraderName} ↔ ${tcTargetName} ✅`);
+          }
           break;
         }
 
         case 'emote': {
+          WitnessXP.addXP('emote'); // T-368
           const emoteAgent = agents.get(msg.agentId);
           const emoteValue = msg.emote || msg.action;
           // Activity feed entry
@@ -3344,6 +3581,10 @@ function loadPixiJS() {
       // Load sidebar rooms on tab open (T-350)
       if (tab === 'rooms') {
         loadSidebarRooms();
+      }
+      // T-366: Load social graph on tab open
+      if (tab === 'graph' && typeof window.loadSocialGraph === 'function') {
+        window.loadSocialGraph();
       }
     }
 
@@ -3756,6 +3997,9 @@ function loadPixiJS() {
 
       // Show panel immediately with loading state
       panel.classList.add('active');
+
+      // T-367: Track current agent for timeline modal
+      window._currentTimelineAgentId = agentId;
       
       // Set basic info
       document.getElementById('agentInfoName').textContent = agent.name;
@@ -4901,3 +5145,805 @@ function loadPixiJS() {
     setInterval(() => { if (!currentRoomId) fetchRooms(); }, 15000);
 
     console.log('[OpenClaw Hotel] Spectator mode loaded with PixiJS WebGL + Ambient Audio');
+
+
+// ── Modules extracted from spectate.html ──────────────────────────────────
+
+// <!-- T-353: Live Event Toast Notification Script -->
+
+  (function() {
+    'use strict';
+
+    const MAX_TOASTS = 3;
+    const TOAST_DURATION_MS = 5000;
+
+    /** @type {HTMLElement[]} */
+    const activeToasts = [];
+
+    const TOAST_CONFIG = {
+      trade:        { icon: '💱', title: 'Trade Happening!' },
+      trade_offer:  { icon: '💱', title: 'Trade Offered' },
+      game_invite:  { icon: '🎮', title: 'Game Started!' },
+      game_win:     { icon: '🏆', title: 'Game Won!' },
+      achievement:  { icon: '🏅', title: 'Achievement!' },
+      room_enter:   { icon: '🚪', title: 'Agent Arrived' },
+      emote:        { icon: '🎭', title: 'Agent Emoting' },
+      chat:         { icon: '💬', title: 'Message' },
+    };
+
+    /**
+     * Show a live event toast.
+     * @param {string} type - Event type key (matches TOAST_CONFIG)
+     * @param {string} message - Human-readable event message
+     * @param {number} [durationMs] - Override duration in ms
+     */
+    window.showEventToast = function(type, message, durationMs) {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+
+      const duration = durationMs || TOAST_DURATION_MS;
+      const config = TOAST_CONFIG[type] || { icon: '✦', title: 'Event' };
+
+      // Remove oldest if over limit
+      while (activeToasts.length >= MAX_TOASTS) {
+        dismissToast(activeToasts[0]);
+      }
+
+      const toast = document.createElement('div');
+      toast.className = `event-toast toast-${type}`;
+      toast.setAttribute('role', 'status');
+      toast.style.setProperty('--toast-duration', duration + 'ms');
+      toast.innerHTML = `
+        <span class="toast-icon" aria-hidden="true">${config.icon}</span>
+        <div class="toast-body">
+          <div class="toast-title">${_escHtml(config.title)}</div>
+          <div class="toast-msg">${_escHtml(message)}</div>
+        </div>
+        <div class="toast-progress"></div>
+      `;
+
+      toast.addEventListener('click', () => dismissToast(toast));
+
+      container.prepend(toast);
+      activeToasts.push(toast);
+
+      const timer = setTimeout(() => dismissToast(toast), duration);
+      toast._toastTimer = timer;
+    };
+
+    /** Dismiss a toast with slide-out animation */
+    function dismissToast(toast) {
+      const idx = activeToasts.indexOf(toast);
+      if (idx === -1) return; // already removed
+      activeToasts.splice(idx, 1);
+      clearTimeout(toast._toastTimer);
+      toast.classList.add('dismissing');
+      const onEnd = () => { if (toast.parentNode) toast.remove(); };
+      toast.addEventListener('animationend', onEnd, { once: true });
+      // Failsafe: remove even if animationend never fires
+      setTimeout(onEnd, 400);
+    }
+
+    /** Escape HTML for safe insertion */
+    function _escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // Expose internals for testing
+    window._toastInternals = {
+      activeToasts,
+      TOAST_CONFIG,
+      dismissToast,
+      MAX_TOASTS,
+      TOAST_DURATION_MS,
+    };
+  })();
+  
+
+// <!-- T-346: Live Events Ticker Script -->
+
+  (function() {
+    'use strict';
+
+    const MAX_TICKER_EVENTS = 30;
+    const POLL_INTERVAL_MS = 60_000; // Refresh from API every 60s
+    const tickerEvents = [];
+    let tickerPaused = false;
+    let trackCloneNeeded = true;
+
+    const ticker = document.getElementById('liveEventsTicker');
+    const track = document.getElementById('tickerTrack');
+    const toggleBtn = document.getElementById('tickerToggle');
+
+    // ── Icon map (mirrors liveEventsStore.ts) ────────────────────────────────
+    const EVENT_ICONS = {
+      chat:          '💬',
+      emote:         '🎭',
+      trade:         '💱',
+      game_win:      '🏆',
+      achievement:   '🏅',
+      room_enter:    '🚪',
+      room_leave:    '👋',
+      furniture_use: '🪑',
+      game_invite:   '🎮',
+    };
+
+    /** Toggle ticker visibility */
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        if (ticker.classList.contains('hidden')) {
+          ticker.classList.remove('hidden');
+          toggleBtn.textContent = '✕';
+          localStorage.setItem('tickerVisible', '1');
+        } else {
+          ticker.classList.add('hidden');
+          toggleBtn.textContent = '▶';
+          localStorage.setItem('tickerVisible', '0');
+        }
+      });
+    }
+
+    // Restore user preference
+    if (localStorage.getItem('tickerVisible') === '0') {
+      ticker?.classList.add('hidden');
+      if (toggleBtn) toggleBtn.textContent = '▶';
+    }
+
+    /** Create a single ticker item element */
+    function createTickerItem(ev) {
+      const icon = EVENT_ICONS[ev.type] || '✦';
+      const span = document.createElement('span');
+      span.className = 'ticker-event ticker-' + (ev.type || 'chat');
+      span.setAttribute('data-event-id', ev.id || '');
+      span.innerHTML = `<span class="ticker-icon">${icon}</span><span class="ticker-msg">${escapeHtml(ev.message)}</span>`;
+      return span;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    /** Rebuild the scrolling track from tickerEvents array */
+    function renderTicker() {
+      if (!track) return;
+      // Clear old
+      track.innerHTML = '';
+      if (tickerEvents.length === 0) {
+        const empty = document.createElement('span');
+        empty.className = 'ticker-event';
+        empty.textContent = 'Watching for live events…';
+        track.appendChild(empty);
+        return;
+      }
+      // Duplicate events for seamless loop
+      const frag = document.createDocumentFragment();
+      [...tickerEvents, ...tickerEvents].forEach((ev) => {
+        frag.appendChild(createTickerItem(ev));
+      });
+      track.appendChild(frag);
+      // Restart animation
+      track.style.animation = 'none';
+      // Force reflow
+      void track.offsetWidth;
+      // Duration based on event count: ~8s per event, min 20s, max 120s
+      const duration = Math.min(120, Math.max(20, tickerEvents.length * 8));
+      track.style.animation = `tickerScroll ${duration}s linear infinite`;
+    }
+
+    /** Add a new event from a WebSocket message */
+    window.addTickerEvent = function(ev) {
+      // Avoid duplicates by id
+      if (ev.id && tickerEvents.find((e) => e.id === ev.id)) return;
+      tickerEvents.unshift(ev);
+      if (tickerEvents.length > MAX_TICKER_EVENTS) tickerEvents.pop();
+      renderTicker();
+    };
+
+    /** Fetch events from backend and merge into local queue */
+    async function fetchLiveEvents() {
+      try {
+        const r = await fetch('/api/spectate/live-events?limit=20');
+        if (!r.ok) return;
+        const data = await r.json();
+        if (!Array.isArray(data.events)) return;
+        let changed = false;
+        data.events.forEach((ev) => {
+          if (!tickerEvents.find((e) => e.id === ev.id)) {
+            tickerEvents.push(ev);
+            changed = true;
+          }
+        });
+        if (changed) {
+          // Sort newest-first, trim
+          tickerEvents.sort((a, b) => b.timestamp - a.timestamp);
+          tickerEvents.splice(MAX_TICKER_EVENTS);
+          renderTicker();
+        }
+      } catch { /* offline or server error — ignore */ }
+    }
+
+    // Initial load + periodic refresh
+    fetchLiveEvents();
+    setInterval(fetchLiveEvents, POLL_INTERVAL_MS);
+
+    // Notable emotes that warrant a toast popup
+    const NOTABLE_EMOTES = ['❤️', '🌟', '⭐', '🎉', '🔥', '💯', '🥳', '🎊', '😍', '👑'];
+
+    // Track agent count per room for arrival-toast suppression (avoid spam on load)
+    const _roomAgentCounts = {};
+
+    // Hook into global WS message handler (set before spectate.js fires)
+    const _origHandleWSMessage = window.handleWSMessage;
+    window.handleWSMessage = function(msg) {
+      // Forward to original handler first
+      if (_origHandleWSMessage) _origHandleWSMessage(msg);
+
+      // Capture notable events
+      const type = msg.type || msg.event;
+      const agentName = msg.sender || msg.displayName || msg.agentName || 'An agent';
+      const roomId = msg.roomId || msg.room || 'default';
+
+      let tickerEv = null;
+
+      // ── Chat (ticker only, 15% sample, no toast) ──────────────────────────
+      if (type === 'chat' || type === 'message.new') {
+        if (Math.random() < 0.15) {
+          tickerEv = {
+            id: `ws-${Date.now()}-${Math.random()}`,
+            type: 'chat',
+            agentName,
+            icon: '💬',
+            message: `${agentName} said something`,
+            timestamp: Date.now(),
+          };
+        }
+
+      // ── Emote — only notable emotes get a toast ───────────────────────────
+      } else if (type === 'emote' || type === 'emote.broadcast') {
+        const emote = msg.emote || '';
+        tickerEv = {
+          id: `ws-${Date.now()}-${Math.random()}`,
+          type: 'emote',
+          agentName,
+          icon: '🎭',
+          message: `${agentName} performed ${emote || 'an emote'}`,
+          timestamp: Date.now(),
+        };
+        // Toast only for rare/exciting emotes
+        if (NOTABLE_EMOTES.includes(emote) && window.showEventToast) {
+          window.showEventToast('emote', `${agentName} reacted with ${emote}`);
+        }
+
+      // ── Furniture use (ticker only) ───────────────────────────────────────
+      } else if (type === 'furniture_use') {
+        tickerEv = {
+          id: `ws-${Date.now()}-${Math.random()}`,
+          type: 'furniture_use',
+          agentName,
+          icon: '🪑',
+          message: `${agentName} used ${msg.furnitureName || 'furniture'}`,
+          timestamp: Date.now(),
+        };
+
+      // ── Game invite — always toast ────────────────────────────────────────
+      } else if (type === 'game_invite') {
+        const target = msg.targetName || 'someone';
+        const game = msg.game || 'a game';
+        tickerEv = {
+          id: `ws-${Date.now()}-${Math.random()}`,
+          type: 'game_invite',
+          agentName,
+          icon: '🎮',
+          message: `${agentName} invited ${target} to play ${game}`,
+          timestamp: Date.now(),
+        };
+        if (window.showEventToast) {
+          window.showEventToast('game_invite', `${agentName} invited ${target} to play ${game}`);
+        }
+
+      // ── Game win — always toast ───────────────────────────────────────────
+      } else if (type === 'game_win' || type === 'game.won') {
+        const game = msg.game || 'a game';
+        tickerEv = {
+          id: `ws-${Date.now()}-${Math.random()}`,
+          type: 'game_win',
+          agentName,
+          icon: '🏆',
+          message: `${agentName} won ${game}!`,
+          timestamp: Date.now(),
+        };
+        if (window.showEventToast) {
+          window.showEventToast('game_win', `${agentName} won ${game}! 🏆`);
+        }
+        WitnessXP.addXP('game_win'); // T-368
+
+      // ── Achievement unlocked — always toast ───────────────────────────────
+      } else if (type === 'achievement' || type === 'achievement.unlocked') {
+        const achievement = msg.achievement || msg.name || 'an achievement';
+        tickerEv = {
+          id: `ws-${Date.now()}-${Math.random()}`,
+          type: 'achievement',
+          agentName,
+          icon: '🏅',
+          message: `${agentName} unlocked: ${achievement}`,
+          timestamp: Date.now(),
+        };
+        if (window.showEventToast) {
+          window.showEventToast('achievement', `${agentName} unlocked: ${achievement}`);
+        }
+        WitnessXP.addXP('achievement'); // T-368
+
+      // ── Trade offer — always toast ────────────────────────────────────────
+      } else if (type === 'trade_offer' || type === 'trade.requested') {
+        const target = msg.targetName || msg.to || 'someone';
+        tickerEv = {
+          id: `ws-${Date.now()}-${Math.random()}`,
+          type: 'trade',
+          agentName,
+          icon: '💱',
+          message: `${agentName} offered a trade to ${target}`,
+          timestamp: Date.now(),
+        };
+        if (window.showEventToast) {
+          window.showEventToast('trade_offer', `${agentName} offered a trade to ${target}`);
+        }
+
+      // ── Agent join / room_enter — toast only when room is already busy ────
+      } else if (type === 'agent.join' || type === 'room_enter' || type === 'agent.entered') {
+        // Track agent count
+        _roomAgentCounts[roomId] = (_roomAgentCounts[roomId] || 0) + 1;
+        const count = _roomAgentCounts[roomId];
+        tickerEv = {
+          id: `ws-${Date.now()}-${Math.random()}`,
+          type: 'room_enter',
+          agentName,
+          icon: '🚪',
+          message: `${agentName} entered a room`,
+          timestamp: Date.now(),
+        };
+        // Only toast when there are already 3+ agents (suppress initial load spam)
+        if (count >= 3 && window.showEventToast) {
+          window.showEventToast('room_enter', `${agentName} just entered the room`);
+        }
+
+      // ── Agent leave — update count ────────────────────────────────────────
+      } else if (type === 'agent.leave' || type === 'room_leave' || type === 'agent.left') {
+        _roomAgentCounts[roomId] = Math.max(0, (_roomAgentCounts[roomId] || 1) - 1);
+        tickerEv = {
+          id: `ws-${Date.now()}-${Math.random()}`,
+          type: 'room_leave',
+          agentName,
+          icon: '👋',
+          message: `${agentName} left a room`,
+          timestamp: Date.now(),
+        };
+      }
+
+      if (tickerEv && window.addTickerEvent) window.addTickerEvent(tickerEv);
+    };
+
+    // Initial empty render
+    renderTicker();
+  })();
+  
+
+// <!-- T-367: Agent Timeline Modal -->
+
+  (function() {
+    'use strict';
+
+    // ── State ────────────────────────────────────────────────────────────────
+    let _currentAgentId   = null;
+    let _currentAgentName = null;
+
+    // ── Event type → icon mapping ────────────────────────────────────────────
+    const TYPE_ICONS = {
+      chat:           '💬',
+      message:        '💬',
+      trade:          '💱',
+      trade_offer:    '💱',
+      trade_complete: '✅',
+      game:           '🎮',
+      game_win:       '🏆',
+      achievement:    '🏅',
+      room_enter:     '🚪',
+      room_leave:     '👋',
+      emote:          '🎭',
+      friend_request: '🤝',
+      friend_accept:  '💙',
+      purchase:       '🛍',
+      furniture:      '🪑',
+      quest:          '⚔️',
+      level_up:       '⬆️',
+      activity:       '⚡',
+    };
+
+    /**
+     * Get icon for an event type.
+     * Sorts keys by length descending so more-specific keys (e.g. game_win)
+     * match before shorter ones (e.g. game).
+     * @param {string} type
+     * @returns {string}
+     */
+    function getTypeIcon(type) {
+      if (!type) return '⚡';
+      const lower = type.toLowerCase().replace(/[._]/g, '_');
+      const entries = Object.entries(TYPE_ICONS).sort((a, b) => b[0].length - a[0].length);
+      for (const [key, icon] of entries) {
+        if (lower.includes(key)) return icon;
+      }
+      return '⚡';
+    }
+
+    /**
+     * Format a timestamp as a relative time string.
+     * @param {string} timestamp - ISO date string
+     * @returns {string}
+     */
+    function formatRelTime(timestamp) {
+      if (!timestamp) return '';
+      const delta = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
+      if (delta < 60)        return `${delta}s ago`;
+      if (delta < 3600)      return `${Math.floor(delta / 60)}m ago`;
+      if (delta < 86400)     return `${Math.floor(delta / 3600)}h ago`;
+      return `${Math.floor(delta / 86400)}d ago`;
+    }
+
+    /**
+     * Safe HTML escape.
+     * @param {string} str
+     * @returns {string}
+     */
+    function esc(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    /**
+     * Render timeline events into #timelineContent.
+     * @param {Array<{type:string,description:string,roomName:string|null,timestamp:string}>} events
+     */
+    function renderTimeline(events) {
+      const container = document.getElementById('timelineContent');
+      if (!container) return;
+
+      if (!events || events.length === 0) {
+        container.innerHTML = '<div class="timeline-empty">🕸 No public events found for this agent</div>';
+        return;
+      }
+
+      container.innerHTML = events.map(ev => {
+        const icon = getTypeIcon(ev.type);
+        const relTime = formatRelTime(ev.timestamp);
+        const roomPart = ev.roomName
+          ? `<span class="timeline-room">📍 ${esc(ev.roomName)}</span>`
+          : '';
+        return `
+          <div class="timeline-item">
+            <div class="timeline-dot">${icon}</div>
+            <div class="timeline-body">
+              <div class="timeline-event-type">${esc(ev.type || 'activity')}</div>
+              <div class="timeline-desc">${esc(ev.description || ev.type || 'Activity')}</div>
+              <div class="timeline-meta">
+                ${relTime ? `<span>${esc(relTime)}</span>` : ''}
+                ${roomPart}
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    /**
+     * Open the timeline modal for a specific agent.
+     * Called when agent is currently loaded in the agentInfoPanel.
+     */
+    window.openAgentTimeline = async function() {
+      // Get current agent from the info panel
+      const modal = document.getElementById('agentTimelineModal');
+      const nameEl = document.getElementById('timelineAgentName');
+      const content = document.getElementById('timelineContent');
+      if (!modal || !content) return;
+
+      // Get agent id from the info panel's current agent
+      const agentId = window._currentTimelineAgentId;
+      const agentName = document.getElementById('agentInfoName')?.textContent || 'Agent';
+
+      if (nameEl) nameEl.textContent = agentName;
+      content.innerHTML = '<div class="timeline-loading">Loading events…</div>';
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+
+      if (!agentId) {
+        content.innerHTML = '<div class="timeline-error">No agent selected</div>';
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/spectate/agents/${encodeURIComponent(agentId)}/timeline?limit=25`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderTimeline(data.events || []);
+      } catch (err) {
+        content.innerHTML = `<div class="timeline-error">Failed to load timeline</div>`;
+        console.warn('[Timeline]', err);
+      }
+    };
+
+    /** Close the timeline modal. */
+    window.closeAgentTimeline = function() {
+      const modal = document.getElementById('agentTimelineModal');
+      if (modal) {
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+      }
+    };
+
+    // Close on background click
+    document.getElementById('agentTimelineModal')?.addEventListener('click', function(e) {
+      if (e.target === this) window.closeAgentTimeline();
+    });
+
+    // Expose internals for testing
+    window._timelineInternals = {
+      getTypeIcon,
+      formatRelTime,
+      renderTimeline,
+      esc,
+      TYPE_ICONS,
+    };
+
+  })();
+  
+
+// <!-- T-366: Social Graph Visualizer -->
+
+  (function() {
+    'use strict';
+
+    // ── State ────────────────────────────────────────────────────────────────
+    let _currentRoomId = null;
+    let _graphData     = null;   // { nodes, edges }
+    let _refreshTimer  = null;
+    const REFRESH_MS   = 30_000;
+    const SPRING_ITERS = 80;     // Force-directed iterations
+
+    // ── DOM refs ─────────────────────────────────────────────────────────────
+    const svg    = document.getElementById('sgSvg');
+    const status = document.getElementById('sgStatus');
+    const btn    = document.getElementById('sgRefreshBtn');
+
+    // ── Force-directed layout (Fruchterman-Reingold simplified) ──────────────
+    /**
+     * Compute node positions using a spring-charge simulation.
+     * Returns { [nodeId]: { x, y } }
+     *
+     * @param {Array<{id:string}>} nodes
+     * @param {Array<{source:string,target:string,strength:number}>} edges
+     * @param {number} W - canvas width
+     * @param {number} H - canvas height
+     * @returns {Object} map of id → {x, y}
+     */
+    function computeLayout(nodes, edges, W, H) {
+      const k = Math.sqrt((W * H) / Math.max(nodes.length, 1));
+      const positions = {};
+
+      // Place in a circle initially to avoid overlaps
+      nodes.forEach((n, i) => {
+        const angle = (2 * Math.PI * i) / nodes.length;
+        const r = Math.min(W, H) * 0.35;
+        positions[n.id] = {
+          x: W / 2 + r * Math.cos(angle),
+          y: H / 2 + r * Math.sin(angle),
+          vx: 0,
+          vy: 0,
+        };
+      });
+
+      const edgeSet = new Set(edges.map(e => `${e.source}|${e.target}`));
+
+      for (let iter = 0; iter < SPRING_ITERS; iter++) {
+        const temp = k * (1 - iter / SPRING_ITERS); // cooling factor
+
+        // Repulsive forces (all pairs)
+        for (let i = 0; i < nodes.length; i++) {
+          for (let j = i + 1; j < nodes.length; j++) {
+            const a = positions[nodes[i].id];
+            const b = positions[nodes[j].id];
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 0.1);
+            const f = (k * k) / dist;
+            const fx = (dx / dist) * f;
+            const fy = (dy / dist) * f;
+            a.vx -= fx; a.vy -= fy;
+            b.vx += fx; b.vy += fy;
+          }
+        }
+
+        // Attractive forces (connected pairs)
+        edges.forEach(e => {
+          const a = positions[e.source];
+          const b = positions[e.target];
+          if (!a || !b) return;
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 0.1);
+          const f = (dist * dist) / k;
+          const fx = (dx / dist) * f * (e.strength || 1);
+          const fy = (dy / dist) * f * (e.strength || 1);
+          a.vx += fx; a.vy += fy;
+          b.vx -= fx; b.vy -= fy;
+        });
+
+        // Apply velocity with cooling + bounds clamping
+        nodes.forEach(n => {
+          const p = positions[n.id];
+          const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+          if (speed > temp) {
+            p.vx = (p.vx / speed) * temp;
+            p.vy = (p.vy / speed) * temp;
+          }
+          p.x = Math.max(20, Math.min(W - 20, p.x + p.vx));
+          p.y = Math.max(20, Math.min(H - 20, p.y + p.vy));
+          p.vx = 0; p.vy = 0;
+        });
+      }
+
+      return positions;
+    }
+
+    /**
+     * Escape HTML for SVG text content.
+     * @param {string} str
+     * @returns {string}
+     */
+    function escSvg(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    /**
+     * Truncate display name to fit in a node label (max 8 chars).
+     * @param {string} name
+     * @returns {string}
+     */
+    function truncName(name) {
+      return name && name.length > 8 ? name.slice(0, 7) + '…' : (name || '?');
+    }
+
+    /**
+     * Render the social graph SVG.
+     * @param {{ nodes: Array, edges: Array }} data
+     */
+    function renderGraph(data) {
+      if (!svg) return;
+
+      const vb = svg.viewBox.baseVal;
+      const W = vb.width  || 300;
+      const H = vb.height || 280;
+
+      if (!data || !data.nodes || data.nodes.length === 0) {
+        svg.innerHTML = `
+          <foreignObject width="${W}" height="${H}">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="sg-empty">
+              <span style="font-size:24px">🕸</span>
+              <span>No agents in room yet</span>
+            </div>
+          </foreignObject>`;
+        if (status) status.textContent = 'No data';
+        return;
+      }
+
+      const positions = computeLayout(data.nodes, data.edges, W, H);
+      const nodeRadius = Math.max(10, Math.min(18, 120 / Math.max(data.nodes.length, 1)));
+
+      let edgesHtml = '';
+      data.edges.forEach(e => {
+        const a = positions[e.source];
+        const b = positions[e.target];
+        if (!a || !b) return;
+        const cls = e.status === 'accepted' ? 'sg-edge sg-edge-accepted' : 'sg-edge sg-edge-pending';
+        // Opacity proportional to strength
+        const opacity = 0.35 + (e.strength || 0.5) * 0.65;
+        edgesHtml += `<line class="${escSvg(cls)}" style="opacity:${opacity.toFixed(2)}"
+          x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}"
+          x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}"/>`;
+      });
+
+      let nodesHtml = '';
+      data.nodes.forEach(n => {
+        const p = positions[n.id];
+        if (!p) return;
+        const onlineFill = n.isOnline ? n.color || '#00D4AA' : '#444';
+        const label = truncName(n.displayName);
+        const agentId = escSvg(n.id);
+        nodesHtml += `
+          <g class="sg-node" data-agent-id="${agentId}"
+             onclick="window.openAgentProfile && window.openAgentProfile('${agentId}')"
+             role="button" aria-label="${escSvg(n.displayName)}">
+            <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}"
+                    r="${nodeRadius}" fill="${escSvg(onlineFill)}"
+                    title="${escSvg(n.displayName)}"/>
+            <text x="${p.x.toFixed(1)}" y="${(p.y + nodeRadius + 9).toFixed(1)}"
+                  font-size="7" fill="var(--text-secondary)">${escSvg(label)}</text>
+          </g>`;
+      });
+
+      svg.innerHTML = `<g class="sg-edges">${edgesHtml}</g><g class="sg-nodes">${nodesHtml}</g>`;
+
+      const nodeCount = data.nodes.length;
+      const edgeCount = data.edges.filter(e => e.status === 'accepted').length;
+      if (status) status.textContent = `${nodeCount} agent${nodeCount !== 1 ? 's' : ''} · ${edgeCount} friendship${edgeCount !== 1 ? 's' : ''}`;
+    }
+
+    /**
+     * Fetch social graph for the current room and render it.
+     */
+    async function loadSocialGraph() {
+      if (!_currentRoomId) {
+        if (svg) svg.innerHTML = '';
+        if (status) status.textContent = 'Enter a room to see the graph';
+        return;
+      }
+
+      if (btn) btn.classList.add('spinning');
+
+      try {
+        const res = await fetch(`/api/spectate/social-graph/${encodeURIComponent(_currentRoomId)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        _graphData = data;
+        renderGraph(data);
+      } catch (err) {
+        if (status) status.textContent = `Error loading graph`;
+        console.warn('[SocialGraph]', err);
+      } finally {
+        if (btn) {
+          btn.classList.remove('spinning');
+        }
+      }
+    }
+
+    /** Start auto-refresh timer. */
+    function startAutoRefresh() {
+      if (_refreshTimer) clearInterval(_refreshTimer);
+      _refreshTimer = setInterval(loadSocialGraph, REFRESH_MS);
+    }
+
+    /** Called by spectate.js when a room is entered. */
+    window.onSocialGraphRoomChange = function(roomId) {
+      _currentRoomId = roomId;
+      loadSocialGraph();
+      startAutoRefresh();
+    };
+
+    /** Called by the tab switcher — refresh on tab open. */
+    window.loadSocialGraph = loadSocialGraph;
+
+    /** Expose internals for testing. */
+    window._socialGraphInternals = {
+      computeLayout,
+      renderGraph,
+      loadSocialGraph,
+      escSvg,
+      truncName,
+      get currentRoomId() { return _currentRoomId; },
+      set currentRoomId(v) { _currentRoomId = v; },
+    };
+
+  })();
+  

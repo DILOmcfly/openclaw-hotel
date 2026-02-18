@@ -568,6 +568,162 @@
     }
     .back-btn:hover { background: rgba(0,212,170,0.25); }
 
+    /* ── T-369: Activity Pulse Gauge ───────────────────────────────────────── */
+    .activity-pulse-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 10px;
+    }
+    .activity-pulse {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #3b82f6;
+      box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.6);
+      animation: pulse-ring 2.4s ease-in-out infinite;
+      flex-shrink: 0;
+      transition: background 0.5s ease, box-shadow 0.5s ease;
+    }
+    .activity-pulse[data-heat="quiet"]    { background: #3b82f6; box-shadow: 0 0 0 0 rgba(59,130,246,0.6); animation-duration: 2.4s; }
+    .activity-pulse[data-heat="moderate"] { background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,0.6);  animation-duration: 1.6s; }
+    .activity-pulse[data-heat="busy"]     { background: #f97316; box-shadow: 0 0 0 0 rgba(249,115,22,0.6); animation-duration: 1.0s; }
+    .activity-pulse[data-heat="hot"]      { background: #ef4444; box-shadow: 0 0 0 0 rgba(239,68,68,0.6);  animation-duration: 0.6s; }
+
+    @keyframes pulse-ring {
+      0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(var(--pulse-rgb, 59,130,246), 0.7); }
+      70%  { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(var(--pulse-rgb, 59,130,246), 0);  }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(var(--pulse-rgb, 59,130,246), 0);    }
+    }
+    .activity-pulse-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      transition: color 0.5s ease;
+      min-width: 56px;
+    }
+    /* ── T-368: Witness XP HUD ─────────────────────────────────────────── */
+    .witness-xp-hud {
+      position: absolute;
+      bottom: 48px;
+      right: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 3px;
+      z-index: 30;
+      pointer-events: none;
+    }
+    .witness-level-badge {
+      background: rgba(99,102,241,0.85);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 9px;
+      border-radius: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      backdrop-filter: blur(4px);
+      transition: background 0.4s ease, transform 0.3s ease;
+      white-space: nowrap;
+    }
+    .witness-level-badge[data-level="Observer"]  { background: rgba(34,197,94,0.85); }
+    .witness-level-badge[data-level="Watcher"]   { background: rgba(251,191,36,0.85); color: #1f2937; }
+    .witness-level-badge[data-level="Witness"]   { background: rgba(249,115,22,0.85); }
+    .witness-level-badge[data-level="Veteran"]   { background: rgba(239,68,68,0.85); }
+    .witness-level-badge[data-level="Sage"]      { background: rgba(168,85,247,0.85); }
+    .witness-level-badge[data-level="Legend"]    { background: rgba(234,179,8,0.85); color: #1f2937; }
+    .witness-level-badge[data-level="Mythic"]    { background: linear-gradient(90deg,#f43f5e,#f97316,#eab308); }
+    .witness-xp-bar-wrap {
+      width: 82px;
+      height: 4px;
+      background: rgba(255,255,255,0.14);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .witness-xp-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #818cf8, #6366f1);
+      border-radius: 2px;
+      transition: width 0.5s cubic-bezier(.4,0,.2,1);
+      min-width: 0%;
+    }
+    .witness-xp-label {
+      font-size: 9px;
+      color: rgba(255,255,255,0.55);
+      font-variant-numeric: tabular-nums;
+    }
+    /* level-up burst animation */
+    .witness-xp-hud.xp-levelup .witness-level-badge {
+      animation: witnessLevelUp 0.65s ease;
+    }
+    @keyframes witnessLevelUp {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.35); box-shadow: 0 0 14px rgba(99,102,241,0.9); }
+      100% { transform: scale(1); }
+    }
+    /* XP ping floater */
+    .xp-ping {
+      position: absolute;
+      right: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #818cf8;
+      pointer-events: none;
+      z-index: 31;
+      animation: xpPingFly 1.3s ease forwards;
+    }
+    @keyframes xpPingFly {
+      0%   { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-28px); }
+    }
+
+    /* ── T-370: Trade Announcement Banner ──────────────────────────────── */
+    #tradeBanner {
+      position: absolute;
+      top: -80px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 60;
+      background: linear-gradient(135deg, rgba(16,185,129,0.95) 0%, rgba(5,150,105,0.95) 100%);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(52,211,153,0.6);
+      border-radius: 12px;
+      padding: 10px 22px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      pointer-events: none;
+      box-shadow: 0 4px 24px rgba(16,185,129,0.5);
+    }
+    #tradeBanner.visible {
+      animation: tradeBannerSlide 3.2s cubic-bezier(.22,1,.36,1) forwards;
+    }
+    @keyframes tradeBannerSlide {
+      0%   { top: -80px; opacity: 0; }
+      12%  { top: 12px;  opacity: 1; }
+      75%  { top: 12px;  opacity: 1; }
+      100% { top: -80px; opacity: 0; }
+    }
+    #tradeBanner .trade-banner-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: rgba(209,250,229,0.85);
+    }
+    #tradeBanner .trade-banner-agents {
+      font-size: 14px;
+      font-weight: 800;
+      color: #fff;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      max-width: 280px;
+    }
+    /* ─────────────────────────────────────────────────────────────────────── */
+
     @media (max-width: 768px) {
       .back-btn {
         position: fixed;
@@ -934,6 +1090,229 @@
       margin-top: 6px;
     }
     .leaderboard-auto { opacity: 0.6; }
+
+    /* ===== AGENT TIMELINE (T-367) ===== */
+    .timeline-btn {
+      width: 100%;
+      padding: 8px 12px;
+      background: rgba(96, 165, 250, 0.12);
+      color: #60a5fa;
+      border: 1px solid rgba(96, 165, 250, 0.3);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: background 0.2s, border-color 0.2s;
+      text-align: center;
+    }
+    .timeline-btn:hover {
+      background: rgba(96, 165, 250, 0.2);
+      border-color: rgba(96, 165, 250, 0.6);
+    }
+    .timeline-modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 3000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .timeline-modal.open { display: flex; }
+    .timeline-modal-inner {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 480px;
+      max-height: 75vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      animation: fadeInUp 0.25s ease;
+    }
+    .timeline-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+    .timeline-modal-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-right: 8px;
+    }
+    .timeline-modal-agent {
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .timeline-modal-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+      transition: color 0.2s;
+    }
+    .timeline-modal-close:hover { color: var(--text-primary); }
+    .timeline-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .timeline-loading, .timeline-empty, .timeline-error {
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 13px;
+      padding: 24px;
+    }
+    .timeline-error { color: #ff6b6b; }
+    .timeline-item {
+      display: flex;
+      gap: 12px;
+      padding: 10px 0;
+      position: relative;
+    }
+    /* Vertical connecting line */
+    .timeline-item:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      left: 15px;
+      top: 36px;
+      bottom: 0;
+      width: 2px;
+      background: var(--border-color);
+    }
+    .timeline-dot {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--bg-tertiary);
+      border: 2px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+      z-index: 1;
+    }
+    .timeline-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .timeline-event-type {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+      margin-bottom: 2px;
+    }
+    .timeline-desc {
+      font-size: 12px;
+      color: var(--text-primary);
+      line-height: 1.4;
+      word-break: break-word;
+    }
+    .timeline-meta {
+      display: flex;
+      gap: 8px;
+      margin-top: 3px;
+      font-size: 10px;
+      color: var(--text-tertiary);
+    }
+    .timeline-room { color: var(--accent); opacity: 0.8; }
+
+    /* ===== SOCIAL GRAPH (T-366) ===== */
+    #socialGraphPanel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding: 8px;
+    }
+    .sg-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .sg-title { font-size: 13px; font-weight: 600; }
+    .sg-refresh {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      opacity: 0.7;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: opacity 0.2s, transform 0.3s;
+    }
+    .sg-refresh:hover { opacity: 1; }
+    .sg-refresh.spinning { animation: spin 0.6s linear; }
+    .sg-status {
+      font-size: 11px;
+      color: var(--text-secondary);
+      min-height: 16px;
+      text-align: center;
+      margin-bottom: 4px;
+    }
+    .sg-svg {
+      flex: 1;
+      width: 100%;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      cursor: default;
+      min-height: 200px;
+    }
+    .sg-svg .sg-edge { stroke-width: 1.5; opacity: 0.6; fill: none; }
+    .sg-svg .sg-edge-accepted { stroke: var(--accent); }
+    .sg-svg .sg-edge-pending  { stroke: #888; stroke-dasharray: 4 3; }
+    .sg-svg .sg-node circle {
+      stroke: rgba(255,255,255,0.3);
+      stroke-width: 1.5;
+      cursor: pointer;
+      transition: filter 0.2s;
+    }
+    .sg-svg .sg-node circle:hover { filter: brightness(1.3) drop-shadow(0 0 4px rgba(255,255,255,0.5)); }
+    .sg-svg .sg-node text {
+      font-size: 8px;
+      fill: var(--text-primary);
+      pointer-events: none;
+      dominant-baseline: middle;
+      text-anchor: middle;
+    }
+    .sg-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-align: center;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .sg-legend {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 6px;
+      font-size: 10px;
+      color: var(--text-secondary);
+    }
+    .sg-legend-item { display: flex; align-items: center; gap: 4px; }
+    .sg-dot { display: inline-block; width: 20px; height: 2px; border-radius: 1px; }
+    .sg-dot-solid  { background: var(--accent); }
+    .sg-dot-dashed { background: repeating-linear-gradient(to right, #888 0, #888 4px, transparent 4px, transparent 7px); }
 
     /* ===== SIDEBAR ROOMS TAB (T-350) ===== */
     #sidebarRoomsPanel {
@@ -2658,6 +3037,18 @@
       </div>
     </div>
 
+    <!-- T-367: Timeline button -->
+    <div class="agent-info-section" style="padding-top:0">
+      <button
+        id="agentTimelineBtn"
+        class="timeline-btn"
+        onclick="openAgentTimeline()"
+        title="View full event history for this agent"
+      >
+        📅 View Timeline
+      </button>
+    </div>
+
     <!-- T-347: Follow button -->
     <div class="agent-info-section" style="padding-top:0">
       <button
@@ -2668,6 +3059,22 @@
       >
         ⊙ Follow Agent
       </button>
+    </div>
+  </div>
+
+  <!-- T-367: Agent Timeline Modal -->
+  <div id="agentTimelineModal" class="timeline-modal" aria-hidden="true">
+    <div class="timeline-modal-inner">
+      <div class="timeline-modal-header">
+        <div>
+          <span class="timeline-modal-title">📅 Agent Timeline</span>
+          <span class="timeline-modal-agent" id="timelineAgentName"></span>
+        </div>
+        <button class="timeline-modal-close" onclick="closeAgentTimeline()" aria-label="Close timeline">×</button>
+      </div>
+      <div id="timelineContent" class="timeline-content">
+        <div class="timeline-loading">Loading events…</div>
+      </div>
     </div>
   </div>
 
@@ -2769,7 +3176,14 @@
   <div id="roomView">
     <div class="room-toolbar">
       <button class="back-btn" id="backBtn">← Back to Rooms</button>
-      <h2 id="roomTitle">Room</h2>
+      <!-- T-369: Activity Pulse Gauge -->
+      <div style="display:flex;align-items:center;gap:4px;">
+        <h2 id="roomTitle">Room</h2>
+        <div class="activity-pulse-wrap" title="Room activity level (events/min)">
+          <div id="activityPulse" class="activity-pulse" data-heat="quiet"></div>
+          <span id="activityPulseLabel" class="activity-pulse-label">0/min</span>
+        </div>
+      </div>
       <div class="room-meta">
         <span>🤖 <span id="roomAgentCount">0</span> agents</span>
         <span>👁 <span id="roomSpectatorCount">0</span> spectators</span>
@@ -2778,6 +3192,21 @@
     </div>
     <div class="room-content">
       <div id="isoCanvas">
+        <!-- T-370: Live Trade Announcement Banner -->
+        <div id="tradeBanner" aria-live="assertive">
+          <div class="trade-banner-title">⚡ Deal Struck</div>
+          <div class="trade-banner-agents" id="tradeBannerAgents">—</div>
+        </div>
+
+        <!-- T-368: Witness XP HUD -->
+        <div id="witnessXpHud" class="witness-xp-hud" title="Your Witness XP — gain XP by watching events">
+          <div class="witness-level-badge" id="witnessLevelBadge" data-level="Newcomer">Newcomer</div>
+          <div class="witness-xp-bar-wrap">
+            <div class="witness-xp-bar-fill" id="witnessXpBarFill" style="width:0%"></div>
+          </div>
+          <span class="witness-xp-label" id="witnessXpLabel">0 XP</span>
+        </div>
+
         <!-- T-348: Spectator Reaction Panel -->
         <div id="reactionPanel" title="Send a reaction!">
           <button class="reaction-btn" data-emoji="👍" onclick="sendReaction('👍')" title="Like">👍</button>
@@ -2799,6 +3228,8 @@
           <div class="sidebar-tab" id="tab-leaderboard" onclick="switchSidebarTab('leaderboard')">🏆 Top</div>
           <!-- T-349: Mini-map room switcher tab -->
           <div class="sidebar-tab" id="tab-rooms" onclick="switchSidebarTab('rooms')" title="Switch rooms">🏨 Rooms</div>
+          <!-- T-366: Social Graph tab -->
+          <div class="sidebar-tab" id="tab-graph" onclick="switchSidebarTab('graph')" title="Friend network">🕸 Graph</div>
         </div>
         <!-- Chat tab -->
         <div class="tab-pane active" id="pane-chat">
@@ -2844,6 +3275,21 @@
             </div>
             <div id="sidebarRoomsList">
               <div class="sidebar-rooms-loading">Loading rooms…</div>
+            </div>
+          </div>
+        </div>
+        <!-- T-366: Social Graph tab pane -->
+        <div class="tab-pane" id="pane-graph">
+          <div id="socialGraphPanel">
+            <div class="sg-header">
+              <span class="sg-title">🕸 Friendship Network</span>
+              <button class="sg-refresh" id="sgRefreshBtn" onclick="loadSocialGraph()" title="Refresh graph">🔄</button>
+            </div>
+            <div id="sgStatus" class="sg-status"></div>
+            <svg id="sgSvg" class="sg-svg" viewBox="0 0 300 280" aria-label="Agent social graph"></svg>
+            <div class="sg-legend">
+              <span class="sg-legend-item"><span class="sg-dot sg-dot-solid"></span>Friends</span>
+              <span class="sg-legend-item"><span class="sg-dot sg-dot-dashed"></span>Pending</span>
             </div>
           </div>
         </div>
@@ -2907,389 +3353,5 @@
 
   <!-- Spectator client JS (lazy-loads PixiJS on room entry) -->
   <script src="/js/spectate.js?v=20260218r" defer></script>
-
-  <!-- T-353: Live Event Toast Notification Script -->
-  <script>
-  (function() {
-    'use strict';
-
-    const MAX_TOASTS = 3;
-    const TOAST_DURATION_MS = 5000;
-
-    /** @type {HTMLElement[]} */
-    const activeToasts = [];
-
-    const TOAST_CONFIG = {
-      trade:        { icon: '💱', title: 'Trade Happening!' },
-      trade_offer:  { icon: '💱', title: 'Trade Offered' },
-      game_invite:  { icon: '🎮', title: 'Game Started!' },
-      game_win:     { icon: '🏆', title: 'Game Won!' },
-      achievement:  { icon: '🏅', title: 'Achievement!' },
-      room_enter:   { icon: '🚪', title: 'Agent Arrived' },
-      emote:        { icon: '🎭', title: 'Agent Emoting' },
-      chat:         { icon: '💬', title: 'Message' },
-    };
-
-    /**
-     * Show a live event toast.
-     * @param {string} type - Event type key (matches TOAST_CONFIG)
-     * @param {string} message - Human-readable event message
-     * @param {number} [durationMs] - Override duration in ms
-     */
-    window.showEventToast = function(type, message, durationMs) {
-      const container = document.getElementById('toastContainer');
-      if (!container) return;
-
-      const duration = durationMs || TOAST_DURATION_MS;
-      const config = TOAST_CONFIG[type] || { icon: '✦', title: 'Event' };
-
-      // Remove oldest if over limit
-      while (activeToasts.length >= MAX_TOASTS) {
-        dismissToast(activeToasts[0]);
-      }
-
-      const toast = document.createElement('div');
-      toast.className = `event-toast toast-${type}`;
-      toast.setAttribute('role', 'status');
-      toast.style.setProperty('--toast-duration', duration + 'ms');
-      toast.innerHTML = `
-        <span class="toast-icon" aria-hidden="true">${config.icon}</span>
-        <div class="toast-body">
-          <div class="toast-title">${_escHtml(config.title)}</div>
-          <div class="toast-msg">${_escHtml(message)}</div>
-        </div>
-        <div class="toast-progress"></div>
-      `;
-
-      toast.addEventListener('click', () => dismissToast(toast));
-
-      container.prepend(toast);
-      activeToasts.push(toast);
-
-      const timer = setTimeout(() => dismissToast(toast), duration);
-      toast._toastTimer = timer;
-    };
-
-    /** Dismiss a toast with slide-out animation */
-    function dismissToast(toast) {
-      const idx = activeToasts.indexOf(toast);
-      if (idx === -1) return; // already removed
-      activeToasts.splice(idx, 1);
-      clearTimeout(toast._toastTimer);
-      toast.classList.add('dismissing');
-      const onEnd = () => { if (toast.parentNode) toast.remove(); };
-      toast.addEventListener('animationend', onEnd, { once: true });
-      // Failsafe: remove even if animationend never fires
-      setTimeout(onEnd, 400);
-    }
-
-    /** Escape HTML for safe insertion */
-    function _escHtml(str) {
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-    }
-
-    // Expose internals for testing
-    window._toastInternals = {
-      activeToasts,
-      TOAST_CONFIG,
-      dismissToast,
-      MAX_TOASTS,
-      TOAST_DURATION_MS,
-    };
-  })();
-  </script>
-
-  <!-- T-346: Live Events Ticker Script -->
-  <script>
-  (function() {
-    'use strict';
-
-    const MAX_TICKER_EVENTS = 30;
-    const POLL_INTERVAL_MS = 60_000; // Refresh from API every 60s
-    const tickerEvents = [];
-    let tickerPaused = false;
-    let trackCloneNeeded = true;
-
-    const ticker = document.getElementById('liveEventsTicker');
-    const track = document.getElementById('tickerTrack');
-    const toggleBtn = document.getElementById('tickerToggle');
-
-    // ── Icon map (mirrors liveEventsStore.ts) ────────────────────────────────
-    const EVENT_ICONS = {
-      chat:          '💬',
-      emote:         '🎭',
-      trade:         '💱',
-      game_win:      '🏆',
-      achievement:   '🏅',
-      room_enter:    '🚪',
-      room_leave:    '👋',
-      furniture_use: '🪑',
-      game_invite:   '🎮',
-    };
-
-    /** Toggle ticker visibility */
-    if (toggleBtn) {
-      toggleBtn.addEventListener('click', () => {
-        if (ticker.classList.contains('hidden')) {
-          ticker.classList.remove('hidden');
-          toggleBtn.textContent = '✕';
-          localStorage.setItem('tickerVisible', '1');
-        } else {
-          ticker.classList.add('hidden');
-          toggleBtn.textContent = '▶';
-          localStorage.setItem('tickerVisible', '0');
-        }
-      });
-    }
-
-    // Restore user preference
-    if (localStorage.getItem('tickerVisible') === '0') {
-      ticker?.classList.add('hidden');
-      if (toggleBtn) toggleBtn.textContent = '▶';
-    }
-
-    /** Create a single ticker item element */
-    function createTickerItem(ev) {
-      const icon = EVENT_ICONS[ev.type] || '✦';
-      const span = document.createElement('span');
-      span.className = 'ticker-event ticker-' + (ev.type || 'chat');
-      span.setAttribute('data-event-id', ev.id || '');
-      span.innerHTML = `<span class="ticker-icon">${icon}</span><span class="ticker-msg">${escapeHtml(ev.message)}</span>`;
-      return span;
-    }
-
-    function escapeHtml(str) {
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-    }
-
-    /** Rebuild the scrolling track from tickerEvents array */
-    function renderTicker() {
-      if (!track) return;
-      // Clear old
-      track.innerHTML = '';
-      if (tickerEvents.length === 0) {
-        const empty = document.createElement('span');
-        empty.className = 'ticker-event';
-        empty.textContent = 'Watching for live events…';
-        track.appendChild(empty);
-        return;
-      }
-      // Duplicate events for seamless loop
-      const frag = document.createDocumentFragment();
-      [...tickerEvents, ...tickerEvents].forEach((ev) => {
-        frag.appendChild(createTickerItem(ev));
-      });
-      track.appendChild(frag);
-      // Restart animation
-      track.style.animation = 'none';
-      // Force reflow
-      void track.offsetWidth;
-      // Duration based on event count: ~8s per event, min 20s, max 120s
-      const duration = Math.min(120, Math.max(20, tickerEvents.length * 8));
-      track.style.animation = `tickerScroll ${duration}s linear infinite`;
-    }
-
-    /** Add a new event from a WebSocket message */
-    window.addTickerEvent = function(ev) {
-      // Avoid duplicates by id
-      if (ev.id && tickerEvents.find((e) => e.id === ev.id)) return;
-      tickerEvents.unshift(ev);
-      if (tickerEvents.length > MAX_TICKER_EVENTS) tickerEvents.pop();
-      renderTicker();
-    };
-
-    /** Fetch events from backend and merge into local queue */
-    async function fetchLiveEvents() {
-      try {
-        const r = await fetch('/api/spectate/live-events?limit=20');
-        if (!r.ok) return;
-        const data = await r.json();
-        if (!Array.isArray(data.events)) return;
-        let changed = false;
-        data.events.forEach((ev) => {
-          if (!tickerEvents.find((e) => e.id === ev.id)) {
-            tickerEvents.push(ev);
-            changed = true;
-          }
-        });
-        if (changed) {
-          // Sort newest-first, trim
-          tickerEvents.sort((a, b) => b.timestamp - a.timestamp);
-          tickerEvents.splice(MAX_TICKER_EVENTS);
-          renderTicker();
-        }
-      } catch { /* offline or server error — ignore */ }
-    }
-
-    // Initial load + periodic refresh
-    fetchLiveEvents();
-    setInterval(fetchLiveEvents, POLL_INTERVAL_MS);
-
-    // Notable emotes that warrant a toast popup
-    const NOTABLE_EMOTES = ['❤️', '🌟', '⭐', '🎉', '🔥', '💯', '🥳', '🎊', '😍', '👑'];
-
-    // Track agent count per room for arrival-toast suppression (avoid spam on load)
-    const _roomAgentCounts = {};
-
-    // Hook into global WS message handler (set before spectate.js fires)
-    const _origHandleWSMessage = window.handleWSMessage;
-    window.handleWSMessage = function(msg) {
-      // Forward to original handler first
-      if (_origHandleWSMessage) _origHandleWSMessage(msg);
-
-      // Capture notable events
-      const type = msg.type || msg.event;
-      const agentName = msg.sender || msg.displayName || msg.agentName || 'An agent';
-      const roomId = msg.roomId || msg.room || 'default';
-
-      let tickerEv = null;
-
-      // ── Chat (ticker only, 15% sample, no toast) ──────────────────────────
-      if (type === 'chat' || type === 'message.new') {
-        if (Math.random() < 0.15) {
-          tickerEv = {
-            id: `ws-${Date.now()}-${Math.random()}`,
-            type: 'chat',
-            agentName,
-            icon: '💬',
-            message: `${agentName} said something`,
-            timestamp: Date.now(),
-          };
-        }
-
-      // ── Emote — only notable emotes get a toast ───────────────────────────
-      } else if (type === 'emote' || type === 'emote.broadcast') {
-        const emote = msg.emote || '';
-        tickerEv = {
-          id: `ws-${Date.now()}-${Math.random()}`,
-          type: 'emote',
-          agentName,
-          icon: '🎭',
-          message: `${agentName} performed ${emote || 'an emote'}`,
-          timestamp: Date.now(),
-        };
-        // Toast only for rare/exciting emotes
-        if (NOTABLE_EMOTES.includes(emote) && window.showEventToast) {
-          window.showEventToast('emote', `${agentName} reacted with ${emote}`);
-        }
-
-      // ── Furniture use (ticker only) ───────────────────────────────────────
-      } else if (type === 'furniture_use') {
-        tickerEv = {
-          id: `ws-${Date.now()}-${Math.random()}`,
-          type: 'furniture_use',
-          agentName,
-          icon: '🪑',
-          message: `${agentName} used ${msg.furnitureName || 'furniture'}`,
-          timestamp: Date.now(),
-        };
-
-      // ── Game invite — always toast ────────────────────────────────────────
-      } else if (type === 'game_invite') {
-        const target = msg.targetName || 'someone';
-        const game = msg.game || 'a game';
-        tickerEv = {
-          id: `ws-${Date.now()}-${Math.random()}`,
-          type: 'game_invite',
-          agentName,
-          icon: '🎮',
-          message: `${agentName} invited ${target} to play ${game}`,
-          timestamp: Date.now(),
-        };
-        if (window.showEventToast) {
-          window.showEventToast('game_invite', `${agentName} invited ${target} to play ${game}`);
-        }
-
-      // ── Game win — always toast ───────────────────────────────────────────
-      } else if (type === 'game_win' || type === 'game.won') {
-        const game = msg.game || 'a game';
-        tickerEv = {
-          id: `ws-${Date.now()}-${Math.random()}`,
-          type: 'game_win',
-          agentName,
-          icon: '🏆',
-          message: `${agentName} won ${game}!`,
-          timestamp: Date.now(),
-        };
-        if (window.showEventToast) {
-          window.showEventToast('game_win', `${agentName} won ${game}! 🏆`);
-        }
-
-      // ── Achievement unlocked — always toast ───────────────────────────────
-      } else if (type === 'achievement' || type === 'achievement.unlocked') {
-        const achievement = msg.achievement || msg.name || 'an achievement';
-        tickerEv = {
-          id: `ws-${Date.now()}-${Math.random()}`,
-          type: 'achievement',
-          agentName,
-          icon: '🏅',
-          message: `${agentName} unlocked: ${achievement}`,
-          timestamp: Date.now(),
-        };
-        if (window.showEventToast) {
-          window.showEventToast('achievement', `${agentName} unlocked: ${achievement}`);
-        }
-
-      // ── Trade offer — always toast ────────────────────────────────────────
-      } else if (type === 'trade_offer' || type === 'trade.requested') {
-        const target = msg.targetName || msg.to || 'someone';
-        tickerEv = {
-          id: `ws-${Date.now()}-${Math.random()}`,
-          type: 'trade',
-          agentName,
-          icon: '💱',
-          message: `${agentName} offered a trade to ${target}`,
-          timestamp: Date.now(),
-        };
-        if (window.showEventToast) {
-          window.showEventToast('trade_offer', `${agentName} offered a trade to ${target}`);
-        }
-
-      // ── Agent join / room_enter — toast only when room is already busy ────
-      } else if (type === 'agent.join' || type === 'room_enter' || type === 'agent.entered') {
-        // Track agent count
-        _roomAgentCounts[roomId] = (_roomAgentCounts[roomId] || 0) + 1;
-        const count = _roomAgentCounts[roomId];
-        tickerEv = {
-          id: `ws-${Date.now()}-${Math.random()}`,
-          type: 'room_enter',
-          agentName,
-          icon: '🚪',
-          message: `${agentName} entered a room`,
-          timestamp: Date.now(),
-        };
-        // Only toast when there are already 3+ agents (suppress initial load spam)
-        if (count >= 3 && window.showEventToast) {
-          window.showEventToast('room_enter', `${agentName} just entered the room`);
-        }
-
-      // ── Agent leave — update count ────────────────────────────────────────
-      } else if (type === 'agent.leave' || type === 'room_leave' || type === 'agent.left') {
-        _roomAgentCounts[roomId] = Math.max(0, (_roomAgentCounts[roomId] || 1) - 1);
-        tickerEv = {
-          id: `ws-${Date.now()}-${Math.random()}`,
-          type: 'room_leave',
-          agentName,
-          icon: '👋',
-          message: `${agentName} left a room`,
-          timestamp: Date.now(),
-        };
-      }
-
-      if (tickerEv && window.addTickerEvent) window.addTickerEvent(tickerEv);
-    };
-
-    // Initial empty render
-    renderTicker();
-  })();
-  </script>
 </body>
 </html>

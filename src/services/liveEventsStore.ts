@@ -59,7 +59,14 @@ export function addLiveEvent(event: Omit<LiveEvent, 'id' | 'timestamp'>): LiveEv
 
 /** Return events sorted newest-first, optionally limited. */
 export function getLiveEvents(limit = 20): LiveEvent[] {
-  const sorted = [...liveEvents].sort((a, b) => b.timestamp - a.timestamp);
+  const sorted = [...liveEvents].sort((a, b) => {
+    const timeDiff = b.timestamp - a.timestamp;
+    if (timeDiff !== 0) return timeDiff;
+    // Stable tie-break: higher id number = newer event
+    const aNum = parseInt(a.id.replace('ev-', ''), 10);
+    const bNum = parseInt(b.id.replace('ev-', ''), 10);
+    return bNum - aNum;
+  });
   return sorted.slice(0, limit);
 }
 
