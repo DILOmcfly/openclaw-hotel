@@ -86,8 +86,8 @@ function loadPixiJS() {
     // ===== PARTICLE SYSTEM =====
     const particles = []; // Active particle objects
     let particleContainer = null; // PIXI.Container for particles (added to worldContainer)
-    const MAX_PARTICLES = isMobile ? 25 : 60;
-    const PARTICLE_SPAWN_RATE = isMobile ? 0 : 0.7; // Disabled on mobile — confusing dots
+    const MAX_PARTICLES = 0; // Disabled — visual noise that confuses users
+    const PARTICLE_SPAWN_RATE = 0;
 
     // ===== UI STATE HELPERS =====
     function showLoading(text = 'Loading...', subtext = 'Please wait') {
@@ -1576,7 +1576,8 @@ function loadPixiJS() {
         chatFeedMessages = [];
 
         // Show live chat feed
-        document.getElementById('liveChatFeed').style.display = 'flex';
+        // liveChatFeed hidden — sidebar chat is sufficient
+        // document.getElementById('liveChatFeed').style.display = 'flex';
 
         // Show LIVE badge
         const liveBadge = document.getElementById('liveBadge');
@@ -3670,15 +3671,11 @@ function loadPixiJS() {
       document.querySelectorAll('.reaction-btn').forEach(btn => btn.classList.remove('cooling'));
     }
 
-    // Show reaction panel when in a room, hide when not
+    // Reaction panel hidden — spectators observe, don't interact
     function updateReactionPanelVisibility(inRoom) {
       const panel = document.getElementById('reactionPanel');
       if (!panel) return;
-      if (inRoom) {
-        panel.classList.remove('hidden');
-      } else {
-        panel.classList.add('hidden');
-      }
+      panel.classList.add('hidden');
     }
 
     // ── Expose reaction API to global scope (called from HTML onclick + tests) ─
