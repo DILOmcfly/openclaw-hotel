@@ -286,6 +286,7 @@ function loadPixiJS() {
         const procType = proceduralMap[itemDefId] || 'rock';
         const theme = getRoomTheme();
         sprite = createProceduralFurniture(procType, theme);
+        sprite.scale.set(1.2); // Scale up for isometric grid visibility
         sprite.position.set(sx, sy);
       }
 
@@ -1941,6 +1942,7 @@ function loadPixiJS() {
         // Procedural furniture — unique per room theme
         for (const [type, fx, fy] of layout.proceduralFurniture) {
           const furniture = createProceduralFurniture(type, theme);
+          furniture.scale.set(1.2);
           const { sx, sy } = isoToScreen(fx, fy);
           furniture.position.set(sx, sy);
           furniture.zIndex = fx + fy;

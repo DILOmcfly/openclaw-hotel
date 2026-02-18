@@ -1292,7 +1292,7 @@
 
     /* Help Button */
     #helpButton {
-      display: none; /* Hidden: clutters the view, onboarding is enough */
+      display: none !important; /* Hidden: clutters the view */
       position: fixed;
       bottom: 20px;
       left: 390px;
@@ -1683,6 +1683,7 @@
 
     /* Feedback Widget */
     #feedbackButton {
+      display: none !important; /* Hidden: spectators observe only */
       position: fixed;
       bottom: 20px;
       right: 20px;
@@ -2888,7 +2889,7 @@
   </div>
 
   <!-- Spectator client JS (lazy-loads PixiJS on room entry) -->
-  <script src="/js/spectate.js?v=20260218h" defer></script>
+  <script src="/js/spectate.js?v=20260218i" defer></script>
 
   <!-- T-353: Live Event Toast Notification Script -->
   <script>
