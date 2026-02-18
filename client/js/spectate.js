@@ -1635,41 +1635,106 @@ function loadPixiJS() {
       return container;
     }
 
+    // ── T-359: Speech Bubble System ──────────────────────────────────────────
+
+    /**
+     * Truncate a message to fit within maxLines lines based on estimated character width.
+     * Uses average glyph width heuristic (0.55× fontSize) to avoid PixiJS pre-render.
+     * @param {string} text        - raw message text
+     * @param {number} innerWidth  - available text width in px (bubble width minus padding)
+     * @param {number} fontSize    - font size in px
+     * @param {number} maxLines    - maximum lines allowed
+     * @returns {string} text that fits, with "..." appended if truncated
+     */
+    function truncateBubbleText(text, innerWidth, fontSize, maxLines) {
+      const avgCharWidth = fontSize * 0.55;
+      const charsPerLine = Math.max(1, Math.floor(innerWidth / avgCharWidth));
+      const maxChars = charsPerLine * maxLines;
+      if (!text || text.length <= maxChars) return text || '';
+      return text.substring(0, maxChars - 3) + '...';
+    }
+
+    /**
+     * Build a PixiJS speech bubble Container above an agent sprite.
+     * - Rounded white rect (0.9 alpha) + black text (fontSize 11)
+     * - Max width 150px, max 2 lines, truncated with "..."
+     * - Triangle pointer at bottom centre pointing toward the agent
+     * - Starts at alpha 0; game loop animates the fade-in
+     * @param {string} message - chat message to display
+     * @returns {PIXI.Container}
+     */
     function createChatBubble(message) {
-      const container = new PIXI.Container();
-      const text = new PIXI.Text(message.substring(0, 35), {
+      const MAX_WIDTH   = 150;
+      const FONT_SIZE   = 11;
+      const PADDING     = 8;
+      // BUBBLE_BOTTOM: y-coord (relative to sprite origin) of the bottom edge of the rect.
+      // The pointer tip extends 8px below this → total "anchor" ~52px above sprite feet.
+      const BUBBLE_BOTTOM = -60;
+
+      const innerWidth = MAX_WIDTH - PADDING * 2;
+      const truncated  = truncateBubbleText(message, innerWidth, FONT_SIZE, 2);
+
+      const text = new PIXI.Text(truncated, {
         fontFamily: 'sans-serif',
-        fontSize: 12,
-        fill: 0x333333,
-        wordWrap: true,
-        wordWrapWidth: 180
+        fontSize:   FONT_SIZE,
+        fill:       0x000000,
+        wordWrap:      true,
+        wordWrapWidth: innerWidth,
       });
 
-      const padding = 8;
-      const bubbleW = Math.min(text.width + padding * 2, 220);
-      const bubbleH = text.height + padding * 2;
+      const bubbleW = Math.min(text.width + PADDING * 2, MAX_WIDTH);
+      const bubbleH = text.height + PADDING * 2;
+      const rectTop = BUBBLE_BOTTOM - bubbleH;
 
-      const bubble = new PIXI.Graphics();
-      bubble.beginFill(0xffffff);
-      bubble.drawRoundedRect(-bubbleW/2, -100, bubbleW, bubbleH, 10);
-      bubble.endFill();
+      const bg = new PIXI.Graphics();
 
-      // Arrow
-      bubble.beginFill(0xffffff);
-      bubble.moveTo(-5, -100 + bubbleH);
-      bubble.lineTo(0, -100 + bubbleH + 8);
-      bubble.lineTo(5, -100 + bubbleH);
-      bubble.closePath();
-      bubble.endFill();
+      // Rounded rectangle background
+      bg.beginFill(0xffffff, 0.9);
+      bg.drawRoundedRect(-bubbleW / 2, rectTop, bubbleW, bubbleH, 8);
+      bg.endFill();
 
+      // Triangle pointer at bottom centre
+      bg.beginFill(0xffffff, 0.9);
+      bg.moveTo(-6, BUBBLE_BOTTOM);
+      bg.lineTo(0,  BUBBLE_BOTTOM + 8);
+      bg.lineTo(6,  BUBBLE_BOTTOM);
+      bg.closePath();
+      bg.endFill();
+
+      // Position text inside the rect
       text.anchor.set(0.5, 0);
-      text.position.set(0, -100 + padding);
+      text.position.set(0, rectTop + PADDING);
 
-      container.addChild(bubble);
+      const container = new PIXI.Container();
+      container.addChild(bg);
       container.addChild(text);
-      container.alpha = 0;
+      container.alpha = 0; // game loop fades this in
 
       return container;
+    }
+
+    /**
+     * T-359: Show a speech bubble above an agent sprite.
+     * - Replaces any existing bubble immediately (overlap prevention)
+     * - Bubble is a child of agent.sprite → moves with them automatically
+     * - Game loop in gameLoop() drives fade-in / hold / fade-out / removal
+     * @param {string} agentId - key into `agents` Map
+     * @param {string} text    - message to display
+     */
+    function showSpeechBubble(agentId, text) {
+      const agent = agents.get(agentId);
+      if (!agent || !agent.sprite) return;
+
+      // Remove existing bubble immediately (overlap prevention)
+      if (agent.bubble) {
+        agent.sprite.removeChild(agent.bubble);
+        agent.bubble = null;
+      }
+
+      const bubble = createChatBubble(text);
+      agent.sprite.addChild(bubble);
+      agent.bubble = bubble;
+      agent.lastMessageTime = Date.now(); // triggers game-loop animation
     }
 
     // ===== EMOTE VISUAL EFFECTS (T-338) =====
@@ -2182,8 +2247,7 @@ function loadPixiJS() {
       for (const agent of agents.values()) {
         if (!agent.sprite) {
           agent.sprite = createAgentGraphics(agent);
-          agent.bubble = createChatBubble('');
-          agent.sprite.addChild(agent.bubble);
+          // T-359: bubbles are created on-demand by showSpeechBubble(); no pre-allocation needed
         }
         const { sx, sy } = isoToScreen(agent.x, agent.y);
         agent.sprite.position.set(sx, sy);
@@ -2269,15 +2333,23 @@ function loadPixiJS() {
           }
         }
 
-        // Fade out chat bubble after 5s
+        // T-359: Speech bubble lifecycle — fade in 200ms, hold 4.3s, fade out 500ms
         if (agent.bubble && agent.lastMessageTime) {
           const elapsed = now - agent.lastMessageTime;
-          if (elapsed < 300) {
-            agent.bubble.alpha = Math.min(1, elapsed / 300);
-          } else if (elapsed > 4700) {
-            agent.bubble.alpha = Math.max(0, 1 - (elapsed - 4700) / 300);
-          } else {
+          if (elapsed < 200) {
+            // Fade in: alpha 0 → 1 over 200ms
+            agent.bubble.alpha = elapsed / 200;
+          } else if (elapsed < 4500) {
+            // Fully visible
             agent.bubble.alpha = 1;
+          } else if (elapsed < 5000) {
+            // Fade out: alpha 1 → 0 over 500ms
+            agent.bubble.alpha = 1 - (elapsed - 4500) / 500;
+          } else {
+            // Lifecycle complete — remove bubble from sprite
+            if (agent.bubble.parent) agent.bubble.parent.removeChild(agent.bubble);
+            agent.bubble = null;
+            agent.lastMessageTime = null;
           }
         }
       }
@@ -3093,16 +3165,11 @@ function loadPixiJS() {
           const chatText = msg.message || msg.text || msg.content || '';
           if (chatter) {
             chatter.lastMessage = chatText;
-            chatter.lastMessageTime = Date.now();
             setAgentStatus(msg.agentId, 'chat'); // T-340 status badge
-            
-            // Update speech bubble (sprite may be null if drawRoom() hasn't run yet)
+
+            // T-359: Show speech bubble (sprite may be null if drawRoom() hasn't run yet)
             if (chatter.sprite) {
-              if (chatter.bubble) {
-                chatter.sprite.removeChild(chatter.bubble);
-              }
-              chatter.bubble = createChatBubble(chatText);
-              chatter.sprite.addChild(chatter.bubble);
+              showSpeechBubble(msg.agentId, chatText);
             }
           }
           addChatMessage(
