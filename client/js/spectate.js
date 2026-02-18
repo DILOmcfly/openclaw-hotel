@@ -2153,26 +2153,51 @@ function loadPixiJS() {
         document.getElementById('fpsCounter').textContent = 'FPS: ' + fpsFrames.length;
       }
 
-      // Interpolate agent positions
+      // Interpolate agent positions (T-358: smooth walk animation)
       for (const agent of agents.values()) {
         if (agent.targetX !== undefined && agent.targetY !== undefined) {
-          // Lerp towards target over 500ms (0.5s)
-          const lerpSpeed = 2.0; // Reaches target in ~0.5s
-          agent.x += (agent.targetX - agent.x) * lerpSpeed * dt;
-          agent.y += (agent.targetY - agent.y) * lerpSpeed * dt;
-
-          // Snap when very close
-          if (Math.abs(agent.x - agent.targetX) < 0.01) agent.x = agent.targetX;
-          if (Math.abs(agent.y - agent.targetY) < 0.01) agent.y = agent.targetY;
+          // T-358: Linear tween at ~150ms per tile
+          if (agent.tweenDuration > 0 && agent.tweenStartTime > 0) {
+            const elapsed = now - agent.tweenStartTime;
+            const t = Math.min(1, elapsed / agent.tweenDuration);
+            agent.x = agent.tweenStartX + (agent.targetX - agent.tweenStartX) * t;
+            agent.y = agent.tweenStartY + (agent.targetY - agent.tweenStartY) * t;
+            if (t >= 1) {
+              agent.x = agent.targetX;
+              agent.y = agent.targetY;
+              agent.isMoving = false;
+              agent.tweenDuration = 0;
+              agent.tweenStartTime = 0;
+            }
+          } else {
+            // Fallback exponential lerp for legacy/init cases
+            const lerpSpeed = 2.0; // Reaches target in ~0.5s
+            agent.x += (agent.targetX - agent.x) * lerpSpeed * dt;
+            agent.y += (agent.targetY - agent.y) * lerpSpeed * dt;
+            if (Math.abs(agent.x - agent.targetX) < 0.01) agent.x = agent.targetX;
+            if (Math.abs(agent.y - agent.targetY) < 0.01) agent.y = agent.targetY;
+          }
 
           // Clamp to room bounds — agents must stay on the grid
           agent.x = Math.max(0, Math.min(ROOM_SIZE - 1, agent.x));
           agent.y = Math.max(0, Math.min(ROOM_SIZE - 1, agent.y));
 
-          // Update sprite position
+          // Update sprite position with T-358 walk/idle bob
           if (agent.sprite) {
+            let bobY = 0;
+            if (agent.isMoving) {
+              // T-358: Walk bob — sinusoidal y-oscillation during movement
+              agent.walkPhase = (agent.walkPhase || 0) + dt * 8; // ~8 rad/s cycle
+              bobY = Math.sin(agent.walkPhase) * 2;
+              // T-358: Direction facing — flip sprite based on screen-space movement
+              if (agent.faceLeft === true) agent.sprite.scale.x = -1;
+              else agent.sprite.scale.x = 1;
+            } else {
+              // T-358: Idle breathing bob — very subtle, 0.5px amplitude
+              bobY = Math.sin(now * 0.002) * 0.5;
+            }
             const { sx, sy } = isoToScreen(agent.x, agent.y);
-            agent.sprite.position.set(sx, sy);
+            agent.sprite.position.set(sx, sy + bobY);
             agent.sprite.zIndex = agent.x + agent.y;
           }
         }
@@ -2559,7 +2584,16 @@ function loadPixiJS() {
               color: getAgentColor(a.id),
               hairColor: getHairColor(a.id),
               sprite: null,
-              bubble: null
+              bubble: null,
+              // T-358: Walk animation state
+              walkPhase: 0,
+              isMoving: false,
+              faceLeft: false,
+              lastMoveTime: 0,
+              tweenStartX: x,
+              tweenStartY: y,
+              tweenStartTime: 0,
+              tweenDuration: 0,
             });
           }
           updateAgentList();
@@ -2803,7 +2837,16 @@ function loadPixiJS() {
                 color: getAgentColor(a.id),
                 hairColor: getHairColor(a.id),
                 sprite: null,
-                bubble: null
+                bubble: null,
+                // T-358: Walk animation state
+                walkPhase: 0,
+                isMoving: false,
+                faceLeft: false,
+                lastMoveTime: 0,
+                tweenStartX: x,
+                tweenStartY: y,
+                tweenStartTime: 0,
+                tweenDuration: 0,
               });
             }
             updateAgentList();
@@ -2825,7 +2868,16 @@ function loadPixiJS() {
             color: getAgentColor(msg.agentId),
             hairColor: getHairColor(msg.agentId),
             sprite: null,
-            bubble: null
+            bubble: null,
+            // T-358: Walk animation state
+            walkPhase: 0,
+            isMoving: false,
+            faceLeft: false,
+            lastMoveTime: 0,
+            tweenStartX: x,
+            tweenStartY: y,
+            tweenStartTime: 0,
+            tweenDuration: 0,
           });
           addChatMessage('System', `🤖 ${msg.displayName || 'Agent'} entered the room`, true);
           // T-353: Toast for agent arrival (only when 3+ agents already present, avoid spam on init)
@@ -2855,7 +2907,16 @@ function loadPixiJS() {
             color: getAgentColor(joinAgentId),
             hairColor: getHairColor(joinAgentId),
             sprite: null,
-            bubble: null
+            bubble: null,
+            // T-358: Walk animation state
+            walkPhase: 0,
+            isMoving: false,
+            faceLeft: false,
+            lastMoveTime: 0,
+            tweenStartX: joinX,
+            tweenStartY: joinY,
+            tweenStartTime: 0,
+            tweenDuration: 0,
           });
           addChatMessage('System', `🤖 ${joinName} entered the room`, true);
           // T-353: Toast for agent arrival (suppress on initial room load to avoid spam)
@@ -2902,16 +2963,37 @@ function loadPixiJS() {
           if (mover) {
             // Check if this is actual movement (not just rotation)
             const hasMoved = mover.targetX !== msg.x || mover.targetY !== msg.y;
-            
-            mover.targetX = clampCoord(msg.x);
-            mover.targetY = clampCoord(msg.y);
-            mover.direction = msg.rotation || msg.direction || mover.direction;
-            
-            // Play whoosh sound on movement
+
+            const newTargetX = clampCoord(msg.x);
+            const newTargetY = clampCoord(msg.y);
+
             if (hasMoved) {
+              // T-358: Set up linear tween — 150ms per tile, min 80ms for snap moves
+              const dist = Math.sqrt(
+                Math.pow(newTargetX - mover.x, 2) + Math.pow(newTargetY - mover.y, 2)
+              );
+              mover.tweenStartX = mover.x;
+              mover.tweenStartY = mover.y;
+              mover.tweenStartTime = Date.now();
+              mover.tweenDuration = Math.max(80, dist * 150); // ms
+
+              // T-358: Direction facing — screen-space x determines left/right
+              // isoToScreen: sx ∝ (x - y), so screen-left = (gdx - gdy) < 0
+              const gdx = newTargetX - mover.x;
+              const gdy = newTargetY - mover.y;
+              const screenDx = gdx - gdy;
+              if (screenDx < 0) mover.faceLeft = true;
+              else if (screenDx > 0) mover.faceLeft = false;
+
+              mover.isMoving = true;
+              mover.lastMoveTime = Date.now();
               playWhooshSound();
               setAgentStatus(msg.agentId, 'moving'); // T-340 status badge
             }
+
+            mover.targetX = newTargetX;
+            mover.targetY = newTargetY;
+            mover.direction = msg.rotation || msg.direction || mover.direction;
           }
           break;
 
