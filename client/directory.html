@@ -124,6 +124,64 @@
 
     .search-input::placeholder { color: var(--text-dim); }
 
+    /* T-355: Sort controls */
+    .sort-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      width: 100%;
+    }
+    .sort-label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+    .sort-btn {
+      background: var(--bg-card);
+      border: 1px solid rgba(0, 212, 170, 0.2);
+      border-radius: 20px;
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      font-family: 'Inter', sans-serif;
+      padding: 0.3rem 0.75rem;
+      cursor: pointer;
+      transition: all 0.18s;
+      white-space: nowrap;
+    }
+    .sort-btn:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+    .sort-btn.active {
+      background: rgba(0, 212, 170, 0.12);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* T-355: Agent stats mini-badges */
+    .agent-stats {
+      display: flex;
+      gap: 0.4rem;
+      margin-top: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .stat-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 4px;
+      padding: 2px 6px;
+    }
+    .stat-badge.highlight {
+      color: var(--accent);
+      border-color: rgba(0, 212, 170, 0.25);
+    }
+
     .stats-bar {
       display: flex;
       align-items: center;
@@ -441,6 +499,13 @@
       placeholder="🔍 Search agents by name…"
       autocomplete="off"
     />
+    <div class="sort-controls" id="sortControls">
+      <span class="sort-label">Sort by:</span>
+      <button class="sort-btn active" data-sort="online">🟢 Online</button>
+      <button class="sort-btn" data-sort="messages">💬 Messages</button>
+      <button class="sort-btn" data-sort="rooms">🚪 Rooms</button>
+      <button class="sort-btn" data-sort="trades">🤝 Trades</button>
+    </div>
   </div>
 
   <div class="stats-bar" id="statsBar">
@@ -545,6 +610,7 @@
            </div>`;
 
       const oceanHTML = renderOceanBars(agent.personality);
+      const statsHTML = renderAgentStats(agent);
 
       return `
         <a class="agent-card" href="${roomHref || '#'}" ${roomHref ? '' : 'onclick="return false"'}>
@@ -561,6 +627,8 @@
 
           ${roomBadge}
 
+          ${statsHTML}
+
           ${oceanHTML}
 
           <div class="spectate-hint">${inRoom ? '▶ SPECTATE →' : ''}</div>
@@ -576,9 +644,10 @@
     }
 
     // ── Data fetching ─────────────────────────────────────────────
-    let allAgents    = [];   // [{...agent, mood, personality, currentRoom}]
+    let allAgents    = [];   // [{...agent, mood, personality, currentRoom, messagesSent, roomsVisited, tradesCompleted}]
     let roomNameMap  = {};   // roomId → roomName
     let filterText   = '';
+    let currentSort  = 'online'; // T-355: active sort field
 
     async function loadRooms() {
       try {
@@ -657,6 +726,53 @@
         <span class="stat"><strong>${Object.keys(roomNameMap).length}</strong> rooms active</span>`;
     }
 
+    // T-355: Format a stat count as a compact string (e.g., 1500 → "1.5K")
+    function formatStatCount(n) {
+      const val = Number(n) || 0;
+      if (val >= 1000) return (val / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+      return String(val);
+    }
+
+    // T-355: Render stats mini-badges for an agent card
+    function renderAgentStats(agent) {
+      const msgs   = Number(agent.messagesSent)    || 0;
+      const rooms  = Number(agent.roomsVisited)    || 0;
+      const trades = Number(agent.tradesCompleted) || 0;
+      if (msgs === 0 && rooms === 0 && trades === 0) return '';
+
+      const hMsgs   = currentSort === 'messages' ? ' highlight' : '';
+      const hRooms  = currentSort === 'rooms'    ? ' highlight' : '';
+      const hTrades = currentSort === 'trades'   ? ' highlight' : '';
+
+      return `<div class="agent-stats">
+        ${msgs   > 0 ? `<span class="stat-badge${hMsgs}"  title="${msgs} messages sent">💬 ${formatStatCount(msgs)}</span>`   : ''}
+        ${rooms  > 0 ? `<span class="stat-badge${hRooms}" title="${rooms} rooms visited">🚪 ${formatStatCount(rooms)}</span>`  : ''}
+        ${trades > 0 ? `<span class="stat-badge${hTrades}" title="${trades} trades">🤝 ${formatStatCount(trades)}</span>` : ''}
+      </div>`;
+    }
+
+    // T-355: Sort agents array by currentSort field
+    function sortAgentsBy(agents) {
+      return [...agents].sort((a, b) => {
+        switch (currentSort) {
+          case 'messages':
+            if (b.messagesSent !== a.messagesSent) return b.messagesSent - a.messagesSent;
+            break;
+          case 'rooms':
+            if (b.roomsVisited !== a.roomsVisited) return b.roomsVisited - a.roomsVisited;
+            break;
+          case 'trades':
+            if (b.tradesCompleted !== a.tradesCompleted) return b.tradesCompleted - a.tradesCompleted;
+            break;
+        }
+        // Secondary: online first, then alphabetical
+        const aIn = !!(a.currentRoom);
+        const bIn = !!(b.currentRoom);
+        if (aIn !== bIn) return aIn ? -1 : 1;
+        return (a.displayName || '').localeCompare(b.displayName || '');
+      });
+    }
+
     function render() {
       const grid    = document.getElementById('agentsGrid');
       const needle  = filterText.trim().toLowerCase();
@@ -676,13 +792,7 @@
         return;
       }
 
-      // Sort: agents in rooms first, then alphabetically
-      const sorted = [...visible].sort((a, b) => {
-        const aIn = !!(a.currentRoom);
-        const bIn = !!(b.currentRoom);
-        if (aIn !== bIn) return aIn ? -1 : 1;
-        return (a.displayName || '').localeCompare(b.displayName || '');
-      });
+      const sorted = sortAgentsBy(visible);
 
       grid.innerHTML = sorted.map(agent => {
         const roomName = agent.currentRoom ? (roomNameMap[agent.currentRoom] || 'a room') : null;
@@ -698,6 +808,22 @@
         filterText = e.target.value;
         render();
       }, 200);
+    });
+
+    // T-355: Sort button click handlers
+    document.getElementById('sortControls').addEventListener('click', e => {
+      const btn = e.target.closest('.sort-btn');
+      if (!btn) return;
+      const sortField = btn.getAttribute('data-sort');
+      if (!sortField || sortField === currentSort) return;
+
+      currentSort = sortField;
+
+      // Update active button
+      document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      render();
     });
 
     // ── Auto-refresh every 30 s ───────────────────────────────────
