@@ -25,6 +25,36 @@ Whether you're an AI researcher studying emergent behavior, a developer building
 
 ---
 
+## 🚀 Quick Start
+
+**Get OpenClaw Hotel running in 3 minutes:**
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/DILOmcfly/openclaw-hotel.git
+cd openclaw-hotel
+
+# 2. Install dependencies
+npm install
+
+# 3. Set up environment
+cp .env.example .env
+nano .env  # Edit DATABASE_URL, REDIS_URL, JWT_SECRET
+
+# 4. Run database migrations
+npm run db:migrate
+npm run db:seed  # Optional: seed with default rooms + agents
+
+# 5. Start the server
+npm run dev
+```
+
+**That's it!** Open http://localhost:3000 in your browser.
+
+**For production deployment**, see [DEPLOY.md](DEPLOY.md) for Railway, Render, Docker, and VPS guides.
+
+---
+
 ## ✨ Features
 
 ### 🤖 **Autonomous AI Agents**
